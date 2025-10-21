@@ -158,63 +158,11 @@ class TaskDB:
         # 重试次数用尽，仍未获取到任务（高并发场景）
         return None
     
-    def _build_update_clauses(self, status: str, result_path: str = None, 
-                             error_message: str = None, worker_id: str = None, 
-                             task_id: str = None):
-        """
-        构建 UPDATE 和 WHERE 子句的辅助方法
-        
-        Args:
-            status: 新状态
-            result_path: 结果路径（可选）
-            error_message: 错误信息（可选）
-            worker_id: Worker ID（可选）
-            task_id: 任务ID（可选）
-            
-        Returns:
-            tuple: (update_clauses, update_params, where_clauses, where_params)
-        """
-        update_clauses = ['status = ?']
-        update_params = [status]
-        where_clauses = []
-        where_params = []
-        
-        # 添加 task_id 条件（如果提供）
-        if task_id:
-            where_clauses.append('task_id = ?')
-            where_params.append(task_id)
-        
-        # 处理 completed 状态
-        if status == 'completed':
-            update_clauses.append('completed_at = CURRENT_TIMESTAMP')
-            if result_path:
-                update_clauses.append('result_path = ?')
-                update_params.append(result_path)
-            # 只更新正在处理的任务
-            where_clauses.append("status = 'processing'")
-            if worker_id:
-                where_clauses.append('worker_id = ?')
-                where_params.append(worker_id)
-        
-        # 处理 failed 状态
-        elif status == 'failed':
-            update_clauses.append('completed_at = CURRENT_TIMESTAMP')
-            if error_message:
-                update_clauses.append('error_message = ?')
-                update_params.append(error_message)
-            # 只更新正在处理的任务
-            where_clauses.append("status = 'processing'")
-            if worker_id:
-                where_clauses.append('worker_id = ?')
-                where_params.append(worker_id)
-        
-        return update_clauses, update_params, where_clauses, where_params
-    
     def update_task_status(self, task_id: str, status: str, 
                           result_path: str = None, error_message: str = None,
                           worker_id: str = None):
         """
-        更新任务状态
+        更新任务状态（使用预定义 SQL 模板，防止 SQL 注入）
         
         Args:
             task_id: 任务ID
@@ -230,32 +178,109 @@ class TaskDB:
             1. 更新为 completed/failed 时会检查状态是 processing
             2. 如果提供 worker_id，会检查任务是否属于该 worker
             3. 返回 False 表示任务被其他进程修改了
+        
+        安全说明：
+            使用预定义的 SQL 模板，完全避免 SQL 注入风险
         """
         with self.get_cursor() as cursor:
-            # 使用辅助方法构建 UPDATE 和 WHERE 子句
-            update_clauses, update_params, where_clauses, where_params = \
-                self._build_update_clauses(status, result_path, error_message, worker_id, task_id)
+            success = False
             
-            # 合并参数：先 UPDATE 部分，再 WHERE 部分
-            all_params = update_params + where_params
+            # 根据不同状态使用预定义的 SQL 模板
+            if status == 'completed':
+                # 完成状态：更新状态、完成时间和结果路径
+                if worker_id:
+                    # 带 worker_id 验证
+                    sql = '''
+                        UPDATE tasks 
+                        SET status = ?, 
+                            completed_at = CURRENT_TIMESTAMP, 
+                            result_path = ?
+                        WHERE task_id = ? 
+                        AND status = 'processing' 
+                        AND worker_id = ?
+                    '''
+                    cursor.execute(sql, (status, result_path, task_id, worker_id))
+                else:
+                    # 不验证 worker_id
+                    sql = '''
+                        UPDATE tasks 
+                        SET status = ?, 
+                            completed_at = CURRENT_TIMESTAMP, 
+                            result_path = ?
+                        WHERE task_id = ? 
+                        AND status = 'processing'
+                    '''
+                    cursor.execute(sql, (status, result_path, task_id))
+                
+                success = cursor.rowcount > 0
             
-            sql = f'''
-                UPDATE tasks 
-                SET {', '.join(update_clauses)}
-                WHERE {' AND '.join(where_clauses)}
-            '''
+            elif status == 'failed':
+                # 失败状态：更新状态、完成时间和错误信息
+                if worker_id:
+                    # 带 worker_id 验证
+                    sql = '''
+                        UPDATE tasks 
+                        SET status = ?, 
+                            completed_at = CURRENT_TIMESTAMP, 
+                            error_message = ?
+                        WHERE task_id = ? 
+                        AND status = 'processing' 
+                        AND worker_id = ?
+                    '''
+                    cursor.execute(sql, (status, error_message, task_id, worker_id))
+                else:
+                    # 不验证 worker_id
+                    sql = '''
+                        UPDATE tasks 
+                        SET status = ?, 
+                            completed_at = CURRENT_TIMESTAMP, 
+                            error_message = ?
+                        WHERE task_id = ? 
+                        AND status = 'processing'
+                    '''
+                    cursor.execute(sql, (status, error_message, task_id))
+                
+                success = cursor.rowcount > 0
             
-            cursor.execute(sql, all_params)
+            elif status == 'cancelled':
+                # 取消状态：直接更新状态
+                sql = '''
+                    UPDATE tasks 
+                    SET status = ?, 
+                        completed_at = CURRENT_TIMESTAMP
+                    WHERE task_id = ?
+                '''
+                cursor.execute(sql, (status, task_id))
+                success = cursor.rowcount > 0
             
-            # 检查更新是否成功
-            success = cursor.rowcount > 0
+            elif status == 'pending':
+                # 重置为待处理状态
+                sql = '''
+                    UPDATE tasks 
+                    SET status = ?, 
+                        worker_id = NULL,
+                        started_at = NULL
+                    WHERE task_id = ?
+                '''
+                cursor.execute(sql, (status, task_id))
+                success = cursor.rowcount > 0
+            
+            else:
+                # 其他状态（如 processing）：简单更新状态
+                sql = '''
+                    UPDATE tasks 
+                    SET status = ?
+                    WHERE task_id = ?
+                '''
+                cursor.execute(sql, (status, task_id))
+                success = cursor.rowcount > 0
             
             # 调试日志（仅在失败时）
             if not success and status in ['completed', 'failed']:
                 from loguru import logger
                 logger.debug(
                     f"Status update failed: task_id={task_id}, status={status}, "
-                    f"worker_id={worker_id}, SQL: {sql}, params: {all_params}"
+                    f"worker_id={worker_id}"
                 )
             
             return success

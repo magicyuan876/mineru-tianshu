@@ -1,5 +1,3 @@
-[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/magicyuan876-mineru-tianshu-badge.png)](https://mseep.ai/app/magicyuan876-mineru-tianshu)
-
 <div align="center">
 
 # MinerU Tianshu 天枢
@@ -27,6 +25,10 @@
   <img src="https://img.shields.io/badge/CUDA-Supported-76B900?logo=nvidia&logoColor=white" alt="CUDA"/>
   <img src="https://img.shields.io/badge/MCP-Supported-orange" alt="MCP"/>
 </p>
+
+[![Verified on MseeP](https://mseep.ai/badge.svg)](https://mseep.ai/app/819ff68b-5154-4717-9361-7db787d5a2f8)
+
+
 
 [English](./README_EN.md) | 简体中文
 
