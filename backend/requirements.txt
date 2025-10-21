@@ -27,6 +27,11 @@ markitdown[all]>=0.1.3
 # MinIO Object Storage
 minio>=7.2.0
 
+# MCP Protocol Support
+mcp>=1.1.0
+starlette>=0.37.0
+sse-starlette>=2.0.0
+
 # Optional: For better performance
 # ujson>=5.10.0
 

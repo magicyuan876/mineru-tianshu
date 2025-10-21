@@ -19,6 +19,7 @@ MinerU Tianshu 是一个企业级的文档解析服务,提供:
 - ✅ **任务详情**: 实时状态追踪,Markdown 预览,自动轮询更新
 - ✅ **任务列表**: 筛选、搜索、分页、批量操作
 - ✅ **队列管理**: 系统监控,重置超时任务,清理旧文件
+- ✅ **MCP 协议支持**: 通过 Model Context Protocol 支持 AI 助手调用
 
 ### 支持的文件格式
 - 📄 **PDF 和图片** - 使用 MinerU 解析（GPU 加速）
@@ -47,10 +48,13 @@ mineru-server/
 │   ├── task_db.py         # 数据库管理
 │   ├── litserve_worker.py # Worker Pool
 │   ├── task_scheduler.py  # 任务调度器
+│   ├── mcp_server.py      # MCP 协议服务器（可选）
 │   ├── start_all.py       # 启动脚本
 │   ├── requirements.txt
-│   └── README.md          # 后端文档
+│   ├── README.md          # 后端文档
+│   └── MCP_GUIDE.md       # MCP 详细指南
 │
+├── mcp_config.example.json # MCP 配置示例
 └── README.md              # 本文件
 ```
 
@@ -73,12 +77,16 @@ pip install -r requirements.txt
 
 # 一键启动所有服务
 python start_all.py
+
+# 如果需要启用 MCP 协议支持（用于 AI 助手调用）
+python start_all.py --enable-mcp
 ```
 
 后端服务将在以下端口启动:
 - API Server: http://localhost:8000
 - API 文档: http://localhost:8000/docs
 - Worker Pool: http://localhost:9000
+- MCP Server: http://localhost:8001 (如启用)
 
 ### 2. 启动前端服务
 
@@ -147,6 +155,7 @@ npm run dev
 - **多GPU隔离**: 每个进程只使用分配的GPU
 - **自动清理**: 定期清理旧结果文件,保留数据库记录
 - **双解析器**: PDF/图片用 MinerU, Office等用 MarkItDown
+- **MCP 协议**: 支持 AI 助手通过标准协议调用文档解析服务
 
 ## ⚙️ 配置说明
 
@@ -161,9 +170,135 @@ python backend/start_all.py \
   --accelerator cuda \
   --devices 0,1 \
   --workers-per-device 2
+
+# 启用 MCP 协议支持
+python backend/start_all.py --enable-mcp --mcp-port 8001
 ```
 
 详见 [backend/README.md](backend/README.md)
+
+### MCP 协议集成
+
+MinerU Tianshu 支持 **Model Context Protocol (MCP)**，可以让 AI 助手（如 Claude Desktop）直接调用文档解析服务。
+
+#### 什么是 MCP？
+
+MCP 是 Anthropic 推出的开放协议，让 AI 助手可以直接调用外部工具和服务，无需手动 API 集成。
+
+#### 快速配置
+
+**1. 启动服务（启用 MCP）**
+
+```bash
+cd backend
+python start_all.py --enable-mcp
+```
+
+服务启动后，MCP Server 将在 `http://localhost:8001/mcp` 运行。
+
+**2. 配置 Claude Desktop**
+
+编辑配置文件（根据你的操作系统）：
+
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Linux**: `~/.config/Claude/claude_desktop_config.json`
+
+添加以下内容：
+
+```json
+{
+  "mcpServers": {
+    "mineru-tianshu": {
+      "url": "http://localhost:8001/mcp/sse",
+      "transport": "sse"
+    }
+  }
+}
+```
+
+**远程服务器部署：** 将 `localhost` 替换为服务器 IP：
+
+```json
+{
+  "mcpServers": {
+    "mineru-tianshu": {
+      "url": "http://your-server-ip:8001/mcp/sse",
+      "transport": "sse"
+    }
+  }
+}
+```
+
+**3. 重启 Claude Desktop**
+
+配置完成后，重启 Claude Desktop 使配置生效。
+
+**4. 开始使用**
+
+在 Claude 对话中，直接使用自然语言：
+
+```
+帮我解析这个 PDF 文件：C:/Users/user/document.pdf
+```
+
+或：
+
+```
+请解析这个在线论文：https://arxiv.org/pdf/2301.12345.pdf
+```
+
+Claude 会自动：
+1. 读取文件或下载 URL
+2. 调用 MinerU Tianshu 解析服务
+3. 等待处理完成
+4. 返回 Markdown 格式的解析结果
+
+#### 支持的功能
+
+MCP Server 提供 4 个工具：
+
+1. **parse_document** - 解析文档为 Markdown 格式
+   - 输入方式：Base64 编码（< 100MB）或 URL
+   - 支持格式：PDF、图片、Office 文档、网页和文本
+
+2. **get_task_status** - 查询任务状态和结果
+
+3. **list_tasks** - 列出最近的任务
+
+4. **get_queue_stats** - 获取队列统计信息
+
+#### 技术架构
+
+```
+Claude Desktop (客户端)
+    ↓ MCP Protocol (SSE)
+MCP Server (Port 8001)
+    ↓ HTTP REST API
+API Server (Port 8000)
+    ↓ Task Queue
+LitServe Worker Pool (Port 9000)
+    ↓ GPU Processing
+MinerU / MarkItDown
+```
+
+#### 常见问题
+
+**Q: MCP Server 无法启动？**
+- 检查端口 8001 是否被占用
+- 使用 `--mcp-port` 指定其他端口
+
+**Q: Claude Desktop 无法连接？**
+1. 确认 MCP Server 正在运行：`curl http://localhost:8001/mcp/sse`
+2. 检查配置文件 JSON 格式是否正确
+3. 重启 Claude Desktop
+
+**Q: 文件传输失败？**
+- 小文件自动使用 Base64 编码
+- 大文件（> 100MB）会返回错误
+- URL 文件需要公开可访问
+
+**详细文档：** [backend/MCP_GUIDE.md](backend/MCP_GUIDE.md)
 
 ### 前端配置
 

@@ -24,7 +24,9 @@ class TianshuLauncher:
         worker_port=9000,
         workers_per_device=1,
         devices='auto',
-        accelerator='auto'
+        accelerator='auto',
+        enable_mcp=False,
+        mcp_port=8001
     ):
         self.output_dir = output_dir
         self.api_port = api_port
@@ -32,6 +34,8 @@ class TianshuLauncher:
         self.workers_per_device = workers_per_device
         self.devices = devices
         self.accelerator = accelerator
+        self.enable_mcp = enable_mcp
+        self.mcp_port = mcp_port
         self.processes = []
     
     def start_services(self):
@@ -43,8 +47,10 @@ class TianshuLauncher:
         logger.info("")
         
         try:
+            total_services = 4 if self.enable_mcp else 3
+            
             # 1. 启动 API Server
-            logger.info("📡 [1/3] Starting API Server...")
+            logger.info(f"📡 [1/{total_services}] Starting API Server...")
             env = os.environ.copy()
             env['API_PORT'] = str(self.api_port)
             api_proc = subprocess.Popen(
@@ -64,7 +70,7 @@ class TianshuLauncher:
             logger.info("")
             
             # 2. 启动 LitServe Worker Pool
-            logger.info("⚙️  [2/3] Starting LitServe Worker Pool...")
+            logger.info(f"⚙️  [2/{total_services}] Starting LitServe Worker Pool...")
             worker_cmd = [
                 sys.executable, 'litserve_worker.py',
                 '--output-dir', self.output_dir,
@@ -91,7 +97,7 @@ class TianshuLauncher:
             logger.info("")
             
             # 3. 启动 Task Scheduler
-            logger.info("🔄 [3/3] Starting Task Scheduler...")
+            logger.info(f"🔄 [3/{total_services}] Starting Task Scheduler...")
             scheduler_cmd = [
                 sys.executable, 'task_scheduler.py',
                 '--litserve-url', f'http://localhost:{self.worker_port}/predict',
@@ -112,6 +118,30 @@ class TianshuLauncher:
             logger.info(f"   ✅ Task Scheduler started (PID: {scheduler_proc.pid})")
             logger.info("")
             
+            # 4. 启动 MCP Server（可选）
+            if self.enable_mcp:
+                logger.info(f"🔌 [4/{total_services}] Starting MCP Server...")
+                mcp_env = os.environ.copy()
+                mcp_env['API_BASE_URL'] = f'http://localhost:{self.api_port}'
+                mcp_env['MCP_PORT'] = str(self.mcp_port)
+                mcp_env['MCP_HOST'] = '0.0.0.0'
+                
+                mcp_proc = subprocess.Popen(
+                    [sys.executable, 'mcp_server.py'],
+                    cwd=Path(__file__).parent,
+                    env=mcp_env
+                )
+                self.processes.append(('MCP Server', mcp_proc))
+                time.sleep(3)
+                
+                if mcp_proc.poll() is not None:
+                    logger.error("❌ MCP Server failed to start!")
+                    return False
+                
+                logger.info(f"   ✅ MCP Server started (PID: {mcp_proc.pid})")
+                logger.info(f"   🌐 MCP Endpoint: http://localhost:{self.mcp_port}/mcp")
+                logger.info("")
+            
             # 启动成功
             logger.info("=" * 70)
             logger.info("✅ All Services Started Successfully!")
@@ -122,6 +152,8 @@ class TianshuLauncher:
             logger.info(f"   • Submit Task:       POST http://localhost:{self.api_port}/api/v1/tasks/submit")
             logger.info(f"   • Query Status:      GET  http://localhost:{self.api_port}/api/v1/tasks/{{task_id}}")
             logger.info(f"   • Queue Stats:       GET  http://localhost:{self.api_port}/api/v1/queue/stats")
+            if self.enable_mcp:
+                logger.info(f"   • MCP Endpoint:      http://localhost:{self.mcp_port}/mcp/sse")
             logger.info("")
             logger.info("🔧 Service Details:")
             for name, proc in self.processes:
@@ -202,6 +234,9 @@ def main():
   
   # 只使用指定的GPU
   python start_all.py --accelerator cuda --devices 0,1
+  
+  # 启用 MCP Server 支持（用于 AI 助手调用）
+  python start_all.py --enable-mcp --mcp-port 8001
         """
     )
     
@@ -218,6 +253,10 @@ def main():
                        help='每个GPU的worker数量 (默认: 1)')
     parser.add_argument('--devices', type=str, default='auto',
                        help='使用的GPU设备，逗号分隔 (默认: auto，使用所有GPU)')
+    parser.add_argument('--enable-mcp', action='store_true',
+                       help='启用 MCP Server（支持 Model Context Protocol 远程调用）')
+    parser.add_argument('--mcp-port', type=int, default=8001,
+                       help='MCP Server 端口 (默认: 8001)')
     
     args = parser.parse_args()
     
@@ -237,7 +276,9 @@ def main():
         worker_port=args.worker_port,
         workers_per_device=args.workers_per_device,
         devices=devices,
-        accelerator=args.accelerator
+        accelerator=args.accelerator,
+        enable_mcp=args.enable_mcp,
+        mcp_port=args.mcp_port
     )
     
     # 设置信号处理
