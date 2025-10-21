@@ -28,6 +28,14 @@ Vue 3 Frontend + FastAPI Backend + LitServe GPU Load Balancing + MCP Protocol Su
 
 English | [简体中文](./README.md)
 
+<p>
+  <a href="https://github.com/magicyuan876/mineru-tianshu">
+    <img src="https://img.shields.io/badge/⭐_Star-This_Project-yellow?style=for-the-badge&logo=github" alt="Star"/>
+  </a>
+</p>
+
+**If you find this project helpful, please ⭐ Star it! Your support means a lot!**
+
 </div>
 
 ---
@@ -563,7 +571,24 @@ limitations under the License.
 
 ---
 
+<div align="center">
+
 **Tianshu** - Enterprise-grade Multi-GPU Document Parsing Service ⚡️
 
 *Named after the first star of the Big Dipper, symbolizing core scheduling capabilities*
+
+<br/>
+
+### Like this project?
+
+<a href="https://github.com/magicyuan876/mineru-tianshu/stargazers">
+  <img src="https://img.shields.io/github/stars/magicyuan876/mineru-tianshu?style=social" alt="Stars"/>
+</a>
+<a href="https://github.com/magicyuan876/mineru-tianshu/network/members">
+  <img src="https://img.shields.io/github/forks/magicyuan876/mineru-tianshu?style=social" alt="Forks"/>
+</a>
+
+**Click ⭐ Star to support this project. Thank you!**
+
+</div>
 

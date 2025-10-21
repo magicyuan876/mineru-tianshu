@@ -28,6 +28,14 @@
 
 [English](./README_EN.md) | 简体中文
 
+<p>
+  <a href="https://github.com/magicyuan876/mineru-tianshu">
+    <img src="https://img.shields.io/badge/⭐_Star-项目-yellow?style=for-the-badge&logo=github" alt="Star"/>
+  </a>
+</p>
+
+**如果这个项目对你有帮助，请点击右上角 ⭐ Star 支持一下，这是对开发者最大的鼓励！**
+
 </div>
 
 ---
@@ -563,6 +571,23 @@ limitations under the License.
 
 ---
 
+<div align="center">
+
 **天枢 (Tianshu)** - 企业级多 GPU 文档解析服务 ⚡️
 
 *北斗第一星，寓意核心调度能力*
+
+<br/>
+
+### 喜欢这个项目？
+
+<a href="https://github.com/magicyuan876/mineru-tianshu/stargazers">
+  <img src="https://img.shields.io/github/stars/magicyuan876/mineru-tianshu?style=social" alt="Stars"/>
+</a>
+<a href="https://github.com/magicyuan876/mineru-tianshu/network/members">
+  <img src="https://img.shields.io/github/forks/magicyuan876/mineru-tianshu?style=social" alt="Forks"/>
+</a>
+
+**点击 ⭐ Star 支持项目发展，感谢！**
+
+</div>

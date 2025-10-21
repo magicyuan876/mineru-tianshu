@@ -43,6 +43,18 @@
               </div>
             </div>
 
+            <!-- GitHub Star 按钮 -->
+            <a
+              href="https://github.com/magicyuan876/mineru-tianshu"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="hidden sm:flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 hover:text-gray-900 transition-colors"
+              title="Star on GitHub"
+            >
+              <Github class="w-4 h-4" />
+              <span>Star</span>
+            </a>
+
             <!-- 刷新按钮 -->
             <button
               @click="refreshStats"
@@ -94,10 +106,28 @@
 
     <!-- 页脚 -->
     <footer class="bg-white border-t border-gray-200 mt-auto">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-        <p class="text-center text-sm text-gray-500">
-          © 2024 MinerU Tianshu - 天枢文档解析服务
-        </p>
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div class="flex flex-col items-center gap-3">
+          <!-- GitHub Star 提示 -->
+          <div class="flex items-center gap-2 text-sm">
+            <span class="text-gray-600">喜欢这个项目？</span>
+            <a
+              href="https://github.com/magicyuan876/mineru-tianshu"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="inline-flex items-center gap-1.5 px-3 py-1 text-sm font-medium text-white bg-gray-800 rounded-md hover:bg-gray-700 transition-colors"
+            >
+              <Github class="w-4 h-4" />
+              <span>Star on GitHub</span>
+              <Star class="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
+            </a>
+          </div>
+          
+          <!-- 版权信息 -->
+          <p class="text-center text-sm text-gray-500">
+            © 2024 MinerU Tianshu - 天枢文档解析服务
+          </p>
+        </div>
       </div>
     </footer>
   </div>
@@ -116,6 +146,8 @@ import {
   Menu,
   X,
   RefreshCw,
+  Github,
+  Star,
 } from 'lucide-vue-next'
 
 const route = useRoute()

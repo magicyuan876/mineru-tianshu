@@ -161,6 +161,12 @@ class TianshuLauncher:
             logger.info("")
             logger.info("⚠️  Press Ctrl+C to stop all services")
             logger.info("=" * 70)
+            logger.info("")
+            logger.info("💖 If you find this project helpful, please consider:")
+            logger.info("   ⭐ Star us on GitHub: https://github.com/magicyuan876/mineru-tianshu")
+            logger.info("   🐛 Report issues or contribute: https://github.com/magicyuan876/mineru-tianshu/issues")
+            logger.info("")
+            logger.info("=" * 70)
             
             return True
             
