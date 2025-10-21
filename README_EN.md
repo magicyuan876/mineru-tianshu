@@ -1,0 +1,569 @@
+<div align="center">
+
+# MinerU Tianshu 天枢
+
+**Enterprise-grade Multi-GPU Document Parsing Service**
+
+Vue 3 Frontend + FastAPI Backend + LitServe GPU Load Balancing + MCP Protocol Support
+
+<p>
+  <a href="https://github.com/magicyuan876/mineru-tianshu/stargazers">
+    <img src="https://img.shields.io/github/stars/magicyuan876/mineru-tianshu?style=for-the-badge&logo=github&color=yellow" alt="Stars"/>
+  </a>
+  <a href="https://github.com/magicyuan876/mineru-tianshu/network/members">
+    <img src="https://img.shields.io/github/forks/magicyuan876/mineru-tianshu?style=for-the-badge&logo=github&color=blue" alt="Forks"/>
+  </a>
+  <a href="https://github.com/magicyuan876/mineru-tianshu/blob/main/LICENSE">
+    <img src="https://img.shields.io/badge/license-Apache%202.0-green?style=for-the-badge" alt="License"/>
+  </a>
+</p>
+
+<p>
+  <img src="https://img.shields.io/badge/Python-3.8+-blue?logo=python&logoColor=white" alt="Python"/>
+  <img src="https://img.shields.io/badge/Vue-3.x-green?logo=vue.js&logoColor=white" alt="Vue"/>
+  <img src="https://img.shields.io/badge/FastAPI-0.115+-teal?logo=fastapi&logoColor=white" alt="FastAPI"/>
+  <img src="https://img.shields.io/badge/CUDA-Supported-76B900?logo=nvidia&logoColor=white" alt="CUDA"/>
+  <img src="https://img.shields.io/badge/MCP-Supported-orange" alt="MCP"/>
+</p>
+
+English | [简体中文](./README.md)
+
+</div>
+
+---
+
+## 🌟 Introduction
+
+MinerU Tianshu is an enterprise-grade document parsing service that provides:
+- **Modern Web Interface**: Beautiful and user-friendly management interface built with Vue 3 + TypeScript + TailwindCSS
+- **Powerful Parsing Capabilities**: PDF/image parsing based on MinerU + Office document parsing with MarkItDown
+- **High-Performance Architecture**: GPU load balancing and concurrent processing with FastAPI + LitServe
+- **Complete Task Management**: Enterprise-level features including task queue, priority, status tracking, automatic retry, etc.
+
+## ✨ Key Features
+
+<table>
+  <tr>
+    <td align="center" width="25%">
+      <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Objects/Desktop%20Computer.png" width="60"/><br/>
+      <strong>Modern UI</strong><br/>
+      <sub>Vue 3 + TypeScript + TailwindCSS</sub>
+    </td>
+    <td align="center" width="25%">
+      <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Objects/Electric%20Plug.png" width="60"/><br/>
+      <strong>GPU Acceleration</strong><br/>
+      <sub>LitServe Load Balancing + Multi-GPU Isolation</sub>
+    </td>
+    <td align="center" width="25%">
+      <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Objects/Memo.png" width="60"/><br/>
+      <strong>Smart Parsing</strong><br/>
+      <sub>PDF/Office/Images to Markdown</sub>
+    </td>
+    <td align="center" width="25%">
+      <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Objects/Link.png" width="60"/><br/>
+      <strong>MCP Protocol</strong><br/>
+      <sub>Seamless AI Assistant Integration</sub>
+    </td>
+  </tr>
+</table>
+
+## 📸 Screenshots
+
+<div align="center">
+
+### 📊 Dashboard - Real-time Monitoring
+
+<img src="./docs/img/dashboard.png" alt="Dashboard" width="80%"/>
+
+*Real-time queue statistics and recent tasks monitoring*
+
+---
+
+### 📤 Task Submission - Drag & Drop Upload
+
+<img src="./docs/img/submit.png" alt="Task Submission" width="80%"/>
+
+*Supports batch processing and advanced configuration*
+
+---
+
+### ⚙️ Queue Management - System Monitoring
+
+<img src="./docs/img/tasks.png" alt="Queue Management" width="80%"/>
+
+*Reset timeout tasks and clean up old files*
+
+</div>
+
+### Main Features
+- ✅ **Dashboard**: Real-time monitoring of queue statistics and recent tasks
+- ✅ **Task Submission**: Drag-and-drop file upload, batch processing, and advanced configuration
+- ✅ **Task Details**: Real-time status tracking, Markdown preview, automatic polling updates
+- ✅ **Task List**: Filtering, searching, pagination, batch operations
+- ✅ **Queue Management**: System monitoring, reset timeout tasks, clean up old files
+- ✅ **MCP Protocol Support**: AI assistant integration via Model Context Protocol
+
+### Supported File Formats
+- 📄 **PDF and Images** - Parsed with MinerU (GPU accelerated)
+- 📊 **Office Documents** - Word, Excel, PowerPoint (using MarkItDown)
+- 🌐 **Web and Text** - HTML, Markdown, TXT, CSV, etc.
+
+## 🏗️ Project Structure
+
+```
+mineru-server/
+├── frontend/               # Vue 3 frontend project
+│   ├── src/
+│   │   ├── api/           # API interface layer
+│   │   ├── components/    # Common components
+│   │   ├── layouts/       # Layout components
+│   │   ├── views/         # Page components
+│   │   ├── stores/        # Pinia state management
+│   │   ├── router/        # Vue Router
+│   │   └── utils/         # Utility functions
+│   ├── package.json
+│   ├── vite.config.ts
+│   └── README.md          # Frontend documentation
+│
+├── backend/                # Python backend project
+│   ├── api_server.py      # FastAPI server
+│   ├── task_db.py         # Database management
+│   ├── litserve_worker.py # Worker Pool
+│   ├── task_scheduler.py  # Task scheduler
+│   ├── mcp_server.py      # MCP Protocol server (optional)
+│   ├── start_all.py       # Startup script
+│   ├── requirements.txt
+│   ├── README.md          # Backend documentation
+│   └── MCP_GUIDE.md       # MCP integration guide
+│
+├── mcp_config.example.json # MCP configuration example
+└── README.md              # This file
+```
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- **Node.js** 18+ (frontend)
+- **Python** 3.8+ (backend)
+- **CUDA** (optional, for GPU acceleration)
+
+### 1. Start Backend Services
+
+```bash
+# Navigate to backend directory
+cd backend
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Start all services with one command
+python start_all.py
+
+# Enable MCP protocol support (for AI assistant integration)
+python start_all.py --enable-mcp
+```
+
+Backend services will start on the following ports:
+- API Server: http://localhost:8000
+- API Documentation: http://localhost:8000/docs
+- Worker Pool: http://localhost:9000
+- MCP Server: http://localhost:8001 (if enabled)
+
+### 2. Start Frontend Service
+
+```bash
+# Navigate to frontend directory
+cd frontend
+
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+```
+
+Frontend service will start at http://localhost:3000
+
+### 3. Access the Application
+
+Open your browser and visit http://localhost:3000
+
+## 📖 Usage Guide
+
+### Submit a Task
+
+1. Click "Submit Task" in the top navigation bar
+2. Drag and drop or click to upload files (supports batch upload)
+3. Configure parsing options:
+   - Select processing backend (pipeline/vlm-transformers/vlm-vllm-engine)
+   - Set document language
+   - Enable formula/table recognition
+   - Set task priority
+4. Click "Submit Task"
+
+### View Task Status
+
+1. Find your task in the dashboard or task list
+2. Click "View" to enter the task details page
+3. Page automatically polls for status updates
+4. When task is completed, you can:
+   - Preview Markdown results
+   - Download Markdown file
+   - View processing time and error messages (if failed)
+
+### Manage Queue
+
+1. Click "Queue Management" in the top navigation bar
+2. View real-time queue statistics
+3. Perform management operations:
+   - Reset timeout tasks
+   - Clean up old task files
+   - System health check
+
+## 🎯 Core Features
+
+### Frontend Features
+- **Modern UI**: Beautiful interface based on TailwindCSS
+- **Responsive Design**: Perfect adaptation for desktop and mobile
+- **Real-time Updates**: Automatic refresh of queue statistics and task status
+- **Batch Operations**: Support for batch file upload and task management
+- **Markdown Preview**: Real-time rendering of parsing results with code highlighting
+
+### Backend Features
+- **Worker Active Pull**: 0.5s response time, no scheduler trigger needed
+- **Concurrency Safe**: Atomic operations prevent task duplication, supports multi-worker concurrency
+- **GPU Load Balancing**: LitServe automatic scheduling, avoiding VRAM conflicts
+- **Multi-GPU Isolation**: Each process only uses allocated GPUs
+- **Automatic Cleanup**: Periodically clean old result files, retain database records
+- **Dual Parsers**: MinerU for PDF/images, MarkItDown for Office files
+- **MCP Protocol**: AI assistants can call document parsing service via standard protocol
+
+## ⚙️ Configuration
+
+### Backend Configuration
+
+```bash
+# Custom startup configuration
+python backend/start_all.py \
+  --output-dir /data/output \
+  --api-port 8000 \
+  --worker-port 9000 \
+  --accelerator cuda \
+  --devices 0,1 \
+  --workers-per-device 2
+
+# Enable MCP protocol support
+python backend/start_all.py --enable-mcp --mcp-port 8001
+```
+
+See [backend/README.md](backend/README.md) for details.
+
+### MCP Protocol Integration
+
+MinerU Tianshu supports **Model Context Protocol (MCP)**, allowing AI assistants (like Claude Desktop) to directly call the document parsing service.
+
+#### What is MCP?
+
+MCP is an open protocol introduced by Anthropic that allows AI assistants to directly call external tools and services without manual API integration.
+
+#### Quick Configuration
+
+**1. Start service with MCP enabled**
+
+```bash
+cd backend
+python start_all.py --enable-mcp
+```
+
+After startup, MCP Server will run at `http://localhost:8001/mcp`.
+
+**2. Configure Claude Desktop**
+
+Edit the configuration file (based on your OS):
+
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Linux**: `~/.config/Claude/claude_desktop_config.json`
+
+Add the following content:
+
+```json
+{
+  "mcpServers": {
+    "mineru-tianshu": {
+      "url": "http://localhost:8001/mcp/sse",
+      "transport": "sse"
+    }
+  }
+}
+```
+
+**Remote server deployment:** Replace `localhost` with your server IP:
+
+```json
+{
+  "mcpServers": {
+    "mineru-tianshu": {
+      "url": "http://your-server-ip:8001/mcp/sse",
+      "transport": "sse"
+    }
+  }
+}
+```
+
+**3. Restart Claude Desktop**
+
+After configuration, restart Claude Desktop to apply changes.
+
+**4. Start Using**
+
+In Claude conversation, use natural language directly:
+
+```
+Please help me parse this PDF file: C:/Users/user/document.pdf
+```
+
+or:
+
+```
+Parse this online paper: https://arxiv.org/pdf/2301.12345.pdf
+```
+
+Claude will automatically:
+1. Read the file or download URL
+2. Call MinerU Tianshu parsing service
+3. Wait for processing to complete
+4. Return results in Markdown format
+
+#### Supported Features
+
+MCP Server provides 4 tools:
+
+1. **parse_document** - Parse documents to Markdown format
+   - Input methods: Base64 encoding (< 100MB) or URL
+   - Supported formats: PDF, images, Office documents, web pages and text
+
+2. **get_task_status** - Query task status and results
+
+3. **list_tasks** - List recent tasks
+
+4. **get_queue_stats** - Get queue statistics
+
+#### Technical Architecture
+
+```
+Claude Desktop (Client)
+    ↓ MCP Protocol (SSE)
+MCP Server (Port 8001)
+    ↓ HTTP REST API
+API Server (Port 8000)
+    ↓ Task Queue
+LitServe Worker Pool (Port 9000)
+    ↓ GPU Processing
+MinerU / MarkItDown
+```
+
+#### FAQ
+
+**Q: MCP Server won't start?**
+- Check if port 8001 is occupied
+- Use `--mcp-port` to specify another port
+
+**Q: Claude Desktop cannot connect?**
+1. Confirm MCP Server is running: `curl http://localhost:8001/mcp/sse`
+2. Check if configuration file JSON format is correct
+3. Restart Claude Desktop
+
+**Q: File transfer failed?**
+- Small files automatically use Base64 encoding
+- Large files (> 100MB) will return error
+- URL files need to be publicly accessible
+
+**Detailed documentation:** [backend/MCP_GUIDE.md](backend/MCP_GUIDE.md)
+
+### Frontend Configuration
+
+Modify `frontend/.env.development` for development:
+```
+VITE_API_BASE_URL=http://localhost:8000
+```
+
+Modify `frontend/.env.production` for production:
+```
+VITE_API_BASE_URL=/api
+```
+
+See [frontend/README.md](frontend/README.md) for details.
+
+## 🚢 Production Deployment
+
+### Frontend Build
+
+```bash
+cd frontend
+npm run build
+```
+
+Build artifacts will be in the `frontend/dist/` directory.
+
+### Nginx Configuration Example
+
+```nginx
+server {
+    listen 80;
+    server_name your-domain.com;
+
+    # Frontend static files
+    root /path/to/frontend/dist;
+    index index.html;
+
+    # Frontend routing
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # API proxy to backend
+    location /api/ {
+        proxy_pass http://localhost:8000/api/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+}
+```
+
+### Backend Deployment
+
+Use systemd or supervisor to manage backend services:
+
+```bash
+# Start backend
+cd backend
+python start_all.py --api-port 8000 --worker-port 9000
+```
+
+## 📚 Tech Stack
+
+### Frontend
+- Vue 3 (Composition API)
+- TypeScript
+- Vite
+- TailwindCSS
+- Vue Router
+- Pinia
+- Axios
+- Marked (Markdown rendering)
+- Highlight.js (code highlighting)
+- Lucide Vue (icons)
+
+### Backend
+- FastAPI
+- LitServe
+- MinerU
+- MarkItDown
+- SQLite
+- Loguru
+- MinIO (optional)
+
+## 🔧 Troubleshooting
+
+### Frontend Cannot Connect to Backend
+
+Check if backend is running normally:
+```bash
+curl http://localhost:8000/api/v1/health
+```
+
+Check frontend proxy configuration:
+```typescript
+// frontend/vite.config.ts
+server: {
+  proxy: {
+    '/api': {
+      target: 'http://localhost:8000',
+      changeOrigin: true,
+    }
+  }
+}
+```
+
+### Worker Cannot Start
+
+Check GPU availability:
+```bash
+nvidia-smi
+```
+
+Check Python dependencies:
+```bash
+pip list | grep -E "(mineru|litserve|torch)"
+```
+
+For more troubleshooting:
+- [Frontend Troubleshooting](frontend/README.md)
+- [Backend Troubleshooting](backend/README.md)
+
+## 📄 API Documentation
+
+After starting the backend, visit http://localhost:8000/docs to view complete API documentation.
+
+Main API endpoints:
+- `POST /api/v1/tasks/submit` - Submit task
+- `GET /api/v1/tasks/{task_id}` - Query task status
+- `DELETE /api/v1/tasks/{task_id}` - Cancel task
+- `GET /api/v1/queue/stats` - Get queue statistics
+- `GET /api/v1/queue/tasks` - Get task list
+
+## 🤝 Contributing
+
+Issues and Pull Requests are welcome!
+
+## 🙏 Acknowledgments
+
+This project is built upon the following excellent open-source projects. We sincerely thank all contributors:
+
+- **[MinerU](https://github.com/opendatalab/MinerU)** - Powerful PDF and image document parsing tool
+  - Provides high-quality GPU-accelerated document parsing capabilities
+  - Supports advanced features like formula recognition and table extraction
+  
+- **[MarkItDown](https://github.com/microsoft/markitdown)** - Microsoft's open-source document conversion tool
+  - Provides parsing support for Office documents, HTML, and various formats
+  - Simple and easy-to-use API design
+
+- **[LitServe](https://github.com/Lightning-AI/LitServe)** - High-performance AI model serving framework
+  - Provides excellent GPU load balancing capabilities
+  - Simplifies multi-GPU concurrent processing implementation
+
+- **[Vue.js](https://vuejs.org/)** - The Progressive JavaScript Framework
+- **[FastAPI](https://fastapi.tiangolo.com/)** - Modern, fast web framework
+- **[TailwindCSS](https://tailwindcss.com/)** - A utility-first CSS framework
+
+Special thanks to all developers who have contributed code and suggestions to this project!
+
+## 📜 License
+
+This project is licensed under the [Apache License 2.0](LICENSE).
+
+```
+Copyright 2024 MinerU Tianshu Contributors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+```
+
+---
+
+**Tianshu** - Enterprise-grade Multi-GPU Document Parsing Service ⚡️
+
+*Named after the first star of the Big Dipper, symbolizing core scheduling capabilities*
+

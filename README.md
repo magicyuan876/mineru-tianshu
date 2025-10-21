@@ -1,7 +1,36 @@
-# MinerU Tianshu (天枢)
+<div align="center">
 
-> 天枢 - 企业级多GPU文档解析服务  
-> 结合 Vue 3 前端 + FastAPI 后端 + LitServe GPU负载均衡的全栈解决方案
+# MinerU Tianshu 天枢
+
+**企业级多GPU文档解析服务**
+
+结合 Vue 3 前端 + FastAPI 后端 + LitServe GPU负载均衡 + MCP协议支持
+
+<p>
+  <a href="https://github.com/magicyuan876/mineru-tianshu/stargazers">
+    <img src="https://img.shields.io/github/stars/magicyuan876/mineru-tianshu?style=for-the-badge&logo=github&color=yellow" alt="Stars"/>
+  </a>
+  <a href="https://github.com/magicyuan876/mineru-tianshu/network/members">
+    <img src="https://img.shields.io/github/forks/magicyuan876/mineru-tianshu?style=for-the-badge&logo=github&color=blue" alt="Forks"/>
+  </a>
+  <a href="https://github.com/magicyuan876/mineru-tianshu/blob/main/LICENSE">
+    <img src="https://img.shields.io/badge/license-Apache%202.0-green?style=for-the-badge" alt="License"/>
+  </a>
+</p>
+
+<p>
+  <img src="https://img.shields.io/badge/Python-3.8+-blue?logo=python&logoColor=white" alt="Python"/>
+  <img src="https://img.shields.io/badge/Vue-3.x-green?logo=vue.js&logoColor=white" alt="Vue"/>
+  <img src="https://img.shields.io/badge/FastAPI-0.115+-teal?logo=fastapi&logoColor=white" alt="FastAPI"/>
+  <img src="https://img.shields.io/badge/CUDA-Supported-76B900?logo=nvidia&logoColor=white" alt="CUDA"/>
+  <img src="https://img.shields.io/badge/MCP-Supported-orange" alt="MCP"/>
+</p>
+
+[English](./README_EN.md) | 简体中文
+
+</div>
+
+---
 
 ## 🌟 项目简介
 
@@ -11,7 +40,60 @@ MinerU Tianshu 是一个企业级的文档解析服务,提供:
 - **高性能架构**: FastAPI + LitServe 实现的 GPU 负载均衡和并发处理
 - **完善的任务管理**: 支持任务队列、优先级、状态追踪、自动重试等企业级功能
 
+## ✨ 核心亮点
+
+<table>
+  <tr>
+    <td align="center" width="25%">
+      <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Objects/Desktop%20Computer.png" width="60"/><br/>
+      <strong>现代化界面</strong><br/>
+      <sub>Vue 3 + TypeScript + TailwindCSS</sub>
+    </td>
+    <td align="center" width="25%">
+      <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Objects/Electric%20Plug.png" width="60"/><br/>
+      <strong>GPU 加速</strong><br/>
+      <sub>LitServe 负载均衡 + 多GPU隔离</sub>
+    </td>
+    <td align="center" width="25%">
+      <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Objects/Memo.png" width="60"/><br/>
+      <strong>智能解析</strong><br/>
+      <sub>PDF/Office/图片转Markdown</sub>
+    </td>
+    <td align="center" width="25%">
+      <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Objects/Link.png" width="60"/><br/>
+      <strong>MCP 协议</strong><br/>
+      <sub>AI 助手无缝集成</sub>
+    </td>
+  </tr>
+</table>
+
 ## 📸 功能展示
+
+<div align="center">
+
+### 📊 仪表盘 - 实时监控
+
+<img src="./docs/img/dashboard.png" alt="仪表盘" width="80%"/>
+
+*实时监控队列统计和最近任务*
+
+---
+
+### 📤 任务提交 - 文件拖拽上传
+
+<img src="./docs/img/submit.png" alt="任务提交" width="80%"/>
+
+*支持批量处理和高级配置*
+
+---
+
+### ⚙️ 队列管理 - 系统监控
+
+<img src="./docs/img/tasks.png" alt="队列管理" width="80%"/>
+
+*重置超时任务、清理旧文件*
+
+</div>
 
 ### 主要功能
 - ✅ **仪表盘**: 实时监控队列统计和最近任务
@@ -436,6 +518,28 @@ pip list | grep -E "(mineru|litserve|torch)"
 ## 🤝 贡献
 
 欢迎提交 Issue 和 Pull Request!
+
+## 🙏 鸣谢
+
+本项目基于以下优秀的开源项目构建，在此表示衷心感谢：
+
+- **[MinerU](https://github.com/opendatalab/MinerU)** - 强大的 PDF 和图片文档解析工具
+  - 提供了高质量的 GPU 加速文档解析能力
+  - 支持公式识别、表格提取等高级特性
+  
+- **[MarkItDown](https://github.com/microsoft/markitdown)** - Microsoft 开源的文档转换工具
+  - 提供了 Office 文档、HTML 等多种格式的解析支持
+  - 简单易用的 API 设计
+
+- **[LitServe](https://github.com/Lightning-AI/LitServe)** - 高性能 AI 模型服务框架
+  - 提供了优秀的 GPU 负载均衡能力
+  - 简化了多 GPU 并发处理的实现
+
+- **[Vue.js](https://vuejs.org/)** - 渐进式 JavaScript 框架
+- **[FastAPI](https://fastapi.tiangolo.com/)** - 现代、快速的 Web 框架
+- **[TailwindCSS](https://tailwindcss.com/)** - 实用优先的 CSS 框架
+
+同时感谢所有为本项目贡献代码、提出建议的开发者们！
 
 ## 📜 许可证
 
