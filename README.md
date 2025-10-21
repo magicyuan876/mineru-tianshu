@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/magicyuan876-mineru-tianshu-badge.png)](https://mseep.ai/app/magicyuan876-mineru-tianshu)
+
 <div align="center">
 
 # MinerU Tianshu 天枢
