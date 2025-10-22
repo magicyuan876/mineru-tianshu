@@ -139,12 +139,15 @@ async def root():
 @app.post("/api/v1/tasks/submit")
 async def submit_task(
     file: UploadFile = File(..., description="文档文件: PDF/图片(MinerU解析) 或 Office/HTML/文本等(MarkItDown解析)"),
-    backend: str = Form('pipeline', description="处理后端: pipeline/vlm-transformers/vlm-vllm-engine"),
+    backend: str = Form('pipeline', description="处理后端: pipeline/vlm-transformers/vlm-vllm-engine/deepseek-ocr"),
     lang: str = Form('ch', description="语言: ch/en/korean/japan等"),
     method: str = Form('auto', description="解析方法: auto/txt/ocr"),
     formula_enable: bool = Form(True, description="是否启用公式识别"),
     table_enable: bool = Form(True, description="是否启用表格识别"),
     priority: int = Form(0, description="优先级，数字越大越优先"),
+    # DeepSeek OCR 专用参数
+    deepseek_resolution: str = Form('base', description="DeepSeek OCR 分辨率: tiny/small/base/large/dynamic"),
+    deepseek_prompt_type: str = Form('document', description="DeepSeek OCR 提示词类型: document/image/free/figure"),
 ):
     """
     提交文档解析任务
@@ -174,11 +177,19 @@ async def submit_task(
                 'method': method,
                 'formula_enable': formula_enable,
                 'table_enable': table_enable,
+                # DeepSeek OCR 参数
+                'deepseek_resolution': deepseek_resolution,
+                'deepseek_prompt_type': deepseek_prompt_type,
             },
             priority=priority
         )
         
-        logger.info(f"✅ Task submitted: {task_id} - {file.filename} (priority: {priority})")
+        logger.info(f"✅ Task submitted: {task_id} - {file.filename}")
+        logger.info(f"   Backend: {backend}")
+        logger.info(f"   Priority: {priority}")
+        if backend == 'deepseek-ocr':
+            logger.info(f"   DeepSeek Resolution: {deepseek_resolution}")
+            logger.info(f"   DeepSeek Prompt Type: {deepseek_prompt_type}")
         
         return {
             'success': True,

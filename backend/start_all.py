@@ -38,6 +38,64 @@ class TianshuLauncher:
         self.mcp_port = mcp_port
         self.processes = []
     
+    def check_deepseek_model(self):
+        """检查并下载 DeepSeek OCR 模型（异步，不阻塞启动）"""
+        try:
+            # 检查 DeepSeek OCR 是否可用
+            try:
+                from deepseek_ocr import DeepSeekOCREngine
+                
+                logger.info("🔍 Checking DeepSeek OCR model...")
+                
+                # 获取项目根目录
+                project_root = Path(__file__).parent.parent
+                cache_dir = project_root / 'models' / 'deepseek_ocr'
+                
+                # 检查模型是否已存在（检查具体的模型目录和必需文件）
+                model_exists = False
+                local_model_path = cache_dir / 'deepseek-ai' / 'DeepSeek-OCR'
+                
+                if local_model_path.exists():
+                    # 检查必需的模型文件是否存在
+                    required_files = [
+                        'config.json',
+                        'tokenizer.json',
+                        'modeling_deepseekocr.py',
+                        'model-00001-of-000001.safetensors'
+                    ]
+                    model_exists = all((local_model_path / f).exists() for f in required_files)
+                    
+                    if model_exists:
+                        logger.info(f"✅ DeepSeek OCR model found at: {local_model_path}")
+                    else:
+                        missing = [f for f in required_files if not (local_model_path / f).exists()]
+                        logger.warning(f"⚠️  DeepSeek OCR model incomplete, missing: {missing}")
+                
+                if not model_exists:
+                    logger.info("📥 DeepSeek OCR model not found, starting download...")
+                    logger.info(f"📁 Download location: {cache_dir}")
+                    logger.info("⏳ This may take a few minutes (5-10GB)...")
+                    logger.info("💡 Tip: Services will start now, model downloads in background")
+                    
+                    # 在后台线程中下载模型
+                    import threading
+                    def download_model():
+                        try:
+                            engine = DeepSeekOCREngine(cache_dir=str(cache_dir), auto_download=True)
+                            logger.info("✅ DeepSeek OCR model download completed!")
+                        except Exception as e:
+                            logger.warning(f"⚠️  DeepSeek OCR model download failed: {e}")
+                            logger.info("   Model will be downloaded on first use")
+                    
+                    thread = threading.Thread(target=download_model, daemon=True)
+                    thread.start()
+                    
+            except ImportError:
+                logger.debug("DeepSeek OCR not installed, skipping model check")
+                
+        except Exception as e:
+            logger.debug(f"DeepSeek model check skipped: {e}")
+    
     def start_services(self):
         """启动所有服务"""
         logger.info("=" * 70)
@@ -167,6 +225,10 @@ class TianshuLauncher:
             logger.info("   🐛 Report issues or contribute: https://github.com/magicyuan876/mineru-tianshu/issues")
             logger.info("")
             logger.info("=" * 70)
+            logger.info("")
+            
+            # 所有服务启动完成后，检查并下载 DeepSeek OCR 模型
+            self.check_deepseek_model()
             
             return True
             

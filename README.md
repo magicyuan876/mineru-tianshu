@@ -48,7 +48,7 @@
 
 MinerU Tianshu 是一个企业级的文档解析服务,提供:
 - **现代化 Web 界面**: Vue 3 + TypeScript + TailwindCSS 构建的美观易用的管理界面
-- **强大的解析能力**: 基于 MinerU 的 PDF/图片解析 + MarkItDown 的 Office 文档解析
+- **强大的解析能力**: 支持 MinerU、DeepSeek OCR 的 PDF/图片解析 + MarkItDown 的 Office 文档解析
 - **高性能架构**: FastAPI + LitServe 实现的 GPU 负载均衡和并发处理
 - **完善的任务管理**: 支持任务队列、优先级、状态追踪、自动重试等企业级功能
 
@@ -116,7 +116,9 @@ MinerU Tianshu 是一个企业级的文档解析服务,提供:
 - ✅ **MCP 协议支持**: 通过 Model Context Protocol 支持 AI 助手调用
 
 ### 支持的文件格式
-- 📄 **PDF 和图片** - 使用 MinerU 解析（GPU 加速）
+- 📄 **PDF 和图片** - 使用 MinerU 或 DeepSeek OCR 解析（GPU 加速）
+  - **MinerU**: 完整文档解析，支持表格、公式识别
+  - **DeepSeek OCR**: 高精度 OCR 识别，适合需要极致精度的场景
 - 📊 **Office 文档** - Word、Excel、PowerPoint（使用 MarkItDown）
 - 🌐 **网页和文本** - HTML、Markdown、TXT、CSV 等
 
@@ -208,7 +210,11 @@ npm run dev
 1. 点击顶部导航栏的 "提交任务"
 2. 拖拽或点击上传文件（支持批量上传）
 3. 配置解析选项：
-   - 选择处理后端 (pipeline/vlm-transformers/vlm-vllm-engine)
+   - 选择处理后端 (pipeline/vlm-transformers/vlm-vllm-engine/deepseek-ocr)
+     - **pipeline**: MinerU 标准流程，适合通用文档解析
+     - **vlm-transformers**: MinerU VLM 模式（Transformers）
+     - **vlm-vllm-engine**: MinerU VLM 模式（vLLM 引擎）
+     - **deepseek-ocr**: DeepSeek OCR 引擎，适合高精度 OCR 需求
    - 设置文档语言
    - 启用公式/表格识别
    - 设置任务优先级
@@ -248,7 +254,10 @@ npm run dev
 - **GPU 负载均衡**: LitServe 自动调度,避免显存冲突
 - **多GPU隔离**: 每个进程只使用分配的GPU
 - **自动清理**: 定期清理旧结果文件,保留数据库记录
-- **双解析器**: PDF/图片用 MinerU, Office等用 MarkItDown
+- **多解析引擎**: 
+  - **MinerU**: 完整文档解析，支持表格、公式识别
+  - **DeepSeek OCR**: 高精度 OCR 识别，支持多种分辨率和提示词类型
+  - **MarkItDown**: Office 文档和网页解析
 - **MCP 协议**: 支持 AI 助手通过标准协议调用文档解析服务
 
 ## ⚙️ 配置说明
@@ -476,6 +485,7 @@ python start_all.py --api-port 8000 --worker-port 9000
 - FastAPI
 - LitServe
 - MinerU
+- DeepSeek OCR
 - MarkItDown
 - SQLite
 - Loguru
@@ -541,6 +551,11 @@ pip list | grep -E "(mineru|litserve|torch)"
 - **[MinerU](https://github.com/opendatalab/MinerU)** - 强大的 PDF 和图片文档解析工具
   - 提供了高质量的 GPU 加速文档解析能力
   - 支持公式识别、表格提取等高级特性
+
+- **[DeepSeek OCR](https://huggingface.co/deepseek-ai/DeepSeek-OCR)** - DeepSeek 开源的高精度 OCR 模型
+  - 提供了业界领先的 OCR 识别精度
+  - 支持多种分辨率和提示词类型
+  - 优秀的多模态文档理解能力
   
 - **[MarkItDown](https://github.com/microsoft/markitdown)** - Microsoft 开源的文档转换工具
   - 提供了 Office 文档、HTML 等多种格式的解析支持
@@ -575,6 +590,31 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ```
+
+## 📝 更新日志
+
+### 2025-10-22
+
+#### ✨ 新增特性
+- **集成 DeepSeek OCR 解析引擎**
+  - 新增 `deepseek-ocr` 后端选项，提供高精度 OCR 识别能力
+  - 支持多种分辨率配置（tiny/small/base/large/dynamic）
+  - 支持多种提示词类型（document/image/free/figure）
+  - 自动从 ModelScope/HuggingFace 下载模型（约 5-10GB）
+  - 优化的单例模式加载，提升性能和资源利用
+  - 跨平台支持（Linux 自动安装 flash-attn，Windows/macOS 使用默认实现）
+  - 详细文档请查看 [backend/deepseek_ocr/README.md](backend/deepseek_ocr/README.md)
+
+#### 📚 文档更新
+- 更新 README 文档，添加 DeepSeek OCR 相关说明
+- 新增 DeepSeek OCR 完整使用指南
+- 新增环境检查脚本使用说明
+- 新增 GPU 要求和故障排查文档
+
+#### 🎯 使用建议
+- **MinerU (pipeline)**: 适合通用文档解析，完整支持表格和公式
+- **DeepSeek OCR (deepseek-ocr)**: 适合需要高精度 OCR 的场景
+- **MarkItDown**: 适合 Office 文档和网页解析
 
 ---
 

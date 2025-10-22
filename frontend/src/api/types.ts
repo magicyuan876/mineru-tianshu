@@ -6,7 +6,7 @@
 export type TaskStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled'
 
 // 后端类型
-export type Backend = 'pipeline' | 'vlm-transformers' | 'vlm-vllm-engine'
+export type Backend = 'pipeline' | 'vlm-transformers' | 'vlm-vllm-engine' | 'deepseek-ocr'
 
 // 语言类型
 export type Language = 'ch' | 'en' | 'korean' | 'japan'
@@ -31,6 +31,10 @@ export interface SubmitTaskRequest {
   formula_enable?: boolean
   table_enable?: boolean
   priority?: number
+  // DeepSeek OCR 专属参数
+  deepseek_resolution?: string
+  deepseek_prompt_type?: string
+  deepseek_cache_dir?: string
 }
 
 // 任务信息

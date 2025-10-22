@@ -59,15 +59,28 @@ except ImportError:
     MARKITDOWN_AVAILABLE = False
     logger.warning("⚠️  markitdown not available, Office format parsing will be disabled")
 
+# 尝试导入 DeepSeek OCR
+try:
+    from deepseek_ocr import DeepSeekOCREngine
+    DEEPSEEK_OCR_AVAILABLE = True
+    logger.info("✅ DeepSeek OCR engine available")
+except ImportError:
+    DEEPSEEK_OCR_AVAILABLE = False
+    logger.info("ℹ️  DeepSeek OCR not available (optional)")
+
 
 class MinerUWorkerAPI(ls.LitAPI):
     """
     LitServe API Worker
     
     Worker 主动循环拉取任务，利用 LitServe 的自动 GPU 负载均衡
-    支持两种解析方式：
-    - PDF/图片 -> MinerU 解析（GPU 加速）
+    支持三种解析方式：
+    - PDF/图片 -> MinerU 或 DeepSeek OCR（根据 backend 参数选择）
     - 其他所有格式 -> MarkItDown 解析（快速处理）
+    
+    Backend 选项：
+    - pipeline / vlm-transformers / vlm-vllm-engine -> MinerU
+    - deepseek-ocr -> DeepSeek OCR
     
     新模式：每个 worker 启动后持续循环拉取任务，处理完一个立即拉取下一个
     """
@@ -250,16 +263,33 @@ class MinerUWorkerAPI(ls.LitAPI):
             file_type = self._get_file_type(file_path)
             
             if file_type == 'pdf_image':
-                # 使用 MinerU 解析 PDF 和图片
-                self._parse_with_mineru(
-                    file_path=Path(file_path),
-                    file_name=file_name,
-                    task_id=task_id,
-                    backend=backend,
-                    options=options,
-                    output_path=output_path
-                )
-                parse_method = 'MinerU'
+                # PDF 和图片：根据 backend 参数选择解析器
+                if backend == 'deepseek-ocr':
+                    # 使用 DeepSeek OCR
+                    if not DEEPSEEK_OCR_AVAILABLE:
+                        raise RuntimeError(
+                            "DeepSeek OCR backend not available. "
+                            "Install with: pip install -r deepseek_ocr/requirements.txt"
+                        )
+                    
+                    self._parse_with_deepseek(
+                        file_path=Path(file_path),
+                        file_name=file_name,
+                        options=options,
+                        output_path=output_path
+                    )
+                    parse_method = 'DeepSeek-OCR'
+                else:
+                    # 使用 MinerU (默认)
+                    self._parse_with_mineru(
+                        file_path=Path(file_path),
+                        file_name=file_name,
+                        task_id=task_id,
+                        backend=backend,
+                        options=options,
+                        output_path=output_path
+                    )
+                    parse_method = 'MinerU'
                 
             else:  # file_type == 'markitdown'
                 # 使用 markitdown 解析所有其他格式
@@ -359,6 +389,81 @@ class MinerUWorkerAPI(ls.LitAPI):
                 clean_memory()
             except Exception as e:
                 logger.debug(f"Memory cleanup failed for task {task_id}: {e}")
+    
+    def _parse_with_deepseek(self, file_path: Path, file_name: str,
+                             options: dict, output_path: Path):
+        """
+        使用 DeepSeek OCR 解析 PDF 和图片
+        
+        Args:
+            file_path: 文件路径
+            file_name: 文件名
+            options: 解析选项
+            output_path: 输出路径
+        """
+        from deepseek_ocr import DeepSeekOCREngine
+        
+        logger.info(f"🤖 Using DeepSeek OCR to parse: {file_name}")
+        
+        # 获取配置参数
+        resolution = options.get('deepseek_resolution', 'base')
+        prompt_type = options.get('deepseek_prompt_type', 'document')
+        cache_dir = options.get('deepseek_cache_dir', None)  # 可选：指定缓存目录
+        
+        logger.info(f"📐 DeepSeek OCR 配置:")
+        logger.info(f"   分辨率: {resolution}")
+        logger.info(f"   提示词类型: {prompt_type}")
+        if cache_dir:
+            logger.info(f"   缓存目录: {cache_dir}")
+        
+        # 获取引擎实例（单例）
+        # auto_download=False: 启动脚本已负责下载，这里不再自动下载
+        engine = DeepSeekOCREngine(cache_dir=cache_dir, auto_download=False)
+        
+        # 检查模型是否已加载或可用
+        try:
+            # 执行解析
+            result = engine.parse(
+                file_path=str(file_path),
+                output_path=str(output_path),
+                resolution=resolution,
+                prompt_type=prompt_type
+            )
+            
+            logger.info(f"✅ DeepSeek OCR parsing completed")
+            
+            # 将 MMD 内容转换为标准 Markdown 并保存
+            if result.get('markdown'):
+                import re
+                markdown_content = result['markdown']
+                
+                # 移除 MMD 特殊标记 (可选,保持兼容性)
+                # markdown_content = re.sub(r'<\|ref\|>.*?<\|/ref\|>', '', markdown_content)
+                # markdown_content = re.sub(r'<\|det\|>.*?<\|/det\|>', '', markdown_content)
+                
+                # 保存为标准 Markdown 文件 (与 MarkItDown 格式统一)
+                markdown_file = output_path / f"{file_path.stem}.md"
+                markdown_file.write_text(markdown_content, encoding='utf-8')
+                logger.info(f"📝 Markdown saved to: {markdown_file}")
+                
+                # 同时保留原始 MMD 文件作为备份
+                if result.get('mmd_file'):
+                    logger.info(f"📄 MMD file: {result['mmd_file']}")
+            else:
+                logger.warning("⚠️  No markdown content in result")
+            
+        except Exception as e:
+            # 如果是模型未找到的错误，返回友好提示
+            error_msg = str(e)
+            if 'not found' in error_msg.lower() or 'no such file' in error_msg.lower():
+                logger.error(f"❌ DeepSeek OCR model not ready")
+                raise RuntimeError(
+                    "DeepSeek OCR model is still downloading. "
+                    "Please wait a few minutes and try again. "
+                    f"Model location: {engine.cache_dir}"
+                )
+            else:
+                raise
     
     def _parse_with_markitdown(self, file_path: Path, file_name: str, 
                                output_path: Path):

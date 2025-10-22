@@ -23,6 +23,17 @@ export async function submitTask(request: SubmitTaskRequest): Promise<SubmitTask
   formData.append('formula_enable', String(request.formula_enable ?? true))
   formData.append('table_enable', String(request.table_enable ?? true))
   formData.append('priority', String(request.priority || 0))
+  
+  // DeepSeek OCR 专用参数
+  if (request.deepseek_resolution) {
+    formData.append('deepseek_resolution', request.deepseek_resolution)
+  }
+  if (request.deepseek_prompt_type) {
+    formData.append('deepseek_prompt_type', request.deepseek_prompt_type)
+  }
+  if (request.deepseek_cache_dir) {
+    formData.append('deepseek_cache_dir', request.deepseek_cache_dir)
+  }
 
   const response = await apiClient.post<SubmitTaskResponse>(
     '/api/v1/tasks/submit',

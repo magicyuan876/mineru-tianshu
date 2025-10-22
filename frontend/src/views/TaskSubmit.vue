@@ -27,17 +27,21 @@
           <!-- Backend 选择 -->
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">
-              处理后端
+              解析引擎
               <span class="text-gray-500 font-normal">（影响解析质量和速度）</span>
             </label>
             <select
               v-model="config.backend"
               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
-              <option value="pipeline">Pipeline（推荐，平衡性能）</option>
-              <option value="vlm-transformers">VLM Transformers（高质量）</option>
-              <option value="vlm-vllm-engine">VLM vLLM Engine（高性能）</option>
+              <option value="pipeline">MinerU Pipeline（推荐，完整解析）</option>
+              <option value="deepseek-ocr">DeepSeek OCR（高精度 OCR）</option>
+              <option value="vlm-transformers">VLM Transformers（视觉语言模型）</option>
+              <option value="vlm-vllm-engine">VLM vLLM Engine（高性能 VLM）</option>
             </select>
+            <p v-if="config.backend === 'deepseek-ocr'" class="mt-1 text-xs text-gray-500">
+              💡 DeepSeek OCR: 支持 PDF 和图片，提供高精度 OCR 识别
+            </p>
           </div>
 
           <!-- 语言选择 -->
@@ -87,8 +91,43 @@
           </div>
         </div>
 
-        <!-- 功能开关 -->
-        <div class="mt-6 space-y-3">
+        <!-- DeepSeek OCR 专属配置 -->
+        <div v-if="config.backend === 'deepseek-ocr'" class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-gray-200">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+              分辨率
+              <span class="text-gray-500 font-normal">（影响识别精度）</span>
+            </label>
+            <select
+              v-model="config.deepseek_resolution"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+            >
+              <option value="tiny">Tiny（512×512, 快速预览）</option>
+              <option value="small">Small（640×640, 简单文档）</option>
+              <option value="base">Base（1024×1024, 推荐）</option>
+              <option value="large">Large（1280×1280, 复杂文档）</option>
+              <option value="dynamic">Dynamic（自适应长文档）</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+              提示词类型
+            </label>
+            <select
+              v-model="config.deepseek_prompt_type"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+            >
+              <option value="document">Document（文档转 Markdown）</option>
+              <option value="image">Image（图片 OCR）</option>
+              <option value="free">Free（自由 OCR）</option>
+              <option value="figure">Figure（图表解析）</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- 功能开关（仅非 DeepSeek OCR） -->
+        <div v-if="config.backend !== 'deepseek-ocr'" class="mt-6 space-y-3">
           <label class="flex items-center">
             <input
               v-model="config.formula_enable"
@@ -223,6 +262,9 @@ const config = reactive({
   formula_enable: true,
   table_enable: true,
   priority: 0,
+  // DeepSeek OCR 专属配置
+  deepseek_resolution: 'base',
+  deepseek_prompt_type: 'document',
 })
 
 function onFilesChange(newFiles: File[]) {

@@ -69,12 +69,16 @@ POST /api/v1/tasks/submit
 
 参数:
   - file: 文件 (必需)
-  - backend: pipeline | vlm-transformers | vlm-vllm-engine (默认: pipeline)
+  - backend: pipeline | vlm-transformers | vlm-vllm-engine | deepseek-ocr (默认: pipeline)
   - lang: ch | en | korean | japan (默认: ch)
   - method: auto | txt | ocr (默认: auto)
   - formula_enable: boolean (默认: true)
   - table_enable: boolean (默认: true)
   - priority: 0-100 (默认: 0)
+  
+  DeepSeek OCR 额外参数（当 backend=deepseek-ocr 时）:
+  - deepseek_resolution: tiny | small | base | large | dynamic (默认: base)
+  - deepseek_prompt_type: document | image | free | figure (默认: document)
 
 返回:
   {
@@ -254,8 +258,9 @@ export MINERU_VIRTUAL_VRAM_SIZE=6
 - 防止任务重复处理
 - 支持多 Worker 并发拉取
 
-### 双解析器支持
-- **MinerU**: 处理 PDF 和图片 (GPU 加速)
+### 多解析器支持
+- **MinerU**: 完整文档解析，支持表格、公式等 (GPU 加速)
+- **DeepSeek OCR**: 高精度 OCR，单例模式加载 (可选)
 - **MarkItDown**: 处理 Office、HTML、文本等 (快速处理)
 
 ### 自动清理
@@ -369,6 +374,70 @@ MCP Server 将在 `http://localhost:8001` 启动，提供以下端点：
 完整的 MCP 配置和使用指南，请参考：
 - [MCP_GUIDE.md](MCP_GUIDE.md) - MCP 详细指南
 - [主 README](../README.md#mcp-协议集成) - 快速配置指南
+
+## 🤖 DeepSeek OCR 解析引擎
+
+### 简介
+
+DeepSeek OCR 作为可选的解析引擎，提供高精度的 PDF 和图片 OCR 能力。
+
+### 安装
+
+```bash
+# 安装依赖
+pip install -r deepseek_ocr/requirements.txt
+```
+
+### 使用方法
+
+提交任务时指定 `backend=deepseek-ocr`:
+
+```bash
+# 基本使用
+curl -X POST http://localhost:8000/api/v1/tasks/submit \
+  -F "file=@document.pdf" \
+  -F "backend=deepseek-ocr"
+
+# 自定义分辨率
+curl -X POST http://localhost:8000/api/v1/tasks/submit \
+  -F "file=@document.pdf" \
+  -F "backend=deepseek-ocr" \
+  -F "deepseek_resolution=large"
+```
+
+### Backend 对比
+
+| Backend | 引擎 | 特点 | 适用场景 |
+|---------|------|------|----------|
+| `pipeline` | MinerU | 完整文档解析，支持表格、公式 | 通用文档（默认）|
+| `deepseek-ocr` | DeepSeek OCR | 高精度 OCR，单例加载 | 需要高精度 OCR |
+| `vlm-*` | MinerU VLM | 视觉语言模型 | 复杂版面 |
+
+### 配置参数
+
+| 参数 | 说明 | 可选值 | 默认值 |
+|------|------|--------|--------|
+| `deepseek_resolution` | 分辨率 | tiny/small/base/large/dynamic | base |
+| `deepseek_prompt_type` | 提示词 | document/image/free/figure | document |
+
+### 分辨率说明
+
+- **tiny** (512×512, 64 tokens): 快速预览
+- **small** (640×640, 100 tokens): 简单文档
+- **base** (1024×1024, 256 tokens): 标准文档（推荐）
+- **large** (1280×1280, 400 tokens): 复杂文档
+- **dynamic**: 自适应长文档
+
+### 特性
+
+- ✅ 单例模式（每个进程只加载一次模型）
+- ✅ 优先从 ModelScope 下载
+- ✅ 自动设备选择（CUDA/CPU/MPS）
+- ✅ 与 MinerU 无缝切换
+
+### 详细文档
+
+参考 [deepseek_ocr/README.md](deepseek_ocr/README.md)
 
 ## 📄 许可证
 

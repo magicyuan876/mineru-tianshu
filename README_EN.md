@@ -44,7 +44,7 @@ English | [简体中文](./README.md)
 
 MinerU Tianshu is an enterprise-grade document parsing service that provides:
 - **Modern Web Interface**: Beautiful and user-friendly management interface built with Vue 3 + TypeScript + TailwindCSS
-- **Powerful Parsing Capabilities**: PDF/image parsing based on MinerU + Office document parsing with MarkItDown
+- **Powerful Parsing Capabilities**: Support for MinerU, DeepSeek OCR for PDF/image parsing + MarkItDown for Office document parsing
 - **High-Performance Architecture**: GPU load balancing and concurrent processing with FastAPI + LitServe
 - **Complete Task Management**: Enterprise-level features including task queue, priority, status tracking, automatic retry, etc.
 
@@ -112,7 +112,9 @@ MinerU Tianshu is an enterprise-grade document parsing service that provides:
 - ✅ **MCP Protocol Support**: AI assistant integration via Model Context Protocol
 
 ### Supported File Formats
-- 📄 **PDF and Images** - Parsed with MinerU (GPU accelerated)
+- 📄 **PDF and Images** - Parsed with MinerU or DeepSeek OCR (GPU accelerated)
+  - **MinerU**: Complete document parsing with table and formula recognition
+  - **DeepSeek OCR**: High-precision OCR recognition for scenarios requiring ultimate accuracy
 - 📊 **Office Documents** - Word, Excel, PowerPoint (using MarkItDown)
 - 🌐 **Web and Text** - HTML, Markdown, TXT, CSV, etc.
 
@@ -204,7 +206,11 @@ Open your browser and visit http://localhost:3000
 1. Click "Submit Task" in the top navigation bar
 2. Drag and drop or click to upload files (supports batch upload)
 3. Configure parsing options:
-   - Select processing backend (pipeline/vlm-transformers/vlm-vllm-engine)
+   - Select processing backend (pipeline/vlm-transformers/vlm-vllm-engine/deepseek-ocr)
+     - **pipeline**: MinerU standard pipeline, suitable for general document parsing
+     - **vlm-transformers**: MinerU VLM mode (Transformers)
+     - **vlm-vllm-engine**: MinerU VLM mode (vLLM engine)
+     - **deepseek-ocr**: DeepSeek OCR engine, suitable for high-precision OCR needs
    - Set document language
    - Enable formula/table recognition
    - Set task priority
@@ -244,7 +250,10 @@ Open your browser and visit http://localhost:3000
 - **GPU Load Balancing**: LitServe automatic scheduling, avoiding VRAM conflicts
 - **Multi-GPU Isolation**: Each process only uses allocated GPUs
 - **Automatic Cleanup**: Periodically clean old result files, retain database records
-- **Dual Parsers**: MinerU for PDF/images, MarkItDown for Office files
+- **Multiple Parsing Engines**: 
+  - **MinerU**: Complete document parsing with table and formula recognition
+  - **DeepSeek OCR**: High-precision OCR recognition with multiple resolution and prompt types
+  - **MarkItDown**: Office document and web page parsing
 - **MCP Protocol**: AI assistants can call document parsing service via standard protocol
 
 ## ⚙️ Configuration
@@ -469,6 +478,7 @@ python start_all.py --api-port 8000 --worker-port 9000
 - FastAPI
 - LitServe
 - MinerU
+- DeepSeek OCR
 - MarkItDown
 - SQLite
 - Loguru
@@ -534,6 +544,11 @@ This project is built upon the following excellent open-source projects. We sinc
 - **[MinerU](https://github.com/opendatalab/MinerU)** - Powerful PDF and image document parsing tool
   - Provides high-quality GPU-accelerated document parsing capabilities
   - Supports advanced features like formula recognition and table extraction
+
+- **[DeepSeek OCR](https://huggingface.co/deepseek-ai/DeepSeek-OCR)** - DeepSeek's open-source high-precision OCR model
+  - Provides industry-leading OCR recognition accuracy
+  - Supports multiple resolutions and prompt types
+  - Excellent multimodal document understanding capabilities
   
 - **[MarkItDown](https://github.com/microsoft/markitdown)** - Microsoft's open-source document conversion tool
   - Provides parsing support for Office documents, HTML, and various formats
@@ -568,6 +583,31 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ```
+
+## 📝 Changelog
+
+### 2025-10-22
+
+#### ✨ New Features
+- **Integrated DeepSeek OCR Parsing Engine**
+  - Added `deepseek-ocr` backend option for high-precision OCR recognition
+  - Support for multiple resolution configurations (tiny/small/base/large/dynamic)
+  - Support for multiple prompt types (document/image/free/figure)
+  - Automatic model download from ModelScope/HuggingFace (approximately 5-10GB)
+  - Optimized singleton pattern loading for improved performance and resource utilization
+  - Cross-platform support (Linux auto-installs flash-attn, Windows/macOS use default implementation)
+  - Detailed documentation available at [backend/deepseek_ocr/README.md](backend/deepseek_ocr/README.md)
+
+#### 📚 Documentation Updates
+- Updated README documentation with DeepSeek OCR information
+- Added comprehensive DeepSeek OCR usage guide
+- Added environment check script instructions
+- Added GPU requirements and troubleshooting documentation
+
+#### 🎯 Usage Recommendations
+- **MinerU (pipeline)**: Suitable for general document parsing with complete table and formula support
+- **DeepSeek OCR (deepseek-ocr)**: Suitable for scenarios requiring high-precision OCR
+- **MarkItDown**: Suitable for Office documents and web page parsing
 
 ---
 
