@@ -13,7 +13,34 @@ import threading
 import signal
 import atexit
 from pathlib import Path
+
+# Fix litserve MCP compatibility with mcp>=1.1.0
+# litserve 0.2.16 uses mcp.server.lowlevel API which still exists in mcp 1.18.0
 import litserve as ls
+try:
+    # Patch the missing imports in litserve.mcp
+    import litserve.mcp as ls_mcp
+    import sys
+    
+    # Inject MCPServer (mcp.server.lowlevel.Server)
+    if not hasattr(ls_mcp, 'MCPServer'):
+        from mcp.server.lowlevel import Server as MCPServer
+        ls_mcp.MCPServer = MCPServer
+        if 'litserve.mcp' in sys.modules:
+            sys.modules['litserve.mcp'].MCPServer = MCPServer
+    
+    # Inject StreamableHTTPSessionManager
+    if not hasattr(ls_mcp, 'StreamableHTTPSessionManager'):
+        from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
+        ls_mcp.StreamableHTTPSessionManager = StreamableHTTPSessionManager
+        if 'litserve.mcp' in sys.modules:
+            sys.modules['litserve.mcp'].StreamableHTTPSessionManager = StreamableHTTPSessionManager
+    
+except Exception as e:
+    # If patching fails, log and continue
+    # The error will be caught during server initialization
+    pass
+
 from loguru import logger
 
 # 添加父目录到路径以导入 MinerU

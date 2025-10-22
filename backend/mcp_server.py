@@ -19,10 +19,10 @@ import base64
 import uuid
 
 from mcp.server import Server
-from mcp.server.sse import sse_server
+from mcp.server.sse import SseServerTransport
 from mcp.types import Tool, TextContent
 from starlette.applications import Starlette
-from starlette.routing import Mount
+from starlette.routing import Route
 import aiohttp
 from loguru import logger
 import uvicorn
@@ -655,12 +655,54 @@ async def main():
     logger.info("=" * 60)
     logger.info(f"📡 API Base URL: {API_BASE_URL}")
     
-    # 创建 SSE 应用
-    sse = sse_server(app)
+    # 创建 SSE Transport
+    sse = SseServerTransport("/messages")
     
+    # SSE 处理函数
+    async def handle_sse(request):
+        async with sse.connect_sse(
+            request.scope, request.receive, request._send
+        ) as streams:
+            await app.run(
+                streams[0],
+                streams[1],
+                app.create_initialization_options()
+            )
+    
+    # POST 消息处理函数
+    async def handle_messages(request):
+        await sse.handle_post_message(
+            request.scope, request.receive, request._send
+        )
+    
+    # 健康检查端点
+    async def health_check(request):
+        from starlette.responses import JSONResponse
+        return JSONResponse({
+            "status": "healthy",
+            "service": "MinerU Tianshu MCP Server",
+            "version": "1.0.0",
+            "endpoints": {
+                "sse": "/sse",
+                "messages": "/messages (POST)",
+                "health": "/health"
+            },
+            "tools": [
+                "parse_document",
+                "get_task_status", 
+                "list_tasks",
+                "get_queue_stats"
+            ],
+            "api_base_url": API_BASE_URL
+        })
+    
+    # 创建 Starlette 应用
     starlette_app = Starlette(
         routes=[
-            Mount("/mcp", app=sse)
+            Route("/sse", endpoint=handle_sse),
+            Route("/messages", endpoint=handle_messages, methods=["POST"]),
+            Route("/health", endpoint=health_check, methods=["GET"]),
+            Route("/", endpoint=health_check, methods=["GET"]),  # 根路径也返回健康检查
         ]
     )
     
@@ -668,7 +710,10 @@ async def main():
     host = os.getenv("MCP_HOST", "0.0.0.0")
     port = int(os.getenv("MCP_PORT", "8001"))
     
-    logger.info(f"🌐 MCP Server listening on http://{host}:{port}/mcp")
+    logger.info(f"🌐 MCP Server listening on http://{host}:{port}")
+    logger.info(f"📡 SSE endpoint: http://{host}:{port}/sse")
+    logger.info(f"📮 Messages endpoint: http://{host}:{port}/messages")
+    logger.info(f"🏥 Health check: http://{host}:{port}/health")
     logger.info(f"📚 Available tools: parse_document, get_task_status, list_tasks, get_queue_stats")
     logger.info("=" * 60)
     

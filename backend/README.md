@@ -17,6 +17,9 @@ pip install -r requirements.txt
 
 ```bash
 python start_all.py
+
+# 启用 MCP 协议支持（用于 AI 助手调用）
+python start_all.py --enable-mcp
 ```
 
 **自定义配置启动:**
@@ -46,10 +49,12 @@ backend/
 ├── task_db.py              # SQLite 数据库管理
 ├── litserve_worker.py      # LitServe Worker Pool
 ├── task_scheduler.py       # 任务调度器 (可选)
+├── mcp_server.py           # MCP 协议服务器 (可选)
 ├── start_all.py            # 统一启动脚本
 ├── client_example.py       # Python 客户端示例
 ├── requirements.txt        # Python 依赖
-└── README.md               # 后端文档
+├── README.md               # 后端文档
+└── MCP_GUIDE.md            # MCP 协议详细指南
 ```
 
 ## 📡 API 接口
@@ -208,6 +213,8 @@ python start_all.py [选项]
   --enable-scheduler                启用可选的任务调度器
   --monitor-interval SECONDS        调度器监控间隔 (默认: 300秒)
   --cleanup-old-files-days N        清理N天前的结果文件 (默认: 7天)
+  --enable-mcp                      启用 MCP 协议服务器
+  --mcp-port PORT                   MCP 服务器端口 (默认: 8001)
 ```
 
 ### 环境变量
@@ -215,6 +222,11 @@ python start_all.py [选项]
 ```bash
 # API Server 端口
 export API_PORT=8000
+
+# MCP Server 配置 (可选)
+export MCP_PORT=8001
+export MCP_HOST=0.0.0.0
+export API_BASE_URL=http://localhost:8000
 
 # MinIO 配置 (可选)
 export MINIO_ENDPOINT="your-endpoint.com"
@@ -326,6 +338,37 @@ python start_all.py --workers-per-device 1
 export MINERU_VIRTUAL_VRAM_SIZE=6
 python start_all.py
 ```
+
+## 🔌 MCP 协议支持
+
+### 什么是 MCP？
+
+Model Context Protocol (MCP) 是 Anthropic 推出的开放协议，让 AI 助手（如 Claude Desktop）可以直接调用外部工具和服务。
+
+### 启用 MCP Server
+
+```bash
+python start_all.py --enable-mcp
+```
+
+MCP Server 将在 `http://localhost:8001` 启动，提供以下端点：
+
+- `/sse` - SSE 连接端点（MCP 客户端连接）
+- `/messages` - POST 消息端点
+- `/health` - 健康检查端点
+
+### 可用工具
+
+1. **parse_document** - 解析文档为 Markdown 格式
+2. **get_task_status** - 查询任务状态和结果
+3. **list_tasks** - 列出最近的任务
+4. **get_queue_stats** - 获取队列统计信息
+
+### 详细文档
+
+完整的 MCP 配置和使用指南，请参考：
+- [MCP_GUIDE.md](MCP_GUIDE.md) - MCP 详细指南
+- [主 README](../README.md#mcp-协议集成) - 快速配置指南
 
 ## 📄 许可证
 

@@ -288,7 +288,9 @@ cd backend
 python start_all.py --enable-mcp
 ```
 
-服务启动后，MCP Server 将在 `http://localhost:8001/mcp` 运行。
+服务启动后，MCP Server 将在端口 8001 运行。
+
+> **📝 版本兼容性说明**：项目使用 mcp 1.18.0 和 litserve 0.2.16。为确保兼容性，在 `litserve_worker.py` 中已自动应用兼容性补丁，无需手动配置。
 
 **2. 配置 Claude Desktop**
 
@@ -304,7 +306,7 @@ python start_all.py --enable-mcp
 {
   "mcpServers": {
     "mineru-tianshu": {
-      "url": "http://localhost:8001/mcp/sse",
+      "url": "http://localhost:8001/sse",
       "transport": "sse"
     }
   }
@@ -317,7 +319,7 @@ python start_all.py --enable-mcp
 {
   "mcpServers": {
     "mineru-tianshu": {
-      "url": "http://your-server-ip:8001/mcp/sse",
+      "url": "http://your-server-ip:8001/sse",
       "transport": "sse"
     }
   }
@@ -383,9 +385,10 @@ MinerU / MarkItDown
 - 使用 `--mcp-port` 指定其他端口
 
 **Q: Claude Desktop 无法连接？**
-1. 确认 MCP Server 正在运行：`curl http://localhost:8001/mcp/sse`
+1. 确认 MCP Server 正在运行：访问 `http://localhost:8001/health`
 2. 检查配置文件 JSON 格式是否正确
-3. 重启 Claude Desktop
+3. 确认端点 URL 是 `/sse` 而不是 `/mcp/sse`
+4. 重启 Claude Desktop
 
 **Q: 文件传输失败？**
 - 小文件自动使用 Base64 编码

@@ -28,6 +28,8 @@ markitdown[all]>=0.1.3
 minio>=7.2.0
 
 # MCP Protocol Support
+# Note: litserve 0.2.x is compatible with mcp 1.x (uses lowlevel API)
+# A compatibility patch is applied in litserve_worker.py
 mcp>=1.1.0
 starlette>=0.37.0
 sse-starlette>=2.0.0

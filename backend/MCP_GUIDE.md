@@ -45,7 +45,7 @@ python start_all.py --enable-mcp
 {
   "mcpServers": {
     "mineru-tianshu": {
-      "url": "http://localhost:8001/mcp/sse",
+      "url": "http://localhost:8001/sse",
       "transport": "sse"
     }
   }
@@ -60,7 +60,7 @@ python start_all.py --enable-mcp
 {
   "mcpServers": {
     "mineru-tianshu": {
-      "url": "http://your-server-ip:8001/mcp/sse",
+      "url": "http://your-server-ip:8001/sse",
       "transport": "sse"
     }
   }
@@ -179,7 +179,7 @@ python start_all.py --enable-mcp --mcp-port 8888
 {
   "mcpServers": {
     "mineru-tianshu": {
-      "url": "http://localhost:8888/mcp/sse",
+      "url": "http://localhost:8888/sse",
       "transport": "sse"
     }
   }
@@ -205,9 +205,9 @@ server {
     listen 80;
     server_name your-domain.com;
 
-    # MCP Server
-    location /mcp/ {
-        proxy_pass http://localhost:8001/mcp/;
+    # MCP Server SSE endpoint
+    location /sse {
+        proxy_pass http://localhost:8001/sse;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         
@@ -218,6 +218,13 @@ server {
         proxy_http_version 1.1;
         chunked_transfer_encoding off;
     }
+    
+    # MCP Server messages endpoint
+    location /messages {
+        proxy_pass http://localhost:8001/messages;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
 }
 ```
 
@@ -226,7 +233,7 @@ server {
 {
   "mcpServers": {
     "mineru-tianshu": {
-      "url": "http://your-domain.com/mcp/sse",
+      "url": "http://your-domain.com/sse",
       "transport": "sse"
     }
   }
@@ -266,7 +273,7 @@ python backend/mcp_server.py
 
 1. 确认 MCP Server 正在运行：
    ```bash
-   curl http://localhost:8001/mcp/sse
+   curl http://localhost:8001/sse
    ```
 
 2. 检查配置文件格式是否正确（JSON 格式）

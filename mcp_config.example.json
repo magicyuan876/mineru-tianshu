@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "mineru-tianshu": {
-      "url": "http://localhost:8001/mcp/sse",
+      "url": "http://localhost:8001/sse",
       "transport": "sse",
       "description": "MinerU Tianshu - 文档解析服务"
     }
