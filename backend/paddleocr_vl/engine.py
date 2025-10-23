@@ -151,9 +151,8 @@ class PaddleOCRVLEngine:
                 logger.info(f"   ✅ Auto Multi-Language Recognition: Enabled (109+ languages)")
                 logger.info(f"   🌐 Model will be auto-downloaded on first use if not cached")
                 
-                # 创建 PaddleOCRVL 实例
-                # PaddleOCRVL 会自动从 Hugging Face/ModelScope 下载模型
-                # 模型会被缓存在：~/.paddleocr/models/ 或环境变量指定的路径
+                # 创建 PaddleOCRVL 实例（按照官方文档最佳实践）
+                # 参考: http://www.paddleocr.ai/main/version3.x/pipeline_usage/PaddleOCR-VL.html
                 self._pipeline = PaddleOCRVL(
                     use_doc_orientation_classify=True,  # 文档方向分类，自动旋转文档
                     use_doc_unwarping=True,             # 文本图像矫正，修正扭曲变形
@@ -192,21 +191,6 @@ class PaddleOCRVLEngine:
                 logger.debug(traceback.format_exc())
                 
                 raise
-    
-    def _convert_pdf_to_images(self, pdf_path: Path, output_dir: Path) -> list:
-        """
-        将 PDF 所有页转换为图片
-        
-        Args:
-            pdf_path: PDF 文件路径
-            output_dir: 输出目录
-            
-        Returns:
-            转换后的图片路径列表
-        """
-        # 使用公共工具函数
-        from utils.pdf_utils import convert_pdf_to_images
-        return convert_pdf_to_images(pdf_path, output_dir)
     
     def parse(
         self,
@@ -248,42 +232,30 @@ class PaddleOCRVLEngine:
             logger.info(f"✅ PaddleOCR-VL completed")
             logger.info(f"   识别了 {len(result)} 页/张")
             
-            # 处理每个结果页
-            markdown_content = []
-            all_json_results = []
+            # 按照官方示例处理结果
+            markdown_list = []
             
             for idx, res in enumerate(result, 1):
                 logger.info(f"📝 处理结果 {idx}/{len(result)}")
                 
                 try:
-                    # 为每页创建子目录并保存 JSON
+                    # 为每页创建子目录并保存完整结果（便于调试）
                     page_output_dir = output_path / f"page_{idx}"
                     page_output_dir.mkdir(parents=True, exist_ok=True)
                     
+                    # 保存 JSON（结构化数据）
                     if hasattr(res, 'save_to_json'):
                         res.save_to_json(save_path=str(page_output_dir))
                     
-                    # 保存 Markdown 到文件
+                    # 保存 Markdown 文件（便于调试）
                     if hasattr(res, 'save_to_markdown'):
                         res.save_to_markdown(save_path=str(page_output_dir))
                     
-                    # 从保存的文件中读取 Markdown 内容
-                    page_md = None
-                    md_files = list(page_output_dir.glob('*.md'))
-                    if md_files:
-                        page_md = md_files[0].read_text(encoding='utf-8')
-                    
-                    if page_md:
-                        # 单页：直接输出内容，无需页码标识
-                        if len(result) == 1:
-                            markdown_content.append(page_md)
-                        # 多页：使用 HTML 注释作为页面标识（不影响渲染）
-                        else:
-                            if idx > 1:
-                                markdown_content.append("\n\n---\n\n")  # 页面分隔线
-                            markdown_content.append(f"<!-- Page {idx} -->\n\n{page_md}")
-                        
-                        logger.info(f"   ✅ 提取成功 ({len(page_md)} 字符)")
+                    # 按照官方示例：收集每页的 markdown 对象
+                    if hasattr(res, 'markdown'):
+                        md_info = res.markdown
+                        markdown_list.append(md_info)
+                        logger.info(f"   ✅ 提取成功")
                     else:
                         logger.warning(f"   ⚠️  无法提取内容")
                     
@@ -292,8 +264,19 @@ class PaddleOCRVLEngine:
                     import traceback
                     logger.debug(traceback.format_exc())
             
-            # 合并所有页的 Markdown 内容
-            markdown_text = ''.join(markdown_content)
+            # 使用官方方法合并所有页的 Markdown
+            if hasattr(pipeline, 'concatenate_markdown_pages'):
+                markdown_text = pipeline.concatenate_markdown_pages(markdown_list)
+                logger.info(f"   使用官方 concatenate_markdown_pages() 方法合并")
+            else:
+                # 降级方案：手动合并
+                logger.warning(f"   未找到 concatenate_markdown_pages() 方法，使用降级方案")
+                markdown_text = '\n\n---\n\n'.join([
+                    str(md) if isinstance(md, str) else str(md.get('text', '')) 
+                    for md in markdown_list
+                ])
+            
+            # 保存合并后的 Markdown 文件
             markdown_file = output_path / 'result.md'
             markdown_file.write_text(markdown_text, encoding='utf-8')
             
