@@ -627,30 +627,24 @@ pip list | grep -E "(mineru|litserve|torch)"
 
 ## 🙏 鸣谢
 
-本项目基于以下优秀的开源项目构建，在此表示衷心感谢：
+本项目基于以下优秀的开源项目构建：
 
-- **[MinerU](https://github.com/opendatalab/MinerU)** - 强大的 PDF 和图片文档解析工具
-  - 提供了高质量的 GPU 加速文档解析能力
-  - 支持公式识别、表格提取等高级特性
+**核心引擎**
+- [MinerU](https://github.com/opendatalab/MinerU) - PDF/图片文档解析
+- [DeepSeek OCR](https://huggingface.co/deepseek-ai/DeepSeek-OCR) - 高精度 OCR 模型
+- [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR) - 多语言 OCR 引擎
+- [SenseVoice](https://github.com/FunAudioLLM/SenseVoice) - 语音识别与说话人识别
+- [FunASR](https://github.com/modelscope/FunASR) - 语音识别框架
+- [MarkItDown](https://github.com/microsoft/markitdown) - 文档转换工具
 
-- **[DeepSeek OCR](https://huggingface.co/deepseek-ai/DeepSeek-OCR)** - DeepSeek 开源的高精度 OCR 模型
-  - 提供了业界领先的 OCR 识别精度
-  - 支持多种分辨率和提示词类型
-  - 优秀的多模态文档理解能力
-  
-- **[MarkItDown](https://github.com/microsoft/markitdown)** - Microsoft 开源的文档转换工具
-  - 提供了 Office 文档、HTML 等多种格式的解析支持
-  - 简单易用的 API 设计
+**框架与工具**
+- [LitServe](https://github.com/Lightning-AI/LitServe) - GPU 负载均衡
+- [FastAPI](https://fastapi.tiangolo.com/) - 后端 Web 框架
+- [Vue.js](https://vuejs.org/) - 前端框架
+- [TailwindCSS](https://tailwindcss.com/) - CSS 框架
+- [PyTorch](https://pytorch.org/) - 深度学习框架
 
-- **[LitServe](https://github.com/Lightning-AI/LitServe)** - 高性能 AI 模型服务框架
-  - 提供了优秀的 GPU 负载均衡能力
-  - 简化了多 GPU 并发处理的实现
-
-- **[Vue.js](https://vuejs.org/)** - 渐进式 JavaScript 框架
-- **[FastAPI](https://fastapi.tiangolo.com/)** - 现代、快速的 Web 框架
-- **[TailwindCSS](https://tailwindcss.com/)** - 实用优先的 CSS 框架
-
-同时感谢所有为本项目贡献代码、提出建议的开发者们！
+感谢所有开源贡献者！
 
 ## 📜 许可证
 

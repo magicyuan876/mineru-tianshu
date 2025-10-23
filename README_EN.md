@@ -611,30 +611,24 @@ Issues and Pull Requests are welcome!
 
 ## 🙏 Acknowledgments
 
-This project is built upon the following excellent open-source projects. We sincerely thank all contributors:
+This project is built upon the following excellent open-source projects:
 
-- **[MinerU](https://github.com/opendatalab/MinerU)** - Powerful PDF and image document parsing tool
-  - Provides high-quality GPU-accelerated document parsing capabilities
-  - Supports advanced features like formula recognition and table extraction
+**Core Engines**
+- [MinerU](https://github.com/opendatalab/MinerU) - PDF/Image document parsing
+- [DeepSeek OCR](https://huggingface.co/deepseek-ai/DeepSeek-OCR) - High-precision OCR model
+- [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR) - Multi-language OCR engine
+- [SenseVoice](https://github.com/FunAudioLLM/SenseVoice) - Speech recognition & speaker diarization
+- [FunASR](https://github.com/modelscope/FunASR) - Speech recognition framework
+- [MarkItDown](https://github.com/microsoft/markitdown) - Document conversion tool
 
-- **[DeepSeek OCR](https://huggingface.co/deepseek-ai/DeepSeek-OCR)** - DeepSeek's open-source high-precision OCR model
-  - Provides industry-leading OCR recognition accuracy
-  - Supports multiple resolutions and prompt types
-  - Excellent multimodal document understanding capabilities
-  
-- **[MarkItDown](https://github.com/microsoft/markitdown)** - Microsoft's open-source document conversion tool
-  - Provides parsing support for Office documents, HTML, and various formats
-  - Simple and easy-to-use API design
+**Frameworks & Tools**
+- [LitServe](https://github.com/Lightning-AI/LitServe) - GPU load balancing
+- [FastAPI](https://fastapi.tiangolo.com/) - Backend web framework
+- [Vue.js](https://vuejs.org/) - Frontend framework
+- [TailwindCSS](https://tailwindcss.com/) - CSS framework
+- [PyTorch](https://pytorch.org/) - Deep learning framework
 
-- **[LitServe](https://github.com/Lightning-AI/LitServe)** - High-performance AI model serving framework
-  - Provides excellent GPU load balancing capabilities
-  - Simplifies multi-GPU concurrent processing implementation
-
-- **[Vue.js](https://vuejs.org/)** - The Progressive JavaScript Framework
-- **[FastAPI](https://fastapi.tiangolo.com/)** - Modern, fast web framework
-- **[TailwindCSS](https://tailwindcss.com/)** - A utility-first CSS framework
-
-Special thanks to all developers who have contributed code and suggestions to this project!
+Thanks to all open-source contributors!
 
 ## 📜 License
 
