@@ -77,6 +77,15 @@ except ImportError:
     PADDLEOCR_VL_AVAILABLE = False
     logger.info("ℹ️  PaddleOCR-VL not available (optional)")
 
+# 尝试导入 SenseVoice 音频处理
+try:
+    from audio_engines import SenseVoiceEngine
+    SENSEVOICE_AVAILABLE = True
+    logger.info("✅ SenseVoice audio engine available")
+except ImportError:
+    SENSEVOICE_AVAILABLE = False
+    logger.info("ℹ️  SenseVoice not available (optional)")
+
 
 class MinerUWorkerAPI(ls.LitAPI):
     """
@@ -98,6 +107,8 @@ class MinerUWorkerAPI(ls.LitAPI):
     # 支持的文件格式定义
     # MinerU 专用格式：PDF 和图片
     PDF_IMAGE_FORMATS = {'.pdf', '.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.tif', '.webp'}
+    # 音频格式
+    AUDIO_FORMATS = {'.mp3', '.wav', '.m4a', '.flac', '.ogg', '.aac', '.wma', '.opus'}
     # 其他所有格式都使用 MarkItDown 解析
     
     def __init__(self, output_dir='/tmp/mineru_tianshu_output', worker_id_prefix='tianshu', 
@@ -162,6 +173,14 @@ class MinerUWorkerAPI(ls.LitAPI):
         if MARKITDOWN_AVAILABLE:
             self.markitdown = MarkItDown()
             logger.info(f"✅ MarkItDown initialized for Office format parsing")
+        
+        # 初始化 SenseVoice 音频引擎（如果可用）
+        if SENSEVOICE_AVAILABLE:
+            try:
+                self.audio_engine = SenseVoiceEngine()
+                logger.info(f"✅ SenseVoice audio engine initialized")
+            except Exception as e:
+                logger.error(f"❌ Failed to initialize SenseVoice engine: {e}")
         
         logger.info(f"✅ Worker {self.worker_id} ready")
         logger.info(f"   Device: {device_mode}")
@@ -269,10 +288,27 @@ class MinerUWorkerAPI(ls.LitAPI):
             output_path = self.output_dir / task_id
             output_path.mkdir(parents=True, exist_ok=True)
             
-            # 判断文件类型并选择解析方式
+            # 判断文件类型并根据 backend 选择解析方式
             file_type = self._get_file_type(file_path)
             
-            if file_type == 'pdf_image':
+            # 优先根据 backend 参数判断（用户显式指定）
+            if backend == 'sensevoice':
+                # 用户显式选择 SenseVoice 引擎
+                if not SENSEVOICE_AVAILABLE:
+                    raise RuntimeError(
+                        "SenseVoice audio engine not available. "
+                        "Install with: pip install funasr ffmpeg-python"
+                    )
+                
+                self._parse_with_sensevoice(
+                    file_path=Path(file_path),
+                    file_name=file_name,
+                    options=options,
+                    output_path=output_path
+                )
+                parse_method = 'SenseVoice'
+                
+            elif file_type == 'pdf_image':
                 # PDF 和图片：根据 backend 参数选择解析器
                 if backend == 'deepseek-ocr':
                     # 使用 DeepSeek OCR
@@ -318,7 +354,7 @@ class MinerUWorkerAPI(ls.LitAPI):
                     )
                     parse_method = 'MinerU'
                 
-            else:  # file_type == 'markitdown'
+            else:  # file_type == 'markitdown' 或其他格式
                 # 使用 markitdown 解析所有其他格式
                 self._parse_with_markitdown(
                     file_path=Path(file_path),
@@ -369,14 +405,17 @@ class MinerUWorkerAPI(ls.LitAPI):
             
         Returns:
             'pdf_image': PDF 或图片格式，使用 MinerU 解析
+            'audio': 音频格式，使用 SenseVoice 解析
             'markitdown': 其他所有格式，使用 markitdown 解析
         """
         suffix = Path(file_path).suffix.lower()
         
         if suffix in self.PDF_IMAGE_FORMATS:
             return 'pdf_image'
+        elif suffix in self.AUDIO_FORMATS:
+            return 'audio'
         else:
-            # 所有非 PDF/图片格式都使用 markitdown
+            # 所有其他格式都使用 markitdown
             return 'markitdown'
     
     def _parse_with_mineru(self, file_path: Path, file_name: str, task_id: str, 
@@ -574,6 +613,51 @@ class MinerUWorkerAPI(ls.LitAPI):
         output_file.write_text(result.text_content, encoding='utf-8')
         
         logger.info(f"📝 Markdown saved to: {output_file}")
+    
+    def _parse_with_sensevoice(self, file_path: Path, file_name: str, 
+                                options: dict, output_path: Path):
+        """
+        使用 SenseVoice 解析音频文件
+        
+        Args:
+            file_path: 音频文件路径
+            file_name: 文件名
+            options: 解析选项（language等）
+            output_path: 输出路径
+        """
+        if not SENSEVOICE_AVAILABLE or self.audio_engine is None:
+            raise RuntimeError("SenseVoice is not available. Please install: pip install funasr ffmpeg-python")
+        
+        logger.info(f"🎙️  Using SenseVoice to parse audio: {file_name}")
+        
+        # 获取语言设置（如果有）
+        language = options.get('lang', 'auto')
+        # 映射语言代码 (MinerU的语言代码 -> SenseVoice语言代码)
+        lang_map = {
+            'ch': 'zh',
+            'en': 'en',
+            'korean': 'ko',
+            'japan': 'ja',
+        }
+        language = lang_map.get(language, language)
+        
+        # 调用 SenseVoice 引擎
+        result = self.audio_engine.parse(
+            audio_path=str(file_path),
+            output_path=str(output_path),
+            language=language,
+            use_itn=True
+        )
+        
+        logger.info(f"✅ SenseVoice parsing completed")
+        logger.info(f"   Markdown: {result['markdown_file']}")
+        logger.info(f"   JSON: {result['json_file']}")
+        
+        # 显示识别统计
+        json_data = result['json_data']
+        logger.info(f"   Language: {json_data['metadata']['language']}")
+        logger.info(f"   Speakers: {json_data['metadata']['speaker_count']}")
+        logger.info(f"   Segments: {json_data['metadata']['segment_count']}")
     
     def predict(self, action):
         """

@@ -6,10 +6,10 @@
 export type TaskStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled'
 
 // 后端类型
-export type Backend = 'pipeline' | 'vlm-transformers' | 'vlm-vllm-engine' | 'deepseek-ocr' | 'paddleocr-vl'
+export type Backend = 'pipeline' | 'vlm-transformers' | 'vlm-vllm-engine' | 'deepseek-ocr' | 'paddleocr-vl' | 'sensevoice'
 
 // 语言类型
-export type Language = 'ch' | 'en' | 'korean' | 'japan'
+export type Language = 'auto' | 'ch' | 'en' | 'korean' | 'japan'
 
 // 解析方法
 export type ParseMethod = 'auto' | 'txt' | 'ocr'

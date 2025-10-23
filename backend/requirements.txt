@@ -81,6 +81,12 @@ addict
 # flash-attn>=2.7.3; platform_system=="Linux"
 
 # ============================================================================
+# Audio Processing (SenseVoice)
+# ============================================================================
+funasr>=1.1.0  # FunASR framework for SenseVoice
+ffmpeg-python  # Audio processing
+
+# ============================================================================
 # Model Download & Management
 # ============================================================================
 modelscope>=1.18.0  # Faster model downloads in China

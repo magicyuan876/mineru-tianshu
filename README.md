@@ -2,9 +2,11 @@
 
 # MinerU Tianshu 天枢
 
-**企业级多GPU文档解析服务**
+**企业级 AI 数据预处理平台**
 
-结合 Vue 3 前端 + FastAPI 后端 + LitServe GPU负载均衡 + MCP协议支持
+支持文档、图片、音频等多模态数据处理 | GPU 加速 | MCP 协议
+
+结合 Vue 3 前端 + FastAPI 后端 + LitServe GPU负载均衡
 
 <p>
   <a href="https://github.com/magicyuan876/mineru-tianshu/stargazers">
@@ -46,6 +48,15 @@
 
 ## 📝 最新更新
 
+### 2025-10-23 🎙️ 音频处理引擎
+
+- ✅ **新增 SenseVoice 音频识别引擎**
+  - 支持多语言识别（中文/英文/日文/韩文/粤语）
+  - 内置说话人识别（Speaker Diarization）
+  - 情感识别（中性/开心/生气/悲伤）
+  - 输出 JSON 和 Markdown 格式
+  - 详见：`backend/audio_engines/README.md`
+
 ### 2025-10-23 ✨
 
 **🎯 支持内容结构化 JSON 格式输出**
@@ -70,11 +81,21 @@
 
 ## 🌟 项目简介
 
-MinerU Tianshu 是一个企业级的文档解析服务,提供:
-- **现代化 Web 界面**: Vue 3 + TypeScript + TailwindCSS 构建的美观易用的管理界面
-- **强大的解析能力**: 支持 MinerU、DeepSeek OCR、PaddleOCR-VL 的 PDF/图片解析 + MarkItDown 的 Office 文档解析
-- **高性能架构**: FastAPI + LitServe 实现的 GPU 负载均衡和并发处理
-- **完善的任务管理**: 支持任务队列、优先级、状态追踪、自动重试等企业级功能
+MinerU Tianshu（天枢）是一个**企业级 AI 数据预处理平台**，将各种非结构化数据转换为 AI 可用的结构化格式：
+
+- **📄 文档处理**: PDF、Word、Excel、PPT → Markdown/JSON
+  - MinerU Pipeline（完整解析）、DeepSeek OCR（高精度）、PaddleOCR-VL（109+ 语言）
+  
+- **🎙️ 音频处理**: MP3、WAV、M4A → 文字转写 + 说话人识别
+  - SenseVoice 引擎，支持多语言、情感识别、事件检测
+  
+- **🖼️ 图片处理**: JPG、PNG → 文字提取 + 结构化
+  - 多种 OCR 引擎可选，GPU 加速
+
+- **🏗️ 企业级特性**: 
+  - GPU 负载均衡、任务队列、优先级管理、自动重试
+  - MCP 协议支持，可被 AI 助手（Claude Desktop 等）直接调用
+  - 现代化 Web 界面，易于管理和监控
 
 ## ✨ 核心亮点
 
@@ -92,8 +113,8 @@ MinerU Tianshu 是一个企业级的文档解析服务,提供:
     </td>
     <td align="center" width="25%">
       <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Objects/Memo.png" width="60"/><br/>
-      <strong>智能解析</strong><br/>
-      <sub>PDF/Office/图片转Markdown</sub>
+      <strong>多模态处理</strong><br/>
+      <sub>文档/图片/音频 → 结构化数据</sub>
     </td>
     <td align="center" width="25%">
       <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Objects/Link.png" width="60"/><br/>
@@ -134,10 +155,11 @@ MinerU Tianshu 是一个企业级的文档解析服务,提供:
 ### 主要功能
 - ✅ **仪表盘**: 实时监控队列统计和最近任务
 - ✅ **任务提交**: 文件拖拽上传,支持批量处理和高级配置
-- ✅ **任务详情**: 实时状态追踪,Markdown 预览,自动轮询更新
+- ✅ **任务详情**: 实时状态追踪,Markdown/JSON 预览,自动轮询更新
 - ✅ **任务列表**: 筛选、搜索、分页、批量操作
 - ✅ **队列管理**: 系统监控,重置超时任务,清理旧文件
 - ✅ **MCP 协议支持**: 通过 Model Context Protocol 支持 AI 助手调用
+- ✅ **音频识别**: SenseVoice 引擎支持多语言、说话人识别、情感识别
 
 ### 支持的文件格式
 - 📄 **PDF 和图片** - 支持三种 GPU 加速引擎
@@ -146,6 +168,11 @@ MinerU Tianshu 是一个企业级的文档解析服务,提供:
   - **PaddleOCR-VL**: 多语言 OCR（109+ 语言），自动方向矫正和版面分析
 - 📊 **Office 文档** - Word、Excel、PowerPoint（使用 MarkItDown）
 - 🌐 **网页和文本** - HTML、Markdown、TXT、CSV 等
+- 🎙️ **音频文件** - MP3、WAV、M4A、FLAC 等（使用 SenseVoice）
+  - 多语言识别（中文/英文/日文/韩文/粤语）
+  - 说话人识别和分离
+  - 情感识别（中性/开心/生气/悲伤）
+  - 输出 JSON 和 Markdown 格式
 
 ## 🏗️ 项目结构
 
@@ -167,6 +194,10 @@ mineru-server/
 ├── backend/                # Python 后端项目
 │   ├── api_server.py      # FastAPI 服务器
 │   ├── task_db.py         # 数据库管理
+│   ├── audio_engines/     # 音频处理引擎
+│   │   ├── sensevoice_engine.py  # SenseVoice 引擎
+│   │   ├── check_environment.py  # 环境检查
+│   │   └── README.md      # 音频引擎文档
 │   ├── litserve_worker.py # Worker Pool
 │   ├── task_scheduler.py  # 任务调度器
 │   ├── mcp_server.py      # MCP 协议服务器（可选）

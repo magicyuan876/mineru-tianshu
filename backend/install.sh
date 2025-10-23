@@ -13,6 +13,7 @@ echo "  - MinerU Pipeline"
 echo "  - DeepSeek OCR"
 echo "  - PaddleOCR-VL"
 echo "  - MarkItDown"
+echo "  - SenseVoice Audio Processing"
 echo ""
 echo "Installation Strategy:"
 echo "  1. Install PaddlePaddle first (CUDA 12.6)"
@@ -43,10 +44,10 @@ echo ""
 echo "[Step 2/8] Installing system libraries..."
 if command -v apt-get &> /dev/null; then
     sudo apt-get update
-    sudo apt-get install -y libgomp1
-    echo "✓ System libraries installed"
+    sudo apt-get install -y libgomp1 ffmpeg
+    echo "✓ System libraries installed (libgomp1, ffmpeg)"
 else
-    echo "⚠ Warning: apt-get not found. You may need to install libgomp1 manually."
+    echo "⚠ Warning: apt-get not found. You may need to install libgomp1 and ffmpeg manually."
 fi
 
 # Step 3: Install PaddlePaddle
@@ -145,6 +146,14 @@ try:
     print("✓ PaddleOCR-VL: Ready")
 except Exception as e:
     print(f"⚠ PaddleOCR-VL: {str(e)[:80]}")
+    # Not critical if this fails
+
+# Check FunASR (Audio Processing)
+try:
+    import funasr
+    print("✓ FunASR: Ready (Audio Processing)")
+except Exception as e:
+    print(f"⚠ FunASR: {str(e)[:80]}")
     # Not critical if this fails
 
 print("")

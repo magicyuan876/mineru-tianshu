@@ -2,9 +2,11 @@
 
 # MinerU Tianshu 天枢
 
-**Enterprise-grade Multi-GPU Document Parsing Service**
+**Enterprise-grade AI Data Preprocessing Platform**
 
-Vue 3 Frontend + FastAPI Backend + LitServe GPU Load Balancing + MCP Protocol Support
+Multi-modal Data Processing (Documents, Images, Audio) | GPU Acceleration | MCP Protocol
+
+Vue 3 Frontend + FastAPI Backend + LitServe GPU Load Balancing
 
 <p>
   <a href="https://github.com/magicyuan876/mineru-tianshu/stargazers">
@@ -42,6 +44,16 @@ English | [简体中文](./README.md)
 
 ## 📝 Latest Updates
 
+### 2025-10-23 🎙️ Audio Processing Engine
+
+- ✅ **New SenseVoice Audio Recognition Engine**
+  - Multi-language recognition (Chinese/English/Japanese/Korean/Cantonese)
+  - Built-in speaker diarization
+  - Emotion recognition (Neutral/Happy/Angry/Sad)
+  - Event detection (Speech/Applause/BGM/Laugh)
+  - Output in JSON and Markdown formats with emoji visualization
+  - Details: `backend/audio_engines/README.md`
+
 ### 2025-10-23 ✨
 
 **🎯 Structured JSON Format Output Support**
@@ -66,11 +78,21 @@ English | [简体中文](./README.md)
 
 ## 🌟 Introduction
 
-MinerU Tianshu is an enterprise-grade document parsing service that provides:
-- **Modern Web Interface**: Beautiful and user-friendly management interface built with Vue 3 + TypeScript + TailwindCSS
-- **Powerful Parsing Capabilities**: Support for MinerU, DeepSeek OCR, PaddleOCR-VL for PDF/image parsing + MarkItDown for Office document parsing
-- **High-Performance Architecture**: GPU load balancing and concurrent processing with FastAPI + LitServe
-- **Complete Task Management**: Enterprise-level features including task queue, priority, status tracking, automatic retry, etc.
+MinerU Tianshu is an **Enterprise-grade AI Data Preprocessing Platform** that converts various unstructured data into AI-ready structured formats:
+
+- **📄 Document Processing**: PDF, Word, Excel, PPT → Markdown/JSON
+  - MinerU Pipeline (complete parsing), DeepSeek OCR (high precision), PaddleOCR-VL (109+ languages)
+  
+- **🎙️ Audio Processing**: MP3, WAV, M4A → Transcription + Speaker Diarization
+  - SenseVoice engine with multi-language support, emotion recognition, event detection
+  
+- **🖼️ Image Processing**: JPG, PNG → Text extraction + Structuring
+  - Multiple OCR engines available with GPU acceleration
+
+- **🏗️ Enterprise Features**: 
+  - GPU load balancing, task queue, priority management, automatic retry
+  - MCP protocol support for direct integration with AI assistants (Claude Desktop, etc.)
+  - Modern web interface for easy management and monitoring
 
 ## ✨ Key Features
 
@@ -88,8 +110,8 @@ MinerU Tianshu is an enterprise-grade document parsing service that provides:
     </td>
     <td align="center" width="25%">
       <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Objects/Memo.png" width="60"/><br/>
-      <strong>Smart Parsing</strong><br/>
-      <sub>PDF/Office/Images to Markdown</sub>
+      <strong>Multi-modal Processing</strong><br/>
+      <sub>Documents/Images/Audio → Structured Data</sub>
     </td>
     <td align="center" width="25%">
       <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Objects/Link.png" width="60"/><br/>

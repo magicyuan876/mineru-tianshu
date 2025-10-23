@@ -1,0 +1,54 @@
+# IDE
+.idea/inspectionProfiles/Project_Default.xml
+*.iml
+/.idea
+.vscode/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Backend
+backend/__pycache__/
+backend/**/__pycache__/
+backend/mineru_tianshu.db
+backend/test.md
+
+# Models (large files)
+/models/
+*.safetensors
+*.bin
+*.onnx
+*.pt
+*.pth
+
+# Output files
+output/
+*_output/
+
+# Environment
+.env
+.venv
+venv/
+ENV/
+
+# Node
+node_modules/
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*~

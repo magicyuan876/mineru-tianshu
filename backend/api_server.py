@@ -138,9 +138,9 @@ async def root():
 
 @app.post("/api/v1/tasks/submit")
 async def submit_task(
-    file: UploadFile = File(..., description="文档文件: PDF/图片(MinerU解析) 或 Office/HTML/文本等(MarkItDown解析)"),
-    backend: str = Form('pipeline', description="处理后端: pipeline/vlm-transformers/vlm-vllm-engine/deepseek-ocr/paddleocr-vl"),
-    lang: str = Form('ch', description="语言: ch/en/korean/japan等"),
+    file: UploadFile = File(..., description="文件: PDF/图片/Office/HTML/音频等多种格式"),
+    backend: str = Form('pipeline', description="处理后端: pipeline/deepseek-ocr/paddleocr-vl (文档) | sensevoice (音频)"),
+    lang: str = Form('auto', description="语言: auto/ch/en/korean/japan等"),
     method: str = Form('auto', description="解析方法: auto/txt/ocr"),
     formula_enable: bool = Form(True, description="是否启用公式识别"),
     table_enable: bool = Form(True, description="是否启用表格识别"),

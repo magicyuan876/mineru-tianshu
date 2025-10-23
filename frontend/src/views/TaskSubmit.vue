@@ -14,7 +14,7 @@
           ref="fileUploader"
           :multiple="true"
           :maxSize="100 * 1024 * 1024"
-          acceptHint="支持 PDF、图片、Word、Excel、PowerPoint、HTML 等多种格式"
+          acceptHint="支持 PDF、图片、Word、Excel、PowerPoint、HTML、音频（MP3/WAV/M4A）等多种格式"
           @update:files="onFilesChange"
         />
       </div>
@@ -34,11 +34,16 @@
               v-model="config.backend"
               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
-              <option value="pipeline">MinerU Pipeline（推荐，完整解析）</option>
-              <option value="deepseek-ocr">DeepSeek OCR（高精度 OCR）</option>
-              <option value="paddleocr-vl">PaddleOCR-VL（多语言 OCR，109+ 语言）</option>
-              <option value="vlm-transformers">VLM Transformers（视觉语言模型）</option>
-              <option value="vlm-vllm-engine">VLM vLLM Engine（高性能 VLM）</option>
+              <optgroup label="文档解析">
+                <option value="pipeline">MinerU Pipeline（推荐，完整解析）</option>
+                <option value="deepseek-ocr">DeepSeek OCR（高精度 OCR）</option>
+                <option value="paddleocr-vl">PaddleOCR-VL（多语言 OCR，109+ 语言）</option>
+                <option value="vlm-transformers">VLM Transformers（视觉语言模型）</option>
+                <option value="vlm-vllm-engine">VLM vLLM Engine（高性能 VLM）</option>
+              </optgroup>
+              <optgroup label="音频处理">
+                <option value="sensevoice">SenseVoice（语音识别，说话人识别）</option>
+              </optgroup>
             </select>
             <p v-if="config.backend === 'deepseek-ocr'" class="mt-1 text-xs text-gray-500">
               💡 DeepSeek OCR: 支持 PDF 和图片，提供高精度 OCR 识别
@@ -46,22 +51,29 @@
             <p v-if="config.backend === 'paddleocr-vl'" class="mt-1 text-xs text-gray-500">
               🌏 PaddleOCR-VL: 自动多语言识别，支持文档方向校正、文本矫正、版面检测
             </p>
+            <p v-if="config.backend === 'sensevoice'" class="mt-1 text-xs text-gray-500">
+              🎙️ SenseVoice: 支持多语言语音识别、自动说话人识别、情感识别
+            </p>
           </div>
 
           <!-- 语言选择 -->
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">
-              文档语言
+              文档/音频语言
             </label>
             <select
               v-model="config.lang"
               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
+              <option value="auto">自动检测（音频推荐）</option>
               <option value="ch">中文</option>
               <option value="en">英文</option>
               <option value="korean">韩文</option>
               <option value="japan">日文</option>
             </select>
+            <p class="mt-1 text-xs text-gray-500">
+              💡 音频文件请选择 SenseVoice 引擎，支持说话人识别和情感识别
+            </p>
           </div>
 
           <!-- 解析方法 -->
@@ -291,7 +303,7 @@ const submitProgress = ref<SubmitProgress[]>([])
 
 const config = reactive({
   backend: 'pipeline' as Backend,
-  lang: 'ch' as Language,
+  lang: 'auto' as Language,  // 默认自动检测，支持音频
   method: 'auto' as ParseMethod,
   formula_enable: true,
   table_enable: true,
