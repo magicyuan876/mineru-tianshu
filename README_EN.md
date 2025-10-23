@@ -205,14 +205,38 @@ mineru-server/
 - **Python** 3.8+ (backend)
 - **CUDA** (optional, for GPU acceleration)
 
-### 1. Start Backend Services
+### Environment Setup (Recommended)
+
+**It is recommended to use the automated installation script**, which will automatically detect your system environment and install all dependencies:
 
 ```bash
 # Navigate to backend directory
 cd backend
 
-# Install dependencies
+# Linux/macOS
+bash install.sh
+
+# Windows
+powershell -ExecutionPolicy Bypass -File install.ps1
+```
+
+The installation script will automatically:
+- ✅ Check Python version
+- ✅ Install system dependencies (libgomp1, ffmpeg, etc.)
+- ✅ Install Python dependencies (MinerU, FunASR, OCR engines, etc.)
+- ✅ Verify environment configuration
+
+If automatic installation fails, you can manually install dependencies:
+
+```bash
 pip install -r requirements.txt
+```
+
+### 1. Start Backend Services
+
+```bash
+# Navigate to backend directory (skip if already there)
+cd backend
 
 # Start all services with one command
 python start_all.py

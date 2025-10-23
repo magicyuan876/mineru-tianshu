@@ -218,14 +218,38 @@ mineru-server/
 - **Python** 3.8+ (后端)
 - **CUDA** (可选,用于 GPU 加速)
 
-### 1. 启动后端服务
+### 环境准备（推荐）
+
+**推荐使用自动安装脚本**，它会自动检测系统环境并安装所有依赖：
 
 ```bash
 # 进入后端目录
 cd backend
 
-# 安装依赖
+# Linux/macOS
+bash install.sh
+
+# Windows
+powershell -ExecutionPolicy Bypass -File install.ps1
+```
+
+安装脚本会自动完成：
+- ✅ 检测 Python 版本
+- ✅ 安装系统依赖（libgomp1、ffmpeg 等）
+- ✅ 安装 Python 依赖（MinerU、FunASR、OCR 引擎等）
+- ✅ 验证环境配置
+
+如果自动安装失败，可以手动安装依赖：
+
+```bash
 pip install -r requirements.txt
+```
+
+### 1. 启动后端服务
+
+```bash
+# 进入后端目录（如已在该目录可跳过）
+cd backend
 
 # 一键启动所有服务
 python start_all.py
