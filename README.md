@@ -593,6 +593,16 @@ limitations under the License.
 
 ## 📝 更新日志
 
+### 2025-10-23
+
+#### ✨ 新增特性
+- **集成 PaddleOCR-VL 解析引擎**
+  - 新增 `paddleocr-vl` 后端选项，支持 109+ 语言自动识别
+  - 文档方向分类、文本图像矫正、版面区域检测等增强功能
+  - 原生 PDF 多页文档支持，无需手动转换
+  - 模型自动下载和缓存，由 PaddleOCR 统一管理
+  - 详细文档请查看 [backend/paddleocr_vl/README.md](backend/paddleocr_vl/README.md)
+
 ### 2025-10-22
 
 #### ✨ 新增特性
@@ -601,20 +611,7 @@ limitations under the License.
   - 支持多种分辨率配置（tiny/small/base/large/dynamic）
   - 支持多种提示词类型（document/image/free/figure）
   - 自动从 ModelScope/HuggingFace 下载模型（约 5-10GB）
-  - 优化的单例模式加载，提升性能和资源利用
-  - 跨平台支持（Linux 自动安装 flash-attn，Windows/macOS 使用默认实现）
   - 详细文档请查看 [backend/deepseek_ocr/README.md](backend/deepseek_ocr/README.md)
-
-#### 📚 文档更新
-- 更新 README 文档，添加 DeepSeek OCR 相关说明
-- 新增 DeepSeek OCR 完整使用指南
-- 新增环境检查脚本使用说明
-- 新增 GPU 要求和故障排查文档
-
-#### 🎯 使用建议
-- **MinerU (pipeline)**: 适合通用文档解析，完整支持表格和公式
-- **DeepSeek OCR (deepseek-ocr)**: 适合需要高精度 OCR 的场景
-- **MarkItDown**: 适合 Office 文档和网页解析
 
 ---
 

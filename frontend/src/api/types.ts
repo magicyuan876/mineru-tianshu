@@ -6,7 +6,7 @@
 export type TaskStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled'
 
 // 后端类型
-export type Backend = 'pipeline' | 'vlm-transformers' | 'vlm-vllm-engine' | 'deepseek-ocr'
+export type Backend = 'pipeline' | 'vlm-transformers' | 'vlm-vllm-engine' | 'deepseek-ocr' | 'paddleocr-vl'
 
 // 语言类型
 export type Language = 'ch' | 'en' | 'korean' | 'japan'

@@ -36,11 +36,15 @@
             >
               <option value="pipeline">MinerU Pipeline（推荐，完整解析）</option>
               <option value="deepseek-ocr">DeepSeek OCR（高精度 OCR）</option>
+              <option value="paddleocr-vl">PaddleOCR-VL（多语言 OCR，109+ 语言）</option>
               <option value="vlm-transformers">VLM Transformers（视觉语言模型）</option>
               <option value="vlm-vllm-engine">VLM vLLM Engine（高性能 VLM）</option>
             </select>
             <p v-if="config.backend === 'deepseek-ocr'" class="mt-1 text-xs text-gray-500">
               💡 DeepSeek OCR: 支持 PDF 和图片，提供高精度 OCR 识别
+            </p>
+            <p v-if="config.backend === 'paddleocr-vl'" class="mt-1 text-xs text-gray-500">
+              🌏 PaddleOCR-VL: 自动多语言识别，支持文档方向校正、文本矫正、版面检测
             </p>
           </div>
 
@@ -126,8 +130,31 @@
           </div>
         </div>
 
-        <!-- 功能开关（仅非 DeepSeek OCR） -->
-        <div v-if="config.backend !== 'deepseek-ocr'" class="mt-6 space-y-3">
+        <!-- PaddleOCR-VL 专属配置 -->
+        <div v-if="config.backend === 'paddleocr-vl'" class="mt-6 pt-6 border-t border-gray-200">
+          <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+            <h3 class="text-sm font-semibold text-blue-900 mb-2">✨ 已启用增强功能</h3>
+            <ul class="text-xs text-blue-800 space-y-1">
+              <li>✅ 文档方向自动分类与校正</li>
+              <li>✅ 文本图像矫正（修正扭曲变形）</li>
+              <li>✅ 版面区域智能检测与排序</li>
+              <li>✅ 自动多语言识别（109+ 语言，无需手动指定）</li>
+            </ul>
+          </div>
+          
+          <div class="text-sm text-gray-600">
+            <p class="mb-2">💡 <strong>提示：</strong></p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+              <li>PaddleOCR-VL 会自动检测文档语言，无需手动选择</li>
+              <li>支持中文、英文、日文、韩文、阿拉伯文等 109+ 种语言</li>
+              <li>原生支持 PDF 多页文档处理</li>
+              <li>仅支持 GPU 推理（要求 NVIDIA GPU）</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- 功能开关（仅 Pipeline） -->
+        <div v-if="config.backend === 'pipeline'" class="mt-6 space-y-3">
           <label class="flex items-center">
             <input
               v-model="config.formula_enable"

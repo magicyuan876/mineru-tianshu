@@ -1,14 +1,93 @@
-# MinerU Tianshu Requirements
-# 天枢项目依赖
+# MinerU-Server Backend Unified Requirements
+# ============================================================================
+# This file contains all dependencies for:
+# - MinerU Pipeline (backend=pipeline)
+# - DeepSeek OCR (backend=deepseek-ocr)
+# - PaddleOCR-VL (backend=paddleocr-vl)
+# - MarkItDown (backend=markitdown)
+# ============================================================================
 
-# Core MinerU
+# ============================================================================
+# Installation Instructions (IMPORTANT - Read before installing!)
+# ============================================================================
+# PyTorch and PaddlePaddle have conflicting CUDA library dependencies.
+# You MUST use the step-by-step installation method:
+#
+# Step 1: Install system library (WSL/Linux)
+#   sudo apt-get update && sudo apt-get install -y libgomp1
+#
+# Step 2: Install PaddlePaddle FIRST (from official source)
+#   pip install paddlepaddle-gpu==3.2.0 -i https://www.paddlepaddle.org.cn/packages/stable/cu126/
+#
+# Step 3: Install PyTorch with specific CUDA version
+#   pip install torch==2.6.0+cu126 torchvision==0.21.0+cu126 --index-url https://download.pytorch.org/whl/cu126
+#
+# Step 4: Install other dependencies (use --no-deps to skip conflicts)
+#   pip install -r requirements.txt --no-deps
+#
+# Step 5: Install missing dependencies
+#   pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+#
+# For detailed instructions, see: backend/INSTALL.md
+# ============================================================================
+
+# ============================================================================
+# Core Deep Learning Frameworks
+# ============================================================================
+# IMPORTANT: PyTorch and PaddlePaddle have CUDA library conflicts!
+# You MUST install them separately before installing other dependencies.
+# See installation instructions at the top of this file.
+
+# PyTorch (for DeepSeek OCR)
+# Install separately: pip install torch==2.6.0+cu126 --index-url https://download.pytorch.org/whl/cu126
+# torch>=2.6.0
+
+# PaddlePaddle GPU (for PaddleOCR-VL)
+# Install separately: pip install paddlepaddle-gpu==3.2.0 -i https://www.paddlepaddle.org.cn/packages/stable/cu126/
+# paddlepaddle-gpu==3.2.0
+
+# ============================================================================
+# OCR Engines
+# ============================================================================
+# MinerU - Core OCR Pipeline
 mineru[core]>=2.5.0
 
-# Image Augmentation (Version Pinned for Compatibility)
+# PaddleOCR-VL - Document Parser (Auto language detection for 109+ languages)
+paddleocr[doc-parser]
+
+# Transformers - For DeepSeek OCR
+transformers==4.46.3
+tokenizers==0.20.3
+
+# ============================================================================
+# Image Processing (Shared)
+# ============================================================================
+PyMuPDF  # PDF processing
+Pillow   # Image processing
+img2pdf  # Image to PDF conversion
+
+# Image Augmentation (Version pinned for compatibility)
 albumentations>=1.4.4,<2.0.0
 albucore>=0.0.13,<0.0.20
 
-# Web Framework
+# ============================================================================
+# DeepSeek OCR Specific
+# ============================================================================
+einops
+easydict
+addict
+
+# Flash Attention (optional, skip if NVCC not available)
+# flash-attn>=2.7.3; platform_system=="Linux"
+
+# ============================================================================
+# Model Download & Management
+# ============================================================================
+modelscope>=1.18.0  # Faster model downloads in China
+
+# ============================================================================
+# Web Framework & API Server
+# ============================================================================
 fastapi>=0.115.0
 uvicorn[standard]>=0.32.0
 
@@ -18,22 +97,41 @@ litserve>=0.2.0
 # Async HTTP Client
 aiohttp>=3.11.0
 
+# ============================================================================
+# Utilities
+# ============================================================================
 # Logging
 loguru>=0.7.0
 
-# Office Document Parsing
+# Office Document Parsing (MarkItDown backend)
 markitdown[all]>=0.1.3
 
-# MinIO Object Storage
+# MinIO Object Storage (optional)
 minio>=7.2.0
 
 # MCP Protocol Support
-# Note: litserve 0.2.x is compatible with mcp 1.x (uses lowlevel API)
-# A compatibility patch is applied in litserve_worker.py
 mcp>=1.1.0
 starlette>=0.37.0
 sse-starlette>=2.0.0
 
-# Optional: For better performance
-# ujson>=5.10.0
+# ============================================================================
+# System Requirements
+# ============================================================================
+# For PaddlePaddle:
+#   sudo apt-get install -y libgomp1
+#
+# For WSL users:
+#   - Windows NVIDIA driver >= 520.06
+#   - WSL2 (not WSL1)
+#   - Run: nvidia-smi (should show your GPU)
+# ============================================================================
 
+# ============================================================================
+# Verification
+# ============================================================================
+# Test all frameworks:
+#   python -c "import paddle, torch; from transformers import AutoModel; print('✅ All OK')"
+#
+# Test GPU:
+#   python -c "import paddle, torch; print('Paddle CUDA:', paddle.device.is_compiled_with_cuda()); print('PyTorch CUDA:', torch.cuda.is_available())"
+# ============================================================================

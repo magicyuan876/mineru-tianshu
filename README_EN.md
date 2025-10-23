@@ -586,6 +586,16 @@ limitations under the License.
 
 ## 📝 Changelog
 
+### 2025-10-23
+
+#### ✨ New Features
+- **Integrated PaddleOCR-VL Parsing Engine**
+  - Added `paddleocr-vl` backend option with automatic recognition for 109+ languages
+  - Enhanced features: document orientation classification, text unwarping, layout detection
+  - Native PDF multi-page document support without manual conversion
+  - Automatic model download and caching managed by PaddleOCR
+  - Detailed documentation at [backend/paddleocr_vl/README.md](backend/paddleocr_vl/README.md)
+
 ### 2025-10-22
 
 #### ✨ New Features
@@ -594,20 +604,7 @@ limitations under the License.
   - Support for multiple resolution configurations (tiny/small/base/large/dynamic)
   - Support for multiple prompt types (document/image/free/figure)
   - Automatic model download from ModelScope/HuggingFace (approximately 5-10GB)
-  - Optimized singleton pattern loading for improved performance and resource utilization
-  - Cross-platform support (Linux auto-installs flash-attn, Windows/macOS use default implementation)
-  - Detailed documentation available at [backend/deepseek_ocr/README.md](backend/deepseek_ocr/README.md)
-
-#### 📚 Documentation Updates
-- Updated README documentation with DeepSeek OCR information
-- Added comprehensive DeepSeek OCR usage guide
-- Added environment check script instructions
-- Added GPU requirements and troubleshooting documentation
-
-#### 🎯 Usage Recommendations
-- **MinerU (pipeline)**: Suitable for general document parsing with complete table and formula support
-- **DeepSeek OCR (deepseek-ocr)**: Suitable for scenarios requiring high-precision OCR
-- **MarkItDown**: Suitable for Office documents and web page parsing
+  - Detailed documentation at [backend/deepseek_ocr/README.md](backend/deepseek_ocr/README.md)
 
 ---
 

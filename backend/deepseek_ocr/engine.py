@@ -315,52 +315,20 @@ class DeepSeekOCREngine:
                 
                 raise
     
-    def _convert_pdf_to_image(self, pdf_path: Path, output_dir: Path) -> Path:
+    def _convert_pdf_to_images(self, pdf_path: Path, output_dir: Path) -> list:
         """
-        将 PDF 的第一页转换为图片
+        将 PDF 所有页转换为图片
         
         Args:
             pdf_path: PDF 文件路径
             output_dir: 输出目录
             
         Returns:
-            转换后的图片路径
+            转换后的图片路径列表
         """
-        try:
-            import fitz  # PyMuPDF
-            
-            # 打开 PDF
-            doc = fitz.open(str(pdf_path))
-            
-            # 获取页数（在关闭之前）
-            page_count = len(doc)
-            
-            # 只处理第一页（如需处理多页，可以扩展）
-            page = doc[0]
-            
-            # 设置缩放以获得更高质量的图片
-            zoom = 2.0  # 2倍缩放
-            mat = fitz.Matrix(zoom, zoom)
-            
-            # 渲染为图片
-            pix = page.get_pixmap(matrix=mat)
-            
-            # 保存为 PNG
-            image_path = output_dir / f"{pdf_path.stem}_page1.png"
-            pix.save(str(image_path))
-            
-            # 关闭文档
-            doc.close()
-            
-            logger.info(f"   Converted page 1/{page_count} to PNG")
-            return image_path
-            
-        except ImportError:
-            logger.error("❌ PyMuPDF not installed. Install with: pip install PyMuPDF")
-            raise RuntimeError("PyMuPDF is required for PDF processing")
-        except Exception as e:
-            logger.error(f"❌ Failed to convert PDF to image: {e}")
-            raise
+        # 使用公共工具函数转换所有页
+        from utils.pdf_utils import convert_pdf_to_images
+        return convert_pdf_to_images(pdf_path, output_dir)
     
     def parse(
         self,
@@ -391,10 +359,14 @@ class DeepSeekOCREngine:
         logger.info(f"   Resolution: {resolution}")
         
         # 检查文件类型，如果是 PDF 需要先转换为图片
+        image_paths = []
         if file_path.suffix.lower() == '.pdf':
-            logger.info("📄 PDF detected, converting to images...")
-            file_path = self._convert_pdf_to_image(file_path, output_path)
-            logger.info(f"✅ PDF converted to: {file_path}")
+            logger.info("📄 PDF detected, converting all pages to images...")
+            image_paths = self._convert_pdf_to_images(file_path, output_path)
+            logger.info(f"✅ PDF converted: {len(image_paths)} pages")
+        else:
+            # 单张图片
+            image_paths = [file_path]
         
         # 加载模型
         model, tokenizer = self._load_model()
@@ -418,11 +390,11 @@ class DeepSeekOCREngine:
         }
         res_config = resolutions.get(resolution, resolutions['base'])
         
-        # 执行推理
+        # 执行推理（处理所有页）
         try:
             logger.info(f"🚀 开始推理...")
             logger.info(f"   分辨率配置: base_size={res_config['base_size']}, image_size={res_config['image_size']}")
-            logger.info(f"   输入文件: {file_path}")
+            logger.info(f"   共 {len(image_paths)} 个图像")
             logger.info(f"   提示词类型: {prompt_type}")
             
             # 记录 GPU 状态
@@ -432,33 +404,62 @@ class DeepSeekOCREngine:
                 gpu_memory_total = torch.cuda.get_device_properties(0).total_memory / 1024**3
                 logger.info(f"   GPU 显存: 已分配 {gpu_memory_allocated:.2f}GB / 已保留 {gpu_memory_reserved:.2f}GB / 总计 {gpu_memory_total:.2f}GB")
             
-            result = model.infer(
-                tokenizer,
-                prompt=prompt,
-                image_file=str(file_path),
-                output_path=str(output_path),
-                base_size=res_config['base_size'],
-                image_size=res_config['image_size'],
-                crop_mode=True,
-                save_results=True,
-                test_compress=True
-            )
+            all_markdown_content = []
             
-            logger.info(f"✅ DeepSeek OCR completed")
+            # 处理每个图像（每页）
+            for idx, img_path in enumerate(image_paths, 1):
+                logger.info(f"📝 处理第 {idx}/{len(image_paths)} 页: {img_path.name}")
+                
+                # 为每页创建子目录
+                page_output_dir = output_path / f"page_{idx}"
+                page_output_dir.mkdir(parents=True, exist_ok=True)
+                
+                result = model.infer(
+                    tokenizer,
+                    prompt=prompt,
+                    image_file=str(img_path),
+                    output_path=str(page_output_dir),
+                    base_size=res_config['base_size'],
+                    image_size=res_config['image_size'],
+                    crop_mode=True,
+                    save_results=True,
+                    test_compress=True
+                )
+                
+                # 读取这一页的 MMD 文件
+                page_mmd_file = page_output_dir / 'result.mmd'
+                if page_mmd_file.exists():
+                    try:
+                        with open(page_mmd_file, 'r', encoding='utf-8') as f:
+                            page_content = f.read()
+                        
+                        # 添加页标记
+                        all_markdown_content.append(f"\n\n## 第 {idx} 页\n\n")
+                        all_markdown_content.append(page_content)
+                        
+                        logger.info(f"   ✅ 第 {idx} 页处理完成")
+                    except Exception as e:
+                        logger.warning(f"   ⚠️  读取第 {idx} 页失败: {e}")
+                else:
+                    logger.warning(f"   ⚠️  第 {idx} 页未生成 MMD 文件")
             
-            # 读取生成的 MMD 文件内容
-            mmd_file = output_path / 'result.mmd'
-            markdown_content = ""
+            logger.info(f"✅ DeepSeek OCR completed - 共处理 {len(image_paths)} 页")
             
-            if mmd_file.exists():
+            # 合并所有页的内容
+            markdown_content = ''.join(all_markdown_content)
+            
+            # 保存合并后的结果到主目录
+            merged_mmd_file = output_path / 'result.mmd'
+            if markdown_content:
                 try:
-                    with open(mmd_file, 'r', encoding='utf-8') as f:
-                        markdown_content = f.read()
-                    logger.info(f"📄 已读取 MMD 文件: {len(markdown_content)} 字符")
+                    merged_mmd_file.write_text(markdown_content, encoding='utf-8')
+                    logger.info(f"📄 已合并所有页: {len(markdown_content)} 字符")
                 except Exception as e:
-                    logger.warning(f"⚠️  读取 MMD 文件失败: {e}")
+                    logger.warning(f"⚠️  保存合并文件失败: {e}")
             else:
-                logger.warning(f"⚠️  未找到 MMD 文件: {mmd_file}")
+                logger.warning(f"⚠️  没有内容可合并")
+            
+            mmd_file = merged_mmd_file
             
             return {
                 'success': True,

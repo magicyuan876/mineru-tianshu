@@ -68,19 +68,29 @@ except ImportError:
     DEEPSEEK_OCR_AVAILABLE = False
     logger.info("ℹ️  DeepSeek OCR not available (optional)")
 
+# 尝试导入 PaddleOCR-VL
+try:
+    from paddleocr_vl import PaddleOCRVLEngine
+    PADDLEOCR_VL_AVAILABLE = True
+    logger.info("✅ PaddleOCR-VL engine available")
+except ImportError:
+    PADDLEOCR_VL_AVAILABLE = False
+    logger.info("ℹ️  PaddleOCR-VL not available (optional)")
+
 
 class MinerUWorkerAPI(ls.LitAPI):
     """
     LitServe API Worker
     
     Worker 主动循环拉取任务，利用 LitServe 的自动 GPU 负载均衡
-    支持三种解析方式：
-    - PDF/图片 -> MinerU 或 DeepSeek OCR（根据 backend 参数选择）
+    支持多种解析方式：
+    - PDF/图片 -> MinerU 或 DeepSeek OCR 或 PaddleOCR-VL（根据 backend 参数选择）
     - 其他所有格式 -> MarkItDown 解析（快速处理）
     
     Backend 选项：
     - pipeline / vlm-transformers / vlm-vllm-engine -> MinerU
     - deepseek-ocr -> DeepSeek OCR
+    - paddleocr-vl -> PaddleOCR-VL
     
     新模式：每个 worker 启动后持续循环拉取任务，处理完一个立即拉取下一个
     """
@@ -279,6 +289,23 @@ class MinerUWorkerAPI(ls.LitAPI):
                         output_path=output_path
                     )
                     parse_method = 'DeepSeek-OCR'
+                    
+                elif backend == 'paddleocr-vl':
+                    # 使用 PaddleOCR-VL
+                    if not PADDLEOCR_VL_AVAILABLE:
+                        raise RuntimeError(
+                            "PaddleOCR-VL backend not available. "
+                            "Install with: pip install -r paddleocr_vl/requirements.txt"
+                        )
+                    
+                    self._parse_with_paddleocr(
+                        file_path=Path(file_path),
+                        file_name=file_name,
+                        options=options,
+                        output_path=output_path
+                    )
+                    parse_method = 'PaddleOCR-VL'
+                    
                 else:
                     # 使用 MinerU (默认)
                     self._parse_with_mineru(
@@ -461,6 +488,62 @@ class MinerUWorkerAPI(ls.LitAPI):
                     "DeepSeek OCR model is still downloading. "
                     "Please wait a few minutes and try again. "
                     f"Model location: {engine.cache_dir}"
+                )
+            else:
+                raise
+    
+    def _parse_with_paddleocr(self, file_path: Path, file_name: str,
+                              options: dict, output_path: Path):
+        """
+        使用 PaddleOCR-VL 解析 PDF 和图片
+        
+        Args:
+            file_path: 文件路径
+            file_name: 文件名
+            options: 解析选项
+            output_path: 输出路径
+        """
+        from paddleocr_vl import PaddleOCRVLEngine
+        
+        logger.info(f"🤖 Using PaddleOCR-VL to parse: {file_name}")
+        
+        # 获取配置参数
+        # 注意：PaddleOCR-VL 新版本会自动识别语言，不需要 lang 参数
+        # 注意：PaddleOCR-VL 模型由 PaddleOCR 自动管理，不支持手动指定 cache_dir
+        
+        logger.info(f"📐 PaddleOCR-VL 配置:")
+        logger.info(f"   自动语言检测: 启用（支持 109+ 语言）")
+        logger.info(f"   模型缓存: ~/.paddleocr/models/ (自动管理)")
+        
+        # 获取引擎实例（单例）
+        # PaddleOCR-VL 会在首次使用时自动下载模型
+        engine = PaddleOCRVLEngine()
+        
+        # 检查模型是否已加载或可用
+        try:
+            # 执行解析（不需要传 lang 参数，自动识别）
+            result = engine.parse(
+                file_path=str(file_path),
+                output_path=str(output_path)
+            )
+            
+            logger.info(f"✅ PaddleOCR-VL parsing completed")
+            
+            # 验证输出文件
+            if result.get('markdown_file'):
+                logger.info(f"📝 Markdown saved to: {result['markdown_file']}")
+            else:
+                logger.warning("⚠️  No markdown file in result")
+            
+        except Exception as e:
+            # 如果是模型未找到的错误，返回友好提示
+            error_msg = str(e)
+            if 'not found' in error_msg.lower() or 'no such file' in error_msg.lower():
+                logger.error(f"❌ PaddleOCR-VL model not ready")
+                raise RuntimeError(
+                    "PaddleOCR-VL model is still downloading. "
+                    "Please wait a few minutes and try again. "
+                    "Model location: ~/.paddleocr/models/"
                 )
             else:
                 raise

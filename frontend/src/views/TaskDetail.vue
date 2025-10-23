@@ -47,7 +47,7 @@
           </div>
           <div>
             <dt class="text-sm font-medium text-gray-500">处理后端</dt>
-            <dd class="mt-1 text-sm text-gray-900">{{ task.backend }}</dd>
+            <dd class="mt-1 text-sm text-gray-900">{{ formatBackendName(task.backend) }}</dd>
           </div>
           <div>
             <dt class="text-sm font-medium text-gray-500">优先级</dt>
@@ -217,7 +217,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useTaskStore } from '@/stores'
-import { formatDateTime, formatDuration } from '@/utils/format'
+import { formatDateTime, formatDuration, formatBackendName } from '@/utils/format'
 import StatusBadge from '@/components/StatusBadge.vue'
 import LoadingSpinner from '@/components/LoadingSpinner.vue'
 import MarkdownViewer from '@/components/MarkdownViewer.vue'

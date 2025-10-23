@@ -35,7 +35,9 @@
             class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
           >
             <option value="">全部</option>
-            <option value="pipeline">Pipeline</option>
+            <option value="pipeline">MinerU Pipeline</option>
+            <option value="deepseek-ocr">DeepSeek OCR</option>
+            <option value="paddleocr-vl">PaddleOCR-VL</option>
             <option value="vlm-transformers">VLM Transformers</option>
             <option value="vlm-vllm-engine">VLM vLLM Engine</option>
           </select>
@@ -149,7 +151,7 @@
                 <StatusBadge :status="task.status" />
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                {{ task.backend }}
+                {{ formatBackendName(task.backend) }}
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                 {{ formatRelativeTime(task.created_at) }}
@@ -233,7 +235,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useTaskStore } from '@/stores'
-import { formatRelativeTime } from '@/utils/format'
+import { formatRelativeTime, formatBackendName } from '@/utils/format'
 import StatusBadge from '@/components/StatusBadge.vue'
 import LoadingSpinner from '@/components/LoadingSpinner.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'

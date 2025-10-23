@@ -18,23 +18,22 @@
 
 ## 安装
 
-### 1. 安装依赖
+### 1. 安装统一的后端依赖
 
 ```bash
-pip install -r deepseek_ocr/requirements.txt
+# 安装所有后端依赖（包括 DeepSeek OCR）
+cd backend
+pip install -r requirements.txt
 ```
 
-### 2. 安装 GPU 版本的 PyTorch (必需)
+或使用清华源加速：
 
 ```bash
-# CUDA 11.8 版本 (推荐)
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
-
-# 或者 CUDA 12.1 版本
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+cd backend
+pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 ```
 
-### 3. 验证 CUDA 可用
+### 2. 验证 CUDA 可用
 
 ```bash
 python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}')"

@@ -60,3 +60,17 @@ export function formatDuration(startTime: string | null, endTime: string | null)
   }
 }
 
+/**
+ * 格式化 Backend 名称
+ */
+export function formatBackendName(backend: string): string {
+  const backendNames: Record<string, string> = {
+    'pipeline': 'MinerU Pipeline',
+    'deepseek-ocr': 'DeepSeek OCR',
+    'paddleocr-vl': 'PaddleOCR-VL',
+    'vlm-transformers': 'VLM Transformers',
+    'vlm-vllm-engine': 'VLM vLLM Engine',
+  }
+  return backendNames[backend] || backend
+}
+
