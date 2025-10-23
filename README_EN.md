@@ -40,11 +40,29 @@ English | [简体中文](./README.md)
 
 ---
 
+## 📝 Latest Updates
+
+### 2025-10-23 ✨
+
+**🎉 New PaddleOCR-VL Multi-Language OCR Engine**
+- Support for 109+ language automatic recognition without manual specification
+- Enhanced features: document orientation, text unwarping, layout detection
+- Native PDF multi-page support with automatic model download
+- Documentation: [backend/paddleocr_vl/README.md](backend/paddleocr_vl/README.md)
+
+### 2025-10-22
+
+**Integrated DeepSeek OCR High-Precision Engine**
+- Support for multiple resolution and prompt type configurations
+- Documentation: [backend/deepseek_ocr/README.md](backend/deepseek_ocr/README.md)
+
+---
+
 ## 🌟 Introduction
 
 MinerU Tianshu is an enterprise-grade document parsing service that provides:
 - **Modern Web Interface**: Beautiful and user-friendly management interface built with Vue 3 + TypeScript + TailwindCSS
-- **Powerful Parsing Capabilities**: Support for MinerU, DeepSeek OCR for PDF/image parsing + MarkItDown for Office document parsing
+- **Powerful Parsing Capabilities**: Support for MinerU, DeepSeek OCR, PaddleOCR-VL for PDF/image parsing + MarkItDown for Office document parsing
 - **High-Performance Architecture**: GPU load balancing and concurrent processing with FastAPI + LitServe
 - **Complete Task Management**: Enterprise-level features including task queue, priority, status tracking, automatic retry, etc.
 
@@ -112,9 +130,10 @@ MinerU Tianshu is an enterprise-grade document parsing service that provides:
 - ✅ **MCP Protocol Support**: AI assistant integration via Model Context Protocol
 
 ### Supported File Formats
-- 📄 **PDF and Images** - Parsed with MinerU or DeepSeek OCR (GPU accelerated)
+- 📄 **PDF and Images** - Three GPU-accelerated engines available
   - **MinerU**: Complete document parsing with table and formula recognition
   - **DeepSeek OCR**: High-precision OCR recognition for scenarios requiring ultimate accuracy
+  - **PaddleOCR-VL**: Multi-language OCR (109+ languages), auto orientation and layout analysis
 - 📊 **Office Documents** - Word, Excel, PowerPoint (using MarkItDown)
 - 🌐 **Web and Text** - HTML, Markdown, TXT, CSV, etc.
 
@@ -253,6 +272,7 @@ Open your browser and visit http://localhost:3000
 - **Multiple Parsing Engines**: 
   - **MinerU**: Complete document parsing with table and formula recognition
   - **DeepSeek OCR**: High-precision OCR recognition with multiple resolution and prompt types
+  - **PaddleOCR-VL**: Multi-language OCR (109+ languages), document enhancement processing
   - **MarkItDown**: Office document and web page parsing
 - **MCP Protocol**: AI assistants can call document parsing service via standard protocol
 
@@ -583,28 +603,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ```
-
-## 📝 Changelog
-
-### 2025-10-23
-
-#### ✨ New Features
-- **Integrated PaddleOCR-VL Parsing Engine**
-  - Added `paddleocr-vl` backend option with automatic recognition for 109+ languages
-  - Enhanced features: document orientation classification, text unwarping, layout detection
-  - Native PDF multi-page document support without manual conversion
-  - Automatic model download and caching managed by PaddleOCR
-  - Detailed documentation at [backend/paddleocr_vl/README.md](backend/paddleocr_vl/README.md)
-
-### 2025-10-22
-
-#### ✨ New Features
-- **Integrated DeepSeek OCR Parsing Engine**
-  - Added `deepseek-ocr` backend option for high-precision OCR recognition
-  - Support for multiple resolution configurations (tiny/small/base/large/dynamic)
-  - Support for multiple prompt types (document/image/free/figure)
-  - Automatic model download from ModelScope/HuggingFace (approximately 5-10GB)
-  - Detailed documentation at [backend/deepseek_ocr/README.md](backend/deepseek_ocr/README.md)
 
 ---
 

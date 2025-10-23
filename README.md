@@ -44,11 +44,29 @@
 
 ---
 
+## 📝 最新更新
+
+### 2025-10-23 ✨
+
+**🎉 新增 PaddleOCR-VL 多语言 OCR 引擎**
+- 支持 109+ 语言自动识别，无需手动指定语言
+- 文档方向分类、文本图像矫正、版面区域检测等增强功能
+- 原生 PDF 多页文档支持，模型自动下载管理
+- 详细文档：[backend/paddleocr_vl/README.md](backend/paddleocr_vl/README.md)
+
+### 2025-10-22
+
+**集成 DeepSeek OCR 高精度引擎**
+- 支持多种分辨率和提示词类型配置
+- 详细文档：[backend/deepseek_ocr/README.md](backend/deepseek_ocr/README.md)
+
+---
+
 ## 🌟 项目简介
 
 MinerU Tianshu 是一个企业级的文档解析服务,提供:
 - **现代化 Web 界面**: Vue 3 + TypeScript + TailwindCSS 构建的美观易用的管理界面
-- **强大的解析能力**: 支持 MinerU、DeepSeek OCR 的 PDF/图片解析 + MarkItDown 的 Office 文档解析
+- **强大的解析能力**: 支持 MinerU、DeepSeek OCR、PaddleOCR-VL 的 PDF/图片解析 + MarkItDown 的 Office 文档解析
 - **高性能架构**: FastAPI + LitServe 实现的 GPU 负载均衡和并发处理
 - **完善的任务管理**: 支持任务队列、优先级、状态追踪、自动重试等企业级功能
 
@@ -116,9 +134,10 @@ MinerU Tianshu 是一个企业级的文档解析服务,提供:
 - ✅ **MCP 协议支持**: 通过 Model Context Protocol 支持 AI 助手调用
 
 ### 支持的文件格式
-- 📄 **PDF 和图片** - 使用 MinerU 或 DeepSeek OCR 解析（GPU 加速）
+- 📄 **PDF 和图片** - 支持三种 GPU 加速引擎
   - **MinerU**: 完整文档解析，支持表格、公式识别
   - **DeepSeek OCR**: 高精度 OCR 识别，适合需要极致精度的场景
+  - **PaddleOCR-VL**: 多语言 OCR（109+ 语言），自动方向矫正和版面分析
 - 📊 **Office 文档** - Word、Excel、PowerPoint（使用 MarkItDown）
 - 🌐 **网页和文本** - HTML、Markdown、TXT、CSV 等
 
@@ -257,6 +276,7 @@ npm run dev
 - **多解析引擎**: 
   - **MinerU**: 完整文档解析，支持表格、公式识别
   - **DeepSeek OCR**: 高精度 OCR 识别，支持多种分辨率和提示词类型
+  - **PaddleOCR-VL**: 多语言 OCR（109+ 语言），文档增强处理
   - **MarkItDown**: Office 文档和网页解析
 - **MCP 协议**: 支持 AI 助手通过标准协议调用文档解析服务
 
@@ -590,28 +610,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ```
-
-## 📝 更新日志
-
-### 2025-10-23
-
-#### ✨ 新增特性
-- **集成 PaddleOCR-VL 解析引擎**
-  - 新增 `paddleocr-vl` 后端选项，支持 109+ 语言自动识别
-  - 文档方向分类、文本图像矫正、版面区域检测等增强功能
-  - 原生 PDF 多页文档支持，无需手动转换
-  - 模型自动下载和缓存，由 PaddleOCR 统一管理
-  - 详细文档请查看 [backend/paddleocr_vl/README.md](backend/paddleocr_vl/README.md)
-
-### 2025-10-22
-
-#### ✨ 新增特性
-- **集成 DeepSeek OCR 解析引擎**
-  - 新增 `deepseek-ocr` 后端选项，提供高精度 OCR 识别能力
-  - 支持多种分辨率配置（tiny/small/base/large/dynamic）
-  - 支持多种提示词类型（document/image/free/figure）
-  - 自动从 ModelScope/HuggingFace 下载模型（约 5-10GB）
-  - 详细文档请查看 [backend/deepseek_ocr/README.md](backend/deepseek_ocr/README.md)
 
 ---
 
