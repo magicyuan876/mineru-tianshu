@@ -95,6 +95,13 @@
           </div>
         </div>
 
+        <!-- 提示信息 -->
+        <div v-if="['pipeline', 'paddleocr-vl'].includes(config.backend)" class="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <p class="text-sm text-blue-800">
+            💡 提示：{{ config.backend === 'pipeline' ? 'MinerU' : 'PaddleOCR-VL' }} 会同时生成 Markdown 和 JSON 两种格式，您可以在查看结果时切换显示格式。
+          </p>
+        </div>
+
         <!-- DeepSeek OCR 专属配置 -->
         <div v-if="config.backend === 'deepseek-ocr'" class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-gray-200">
           <div>

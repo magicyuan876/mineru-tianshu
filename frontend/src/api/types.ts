@@ -56,6 +56,9 @@ export interface Task {
     content: string
     images_uploaded: boolean
     has_images: boolean | null
+    json_file?: string
+    json_content?: any
+    json_available?: boolean
   } | null
 }
 
@@ -88,6 +91,9 @@ export interface TaskStatusResponse {
     content: string
     images_uploaded: boolean
     has_images: boolean | null
+    json_file?: string
+    json_content?: any
+    json_available?: boolean
   } | null
   message?: string
 }

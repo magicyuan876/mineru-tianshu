@@ -522,6 +522,7 @@ class MinerUWorkerAPI(ls.LitAPI):
         # 检查模型是否已加载或可用
         try:
             # 执行解析（不需要传 lang 参数，自动识别）
+            # PaddleOCR-VL 会同时生成 Markdown 和 JSON 两种格式
             result = engine.parse(
                 file_path=str(file_path),
                 output_path=str(output_path)
@@ -532,8 +533,10 @@ class MinerUWorkerAPI(ls.LitAPI):
             # 验证输出文件
             if result.get('markdown_file'):
                 logger.info(f"📝 Markdown saved to: {result['markdown_file']}")
-            else:
-                logger.warning("⚠️  No markdown file in result")
+            if result.get('json_file'):
+                logger.info(f"📝 JSON saved to: {result['json_file']}")
+            if not result.get('markdown_file') and not result.get('json_file'):
+                logger.warning("⚠️  No output file in result")
             
         except Exception as e:
             # 如果是模型未找到的错误，返回友好提示

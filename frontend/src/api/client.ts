@@ -17,6 +17,10 @@ export const apiClient: AxiosInstance = axios.create({
 // 请求拦截器
 apiClient.interceptors.request.use(
   (config) => {
+    // 调试：打印请求参数
+    if (config.url?.includes('/tasks/')) {
+      console.log('API Request:', config.method?.toUpperCase(), config.url, 'params:', config.params)
+    }
     return config
   },
   (error) => {

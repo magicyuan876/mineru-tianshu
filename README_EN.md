@@ -44,6 +44,12 @@ English | [简体中文](./README.md)
 
 ### 2025-10-23 ✨
 
+**🎯 Structured JSON Format Output Support**
+- MinerU (pipeline) and PaddleOCR-VL engines now support structured JSON format output
+- JSON output contains complete document structure information (pages, paragraphs, tables, etc.)
+- Users can switch between Markdown and JSON formats in the task detail page
+- Frontend provides an interactive JSON viewer with expand/collapse, copy, and download features
+
 **🎉 New PaddleOCR-VL Multi-Language OCR Engine**
 - Support for 109+ language automatic recognition without manual specification
 - Enhanced features: document orientation, text unwarping, layout detection

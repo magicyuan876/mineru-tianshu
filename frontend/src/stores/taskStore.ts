@@ -70,12 +70,16 @@ export const useTaskStore = defineStore('task', () => {
   /**
    * 获取任务状态
    */
-  async function fetchTaskStatus(taskId: string, uploadImages: boolean = false) {
+  async function fetchTaskStatus(
+    taskId: string, 
+    uploadImages: boolean = false,
+    format: 'markdown' | 'json' | 'both' = 'markdown'
+  ) {
     loading.value = true
     error.value = null
     
     try {
-      const response = await taskApi.getTaskStatus(taskId, uploadImages)
+      const response = await taskApi.getTaskStatus(taskId, uploadImages, format)
       currentTask.value = {
         task_id: response.task_id,
         file_name: response.file_name,
@@ -159,7 +163,8 @@ export const useTaskStore = defineStore('task', () => {
   function pollTaskStatus(
     taskId: string,
     interval: number = 2000,
-    onUpdate?: (task: Task) => void
+    onUpdate?: (task: Task) => void,
+    format: 'markdown' | 'json' | 'both' = 'markdown'
   ): () => void {
     let timerId: number | null = null
     let stopped = false
@@ -168,7 +173,7 @@ export const useTaskStore = defineStore('task', () => {
       if (stopped) return
 
       try {
-        const response = await fetchTaskStatus(taskId)
+        const response = await fetchTaskStatus(taskId, false, format)
         
         if (onUpdate && currentTask.value) {
           onUpdate(currentTask.value)

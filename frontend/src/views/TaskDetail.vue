@@ -110,7 +110,7 @@
             下载 Markdown
           </button>
           <button
-            @click="refreshTask"
+            @click="() => refreshTask()"
             :disabled="loading"
             class="btn btn-secondary flex items-center"
           >
@@ -180,12 +180,76 @@
       <div v-if="task.status === 'completed' && task.data" class="card">
         <div class="flex items-center justify-between mb-4">
           <h2 class="text-lg font-semibold text-gray-900">解析结果</h2>
-          <div class="flex items-center gap-2 text-sm text-gray-500">
-            <FileText class="w-4 h-4" />
-            {{ task.data.markdown_file }}
+          <div class="flex items-center gap-4">
+            <!-- Format Tabs (for MinerU and PaddleOCR-VL) -->
+            <div v-if="['pipeline', 'paddleocr-vl'].includes(task.backend)" class="flex items-center gap-2">
+              <button
+                @click="switchTab('markdown')"
+                :disabled="switchingFormat"
+                :class="[
+                  'px-3 py-1 text-sm rounded transition-colors',
+                  activeTab === 'markdown' 
+                    ? 'bg-primary-100 text-primary-700 font-medium' 
+                    : 'text-gray-600 hover:bg-gray-100',
+                  switchingFormat ? 'opacity-50 cursor-not-allowed' : ''
+                ]"
+              >
+                Markdown
+              </button>
+              <button
+                @click="switchTab('json')"
+                :disabled="switchingFormat"
+                :class="[
+                  'px-3 py-1 text-sm rounded transition-colors flex items-center gap-1',
+                  activeTab === 'json' 
+                    ? 'bg-primary-100 text-primary-700 font-medium' 
+                    : 'text-gray-600 hover:bg-gray-100',
+                  switchingFormat ? 'opacity-50 cursor-not-allowed' : ''
+                ]"
+              >
+                <Loader v-if="switchingFormat && activeTab !== 'json'" class="w-3 h-3 animate-spin" />
+                JSON
+              </button>
+            </div>
+            <div class="flex items-center gap-2 text-sm text-gray-500">
+              <FileText class="w-4 h-4" />
+              {{ activeTab === 'json' && task.data.json_file ? task.data.json_file : task.data.markdown_file }}
+            </div>
           </div>
         </div>
-        <MarkdownViewer :content="task.data.content" />
+        
+        <!-- Markdown View -->
+        <div v-show="activeTab === 'markdown'">
+          <MarkdownViewer v-if="task.data.content" :content="task.data.content" />
+          <div v-else class="text-center py-8 text-gray-500">
+            <p>暂无 Markdown 内容</p>
+          </div>
+        </div>
+        
+        <!-- JSON View -->
+        <div v-show="activeTab === 'json'">
+          <!-- 加载中 -->
+          <div v-if="switchingFormat" class="flex items-center justify-center py-12">
+            <Loader class="w-8 h-8 text-primary-600 animate-spin" />
+            <span class="ml-3 text-gray-600">正在加载 JSON 数据...</span>
+          </div>
+          
+          <!-- JSON 内容 -->
+          <JsonViewer 
+            v-else-if="task.data.json_content" 
+            :data="task.data.json_content"
+            :file-name="task.data.json_file || `${task.task_id}.json`"
+          />
+          
+          <!-- 无 JSON 内容 -->
+          <div v-else class="text-center py-12">
+            <div class="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
+              <FileText class="w-8 h-8 text-gray-400" />
+            </div>
+            <p class="text-gray-600 mb-2">JSON 格式不可用</p>
+            <p class="text-sm text-gray-500">当前解析引擎不支持 JSON 输出</p>
+          </div>
+        </div>
       </div>
 
       <!-- 处理中提示 -->
@@ -217,10 +281,15 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useTaskStore } from '@/stores'
+
+const activeTab = ref<'markdown' | 'json'>('markdown')
+const switchingFormat = ref(false)
+
 import { formatDateTime, formatDuration, formatBackendName } from '@/utils/format'
 import StatusBadge from '@/components/StatusBadge.vue'
 import LoadingSpinner from '@/components/LoadingSpinner.vue'
 import MarkdownViewer from '@/components/MarkdownViewer.vue'
+import JsonViewer from '@/components/JsonViewer.vue'
 import {
   ArrowLeft,
   AlertCircle,
@@ -246,16 +315,39 @@ const error = ref('')
 const cancelling = ref(false)
 let stopPolling: (() => void) | null = null
 
-async function refreshTask() {
+async function refreshTask(format: 'markdown' | 'json' | 'both' = 'markdown') {
   loading.value = true
   error.value = ''
   try {
-    await taskStore.fetchTaskStatus(taskId.value)
+    await taskStore.fetchTaskStatus(taskId.value, false, format)
   } catch (err: any) {
     error.value = err.message || '加载任务失败'
   } finally {
     loading.value = false
   }
+}
+
+async function switchTab(tab: 'markdown' | 'json') {
+  if (activeTab.value === tab) return
+  
+  // 如果切换到 JSON，但当前没有 JSON 数据，则重新请求
+  if (tab === 'json' && !task.value?.data?.json_content) {
+    console.log('切换到 JSON，当前无数据，开始加载...')
+    switchingFormat.value = true
+    try {
+      await taskStore.fetchTaskStatus(taskId.value, false, 'both')
+      console.log('JSON 数据加载成功:', task.value?.data?.json_content ? '有数据' : '无数据')
+    } catch (err: any) {
+      console.error('加载 JSON 失败:', err)
+      error.value = err.message || '加载 JSON 数据失败'
+      return // 加载失败，不切换标签
+    } finally {
+      switchingFormat.value = false
+    }
+  }
+  
+  activeTab.value = tab
+  console.log('切换到标签:', tab)
 }
 
 async function handleCancel() {
@@ -285,7 +377,9 @@ function downloadMarkdown() {
 }
 
 onMounted(async () => {
-  await refreshTask()
+  // 首次加载时，如果是支持 JSON 的引擎，预加载两种格式
+  const initialFormat: 'markdown' | 'json' | 'both' = 'markdown'
+  await refreshTask(initialFormat)
   
   // 如果任务未完成，启动轮询
   if (task.value && (task.value.status === 'pending' || task.value.status === 'processing')) {

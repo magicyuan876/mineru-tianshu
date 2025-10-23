@@ -139,7 +139,7 @@ async def root():
 @app.post("/api/v1/tasks/submit")
 async def submit_task(
     file: UploadFile = File(..., description="文档文件: PDF/图片(MinerU解析) 或 Office/HTML/文本等(MarkItDown解析)"),
-    backend: str = Form('pipeline', description="处理后端: pipeline/vlm-transformers/vlm-vllm-engine/deepseek-ocr"),
+    backend: str = Form('pipeline', description="处理后端: pipeline/vlm-transformers/vlm-vllm-engine/deepseek-ocr/paddleocr-vl"),
     lang: str = Form('ch', description="语言: ch/en/korean/japan等"),
     method: str = Form('auto', description="解析方法: auto/txt/ocr"),
     formula_enable: bool = Form(True, description="是否启用公式识别"),
@@ -208,12 +208,16 @@ async def submit_task(
 @app.get("/api/v1/tasks/{task_id}")
 async def get_task_status(
     task_id: str,
-    upload_images: bool = Query(False, description="是否上传图片到MinIO并替换链接（仅当任务完成时有效）")
+    upload_images: bool = Query(False, description="是否上传图片到MinIO并替换链接（仅当任务完成时有效）"),
+    format: str = Query('markdown', description="返回格式: markdown(默认)/json/both")
 ):
     """
     查询任务状态和详情
     
-    当任务完成时，会自动返回解析后的 Markdown 内容（data 字段）
+    当任务完成时，会自动返回解析后的内容（data 字段）
+    - format=markdown: 只返回 Markdown 内容（默认）
+    - format=json: 只返回 JSON 结构化数据（MinerU 和 PaddleOCR-VL 支持）
+    - format=both: 同时返回 Markdown 和 JSON
     可选择是否上传图片到 MinIO 并替换为 URL
     """
     task = db.get_task(task_id)
@@ -252,37 +256,67 @@ async def get_task_status(
             logger.info(f"✅ Result directory exists")
             # 递归查找 Markdown 文件（MinerU 输出结构：task_id/filename/auto/*.md）
             md_files = list(result_dir.rglob('*.md'))
-            logger.info(f"📄 Found {len(md_files)} markdown files: {[f.relative_to(result_dir) for f in md_files]}")
+            # 递归查找 JSON 文件 (排除调试用的 page_*.json)
+            json_files = [f for f in result_dir.rglob('*.json') 
+                          if not f.parent.name.startswith('page_') and f.name in ['content.json', 'result.json']]
+            logger.info(f"📄 Found {len(md_files)} markdown files and {len(json_files)} json files")
             
             if md_files:
                 try:
-                    # 读取 Markdown 内容
-                    md_file = md_files[0]
-                    logger.info(f"📖 Reading markdown file: {md_file}")
-                    with open(md_file, 'r', encoding='utf-8') as f:
-                        md_content = f.read()
+                    # 初始化 data 字段
+                    response['data'] = {}
                     
-                    logger.info(f"✅ Markdown content loaded, length: {len(md_content)} characters")
+                    # 根据 format 参数决定返回内容
+                    if format in ['markdown', 'both']:
+                        # 读取 Markdown 内容
+                        md_file = md_files[0]
+                        logger.info(f"📖 Reading markdown file: {md_file}")
+                        with open(md_file, 'r', encoding='utf-8') as f:
+                            md_content = f.read()
+                        
+                        logger.info(f"✅ Markdown content loaded, length: {len(md_content)} characters")
+                        
+                        # 查找图片目录（在 markdown 文件的同级目录下）
+                        image_dir = md_file.parent / 'images'
+                        
+                        # 处理图片（如果需要）
+                        if upload_images and image_dir.exists():
+                            logger.info(f"🖼️  Processing images for task {task_id}, upload_images={upload_images}")
+                            md_content = process_markdown_images(md_content, image_dir, upload_images)
+                        
+                        # 添加 Markdown 相关字段
+                        response['data']['markdown_file'] = md_file.name
+                        response['data']['content'] = md_content
+                        response['data']['images_uploaded'] = upload_images
+                        response['data']['has_images'] = image_dir.exists() if not upload_images else None
                     
-                    # 查找图片目录（在 markdown 文件的同级目录下）
-                    image_dir = md_file.parent / 'images'
+                    # 如果用户请求 JSON 格式
+                    if format in ['json', 'both'] and json_files:
+                        import json as json_lib
+                        json_file = json_files[0]
+                        logger.info(f"📖 Reading JSON file: {json_file}")
+                        try:
+                            with open(json_file, 'r', encoding='utf-8') as f:
+                                json_content = json_lib.load(f)
+                            response['data']['json_file'] = json_file.name
+                            response['data']['json_content'] = json_content
+                            logger.info(f"✅ JSON content loaded successfully")
+                        except Exception as json_e:
+                            logger.warning(f"⚠️  Failed to load JSON: {json_e}")
+                    elif format == 'json' and not json_files:
+                        # 用户请求 JSON 但没有 JSON 文件
+                        logger.warning(f"⚠️  JSON format requested but no JSON file available")
+                        response['data']['message'] = 'JSON format not available for this backend'
                     
-                    # 处理图片（如果需要）
-                    if upload_images and image_dir.exists():
-                        logger.info(f"🖼️  Processing images for task {task_id}, upload_images={upload_images}")
-                        md_content = process_markdown_images(md_content, image_dir, upload_images)
-                    
-                    # 添加 data 字段
-                    response['data'] = {
-                        'markdown_file': md_file.name,
-                        'content': md_content,
-                        'images_uploaded': upload_images,
-                        'has_images': image_dir.exists() if not upload_images else None
-                    }
-                    logger.info(f"✅ Response data field added successfully")
+                    # 如果没有返回任何内容，添加提示
+                    if not response['data']:
+                        response['data'] = None
+                        logger.warning(f"⚠️  No data returned for format: {format}")
+                    else:
+                        logger.info(f"✅ Response data field added successfully (format={format})")
                     
                 except Exception as e:
-                    logger.error(f"❌ Failed to read markdown content: {e}")
+                    logger.error(f"❌ Failed to read content: {e}")
                     logger.exception(e)
                     # 读取失败不影响状态查询，只是不返回 data
                     response['data'] = None

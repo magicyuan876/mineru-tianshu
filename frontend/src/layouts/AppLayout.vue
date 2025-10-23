@@ -177,14 +177,33 @@ function refreshStats() {
   queueStore.fetchStats()
 }
 
+// 页面可见性检测
+function handleVisibilityChange() {
+  if (document.hidden) {
+    // 页面不可见，停止轮询
+    console.log('页面不可见，暂停轮询')
+    queueStore.stopAutoRefresh()
+  } else {
+    // 页面可见，恢复轮询
+    console.log('页面可见，恢复轮询')
+    queueStore.startAutoRefresh(5000)
+  }
+}
+
 onMounted(() => {
-  // 启动自动刷新队列统计
+  // 启动自动刷新队列统计（智能轮询）
   queueStore.startAutoRefresh(5000)
+  
+  // 监听页面可见性变化
+  document.addEventListener('visibilitychange', handleVisibilityChange)
 })
 
 onUnmounted(() => {
   // 停止自动刷新
   queueStore.stopAutoRefresh()
+  
+  // 移除监听器
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
 })
 </script>
 

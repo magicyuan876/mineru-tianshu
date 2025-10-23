@@ -207,7 +207,7 @@ class PaddleOCRVLEngine:
             **kwargs: 其他参数（PaddleOCR-VL 会自动识别语言）
             
         Returns:
-            解析结果
+            解析结果（同时保存 Markdown 和 JSON 两种格式）
         """
         file_path = Path(file_path)
         output_path = Path(output_path)
@@ -234,6 +234,7 @@ class PaddleOCRVLEngine:
             
             # 按照官方示例处理结果
             markdown_list = []
+            json_list = []
             
             for idx, res in enumerate(result, 1):
                 logger.info(f"📝 处理结果 {idx}/{len(result)}")
@@ -259,6 +260,11 @@ class PaddleOCRVLEngine:
                     else:
                         logger.warning(f"   ⚠️  无法提取内容")
                     
+                    # 收集 JSON 数据
+                    if hasattr(res, 'json'):
+                        json_data = res.json
+                        json_list.append(json_data)
+                    
                 except Exception as e:
                     logger.warning(f"   处理出错: {e}")
                     import traceback
@@ -279,16 +285,31 @@ class PaddleOCRVLEngine:
             # 保存合并后的 Markdown 文件
             markdown_file = output_path / 'result.md'
             markdown_file.write_text(markdown_text, encoding='utf-8')
-            
-            # 输出统计信息
             logger.info(f"📄 Markdown 已保存: {markdown_file}")
             logger.info(f"   {len(result)} 页 | {len(markdown_text):,} 字符")
+            
+            # 始终保存 JSON 文件（方便用户后续选择）
+            json_file = None
+            if json_list:
+                import json as json_lib
+                json_file = output_path / 'result.json'
+                # 合并所有页的 JSON
+                combined_json = {
+                    'pages': json_list,
+                    'total_pages': len(result)
+                }
+                with open(json_file, 'w', encoding='utf-8') as f:
+                    json_lib.dump(combined_json, f, ensure_ascii=False, indent=2)
+                logger.info(f"📄 JSON 已保存: {json_file}")
+            else:
+                logger.warning(f"⚠️  无法提取 JSON 数据")
             
             return {
                 'success': True,
                 'output_path': str(output_path),
                 'markdown': markdown_text,
                 'markdown_file': str(markdown_file),
+                'json_file': str(json_file) if json_file else None,
                 'result': result
             }
             
