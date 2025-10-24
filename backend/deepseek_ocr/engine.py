@@ -330,6 +330,31 @@ class DeepSeekOCREngine:
         from utils.pdf_utils import convert_pdf_to_images
         return convert_pdf_to_images(pdf_path, output_dir)
     
+    def cleanup(self):
+        """
+        清理推理产生的显存（不卸载模型）
+        
+        注意：
+        - 只清理推理过程中产生的中间张量
+        - 不会卸载已加载的模型（模型保持在显存中，下次推理更快）
+        - 适合在每次推理完成后调用
+        """
+        try:
+            import gc
+            
+            # 清理 PyTorch 显存缓存
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                torch.cuda.synchronize()  # 确保所有操作完成
+                logger.debug("🧹 DeepSeek OCR: CUDA cache cleared")
+            
+            # 清理 Python 对象
+            gc.collect()
+            
+            logger.debug("🧹 DeepSeek OCR: Memory cleanup completed")
+        except Exception as e:
+            logger.debug(f"Memory cleanup warning: {e}")
+    
     def parse(
         self,
         file_path: str,
@@ -468,6 +493,7 @@ class DeepSeekOCREngine:
                 'mmd_file': str(mmd_file) if mmd_file.exists() else None,
                 'result': result  # 保留原始结果
             }
+        
         except RuntimeError as e:
             error_msg = str(e)
             logger.error("=" * 80)
@@ -622,6 +648,10 @@ class DeepSeekOCREngine:
             logger.debug(traceback.format_exc())
             
             raise
+        
+        finally:
+            # 清理显存（无论成功或失败都执行）
+            self.cleanup()
 
 
 # 全局单例
