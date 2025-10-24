@@ -1,11 +1,11 @@
 """
 视频处理引擎
-基于 FFmpeg + SenseVoice
+基于 FFmpeg + SenseVoice + OCR
 
 支持：
 - 多种视频格式（MP4, AVI, MKV, MOV, FLV, WebM）
-- 音频提取
-- 语音转写（多语言、说话人识别、情感识别）
+- 音频提取 + 语音转写（多语言、说话人识别、情感识别）
+- 关键帧提取 + OCR 识别（场景检测、质量过滤、图像去重）
 """
 import json
 from pathlib import Path
@@ -230,10 +230,13 @@ class VideoProcessingEngine:
         language: str = "auto",
         use_itn: bool = True,
         keep_audio: bool = False,
+        enable_keyframe_ocr: bool = False,
+        ocr_backend: str = "paddleocr-vl",
+        keep_keyframes: bool = False,
         **kwargs
     ) -> Dict[str, Any]:
         """
-        视频处理主流程：提取音频 + 语音识别
+        视频处理主流程：提取音频 + 语音识别 + 关键帧OCR（可选）
         
         Args:
             video_path: 视频文件路径
@@ -241,6 +244,9 @@ class VideoProcessingEngine:
             language: 语言代码 (auto/zh/en/ja/ko/yue)
             use_itn: 是否使用逆文本归一化
             keep_audio: 是否保留提取的音频文件
+            enable_keyframe_ocr: 是否启用关键帧OCR（默认False，仅音频转写）
+            ocr_backend: OCR引擎（paddleocr-vl/deepseek-ocr）
+            keep_keyframes: 是否保留关键帧图像
             **kwargs: 其他参数
             
         Returns:
@@ -252,11 +258,12 @@ class VideoProcessingEngine:
         
         logger.info(f"🎬 Video processing: {video_path.name}")
         logger.info(f"   Language: {language}")
+        logger.info(f"   Keyframe OCR: {'Enabled' if enable_keyframe_ocr else 'Disabled'}")
         
         try:
             # 步骤 1: 提取音频
             logger.info("=" * 60)
-            logger.info("📥 Step 1: Extracting audio from video...")
+            logger.info("📥 Step 1/3: Extracting audio from video...")
             logger.info("=" * 60)
             
             audio_path = self.extract_audio(
@@ -266,13 +273,13 @@ class VideoProcessingEngine:
             
             # 步骤 2: 音频转文字
             logger.info("=" * 60)
-            logger.info("📝 Step 2: Transcribing audio...")
+            logger.info("📝 Step 2/3: Transcribing audio...")
             logger.info("=" * 60)
             
             audio_engine = self._load_audio_engine()
             
             # 使用 SenseVoice 进行语音识别
-            result = audio_engine.parse(
+            audio_result = audio_engine.parse(
                 audio_path=audio_path,
                 output_path=str(output_path),
                 language=language,
@@ -280,10 +287,38 @@ class VideoProcessingEngine:
                 **kwargs
             )
             
-            # 步骤 3: 更新结果元数据
+            # 步骤 3: 关键帧OCR（可选）
+            keyframe_result = None
+            if enable_keyframe_ocr:
+                logger.info("=" * 60)
+                logger.info("📸 Step 3/3: Keyframe extraction and OCR...")
+                logger.info("=" * 60)
+                
+                try:
+                    from .keyframe_extractor import VideoOCREngine
+                    
+                    ocr_engine = VideoOCREngine(
+                        ocr_backend=ocr_backend,
+                        keep_keyframes=keep_keyframes
+                    )
+                    
+                    keyframe_result = ocr_engine.process(
+                        video_path=str(video_path),
+                        output_path=str(output_path)
+                    )
+                    
+                    logger.info(f"✅ Extracted {keyframe_result['total_keyframes']} keyframes")
+                    
+                except Exception as e:
+                    logger.warning(f"⚠️  Keyframe OCR failed: {e}")
+                    logger.debug("Continuing with audio transcription only...")
+            
+            # 步骤 4: 合并结果
             logger.info("=" * 60)
-            logger.info("📊 Step 3: Updating metadata...")
+            logger.info("📊 Step 4: Merging results...")
             logger.info("=" * 60)
+            
+            result = audio_result
             
             # 更新 JSON 数据，标记为视频来源
             if result.get('json_data'):
@@ -293,18 +328,39 @@ class VideoProcessingEngine:
                 json_data['source']['video_format'] = video_path.suffix[1:]
                 json_data['source']['original_filename'] = video_path.name
                 
+                # 添加关键帧OCR结果
+                if keyframe_result and keyframe_result.get('success'):
+                    json_data['keyframe_ocr'] = {
+                        'enabled': True,
+                        'total_keyframes': keyframe_result['total_keyframes'],
+                        'keyframes': keyframe_result['keyframes'],
+                        'markdown_file': str(Path(keyframe_result['markdown_file']).name),
+                        'json_file': str(Path(keyframe_result['json_file']).name)
+                    }
+                else:
+                    json_data['keyframe_ocr'] = {
+                        'enabled': False
+                    }
+                
                 # 重新保存 JSON
                 json_file = output_path / f"{video_path.stem}.json"
                 with open(json_file, 'w', encoding='utf-8') as f:
                     json.dump(json_data, f, ensure_ascii=False, indent=2)
                 logger.info(f"📄 Updated JSON: {json_file}")
             
-            # 更新 Markdown，添加视频信息
+            # 更新 Markdown，添加视频信息和关键帧OCR结果
             if result.get('markdown'):
                 md_content = result['markdown']
                 
                 # 在标题后添加视频信息
                 video_info = f"\n**原始文件**: {video_path.name} (视频)\n**视频格式**: {video_path.suffix[1:].upper()}\n"
+                
+                # 添加关键帧OCR信息
+                if keyframe_result and keyframe_result.get('success'):
+                    video_info += f"**关键帧OCR**: 已启用（提取 {keyframe_result['total_keyframes']} 帧）\n"
+                    video_info += f"**OCR结果**: {Path(keyframe_result['markdown_file']).name}\n"
+                else:
+                    video_info += "**关键帧OCR**: 未启用\n"
                 
                 # 查找第一个 \n\n 位置，插入视频信息
                 first_break = md_content.find('\n\n')
@@ -313,14 +369,60 @@ class VideoProcessingEngine:
                 else:
                     md_content = video_info + md_content
                 
-                # 重新保存 Markdown
-                markdown_file = output_path / f"{video_path.stem}.md"
-                markdown_file.write_text(md_content, encoding='utf-8')
-                logger.info(f"📄 Updated Markdown: {markdown_file}")
+                # 如果有关键帧OCR结果，将其内容追加到主Markdown末尾
+                if keyframe_result and keyframe_result.get('success') and keyframe_result.get('markdown'):
+                    logger.info("📝 Merging keyframe OCR content into main markdown...")
+                    
+                    # 添加分隔符和关键帧OCR内容
+                    md_content += "\n\n---\n\n"
+                    md_content += "# 📸 视频关键帧 OCR 内容\n\n"
+                    md_content += f"> 从视频中提取了 {keyframe_result['total_keyframes']} 个关键帧并进行了 OCR 识别\n\n"
+                    
+                    # 读取关键帧OCR的markdown内容
+                    keyframe_md = keyframe_result.get('markdown', '')
+                    
+                    # 移除关键帧markdown的标题（第一行），因为我们已经添加了新标题
+                    keyframe_lines = keyframe_md.split('\n')
+                    if keyframe_lines and keyframe_lines[0].startswith('# '):
+                        keyframe_md = '\n'.join(keyframe_lines[2:])  # 跳过标题和空行
+                    
+                    md_content += keyframe_md
+                    
+                    logger.info("✅ Keyframe OCR content merged")
+                
+                # 保存为统一的 content.md（主结果）
+                content_md_file = output_path / "content.md"
+                content_md_file.write_text(md_content, encoding='utf-8')
+                logger.info(f"📄 Main result saved: content.md")
+                
+                # 同时保留原始命名的文件（用于调试/备份）
+                original_md_file = output_path / f"{video_path.stem}.md"
+                original_md_file.write_text(md_content, encoding='utf-8')
+                logger.info(f"📄 Backup saved: {original_md_file.name}")
                 
                 result['markdown'] = md_content
+                result['markdown_file'] = str(content_md_file)
+                
+                # 添加关键帧OCR结果到返回值
+                if keyframe_result:
+                    result['keyframe_ocr'] = keyframe_result
             
-            # 步骤 4: 清理临时音频文件（可选）
+            # 更新 JSON 数据并保存为统一的 content.json
+            if result.get('json_data'):
+                content_json_file = output_path / "content.json"
+                with open(content_json_file, 'w', encoding='utf-8') as f:
+                    json.dump(result['json_data'], f, ensure_ascii=False, indent=2)
+                logger.info(f"📄 Main JSON saved: content.json")
+                
+                # 同时保留原始命名的文件（用于调试/备份）
+                original_json_file = output_path / f"{video_path.stem}.json"
+                with open(original_json_file, 'w', encoding='utf-8') as f:
+                    json.dump(result['json_data'], f, ensure_ascii=False, indent=2)
+                logger.info(f"📄 Backup JSON saved: {original_json_file.name}")
+                
+                result['json_file'] = str(content_json_file)
+            
+            # 步骤 5: 清理临时音频文件（可选）
             if not keep_audio:
                 try:
                     Path(audio_path).unlink()

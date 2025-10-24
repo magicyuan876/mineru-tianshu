@@ -35,6 +35,20 @@ export async function submitTask(request: SubmitTaskRequest): Promise<SubmitTask
     formData.append('deepseek_cache_dir', request.deepseek_cache_dir)
   }
 
+  // Video 专用参数
+  if (request.keep_audio !== undefined) {
+    formData.append('keep_audio', String(request.keep_audio))
+  }
+  if (request.enable_keyframe_ocr !== undefined) {
+    formData.append('enable_keyframe_ocr', String(request.enable_keyframe_ocr))
+  }
+  if (request.ocr_backend) {
+    formData.append('ocr_backend', request.ocr_backend)
+  }
+  if (request.keep_keyframes !== undefined) {
+    formData.append('keep_keyframes', String(request.keep_keyframes))
+  }
+
   const response = await apiClient.post<SubmitTaskResponse>(
     '/api/v1/tasks/submit',
     formData,

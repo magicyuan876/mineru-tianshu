@@ -181,8 +181,8 @@
         <div class="flex items-center justify-between mb-4">
           <h2 class="text-lg font-semibold text-gray-900">解析结果</h2>
           <div class="flex items-center gap-4">
-            <!-- Format Tabs (for MinerU and PaddleOCR-VL) -->
-            <div v-if="['pipeline', 'paddleocr-vl'].includes(task.backend)" class="flex items-center gap-2">
+            <!-- Format Tabs (for all backends that support JSON) -->
+            <div v-if="task.data.json_available !== false" class="flex items-center gap-2">
               <button
                 @click="switchTab('markdown')"
                 :disabled="switchingFormat"

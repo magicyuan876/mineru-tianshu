@@ -762,6 +762,9 @@ class MinerUWorkerAPI(ls.LitAPI):
         
         # 获取其他选项
         keep_audio = options.get('keep_audio', False)
+        enable_keyframe_ocr = options.get('enable_keyframe_ocr', False)
+        ocr_backend = options.get('ocr_backend', 'paddleocr-vl')
+        keep_keyframes = options.get('keep_keyframes', False)
         
         # 调用视频处理引擎
         result = self.video_engine.parse(
@@ -769,7 +772,10 @@ class MinerUWorkerAPI(ls.LitAPI):
             output_path=str(output_path),
             language=language,
             use_itn=True,
-            keep_audio=keep_audio
+            keep_audio=keep_audio,
+            enable_keyframe_ocr=enable_keyframe_ocr,
+            ocr_backend=ocr_backend,
+            keep_keyframes=keep_keyframes
         )
         
         logger.info(f"✅ Video processing completed")
@@ -781,6 +787,13 @@ class MinerUWorkerAPI(ls.LitAPI):
         logger.info(f"   Language: {json_data['metadata']['language']}")
         logger.info(f"   Speakers: {json_data['metadata']['speaker_count']}")
         logger.info(f"   Segments: {json_data['metadata']['segment_count']}")
+        
+        # 显示关键帧OCR统计
+        if enable_keyframe_ocr and 'keyframe_ocr' in json_data:
+            keyframe_info = json_data['keyframe_ocr']
+            if keyframe_info.get('enabled'):
+                logger.info(f"   Keyframes: {keyframe_info['total_keyframes']} frames extracted")
+                logger.info(f"   OCR Output: {keyframe_info['markdown_file']}")
     
     def predict(self, action):
         """

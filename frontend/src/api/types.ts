@@ -37,6 +37,9 @@ export interface SubmitTaskRequest {
   deepseek_cache_dir?: string
   // Video 专属参数
   keep_audio?: boolean
+  enable_keyframe_ocr?: boolean
+  ocr_backend?: string
+  keep_keyframes?: boolean
 }
 
 // 任务信息

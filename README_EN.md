@@ -48,12 +48,16 @@ English | [简体中文](./README.md)
 
 - ✅ **New Video Processing Engine**
   - Support for mainstream video formats: MP4, AVI, MKV, MOV, WebM, etc.
-  - Extract audio from videos and transcribe to text (FFmpeg + SenseVoice)
+  - **Audio Transcription**: Extract audio from videos and transcribe to text (FFmpeg + SenseVoice)
+  - **Keyframe OCR (🧪 Experimental)**: Automatic keyframe extraction and OCR recognition
+    - Scene detection: Adaptive scene change detection based on frame difference
+    - Quality filtering: Laplacian variance + brightness assessment
+    - Image deduplication: Perceptual hashing (pHash) + Hamming distance
+    - Text deduplication: Edit distance algorithm to avoid redundant content
+    - Support for both PaddleOCR-VL and DeepSeek OCR engines
   - Multi-language recognition, speaker diarization, emotion recognition
   - Output timestamped transcripts in JSON and Markdown formats
   - Details: `backend/video_engines/README.md`
-  - **⚠️ Current Version**: Audio track transcription only
-  - **🔮 Future Plans**: Key frame extraction, scene recognition, video content understanding
 
 ### 2025-10-23 🎙️ Audio Processing Engine
 
@@ -94,10 +98,10 @@ MinerU Tianshu is an **Enterprise-grade AI Data Preprocessing Platform** that co
 - **📄 Document Processing**: PDF, Word, Excel, PPT → Markdown/JSON
   - MinerU Pipeline (complete parsing), DeepSeek OCR (high precision), PaddleOCR-VL (109+ languages)
   
-- **🎬 Video Processing**: MP4, AVI, MKV, MOV → Speech Transcription + Timestamps
+- **🎬 Video Processing**: MP4, AVI, MKV, MOV → Speech Transcription + Keyframe OCR
   - Video audio extraction (FFmpeg) + speech recognition (SenseVoice)
+  - **🧪 Keyframe OCR (Experimental)**: Scene detection + quality filtering + image deduplication + OCR
   - Multi-language support, speaker diarization, emotion recognition
-  - **Current Version**: Audio track transcription only; future plans include key frame extraction and content understanding
   
 - **🎙️ Audio Processing**: MP3, WAV, M4A → Transcription + Speaker Diarization
   - SenseVoice engine with multi-language support, emotion recognition, event detection

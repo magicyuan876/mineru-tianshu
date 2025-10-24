@@ -184,23 +184,34 @@ class SenseVoiceEngine:
             # 生成 Markdown
             markdown_content = self._generate_markdown(parsed_result)
             
-            # 保存 Markdown
-            markdown_file = output_path / f"{audio_path.stem}.md"
-            markdown_file.write_text(markdown_content, encoding='utf-8')
-            logger.info(f"📄 Markdown saved: {markdown_file}")
+            # 保存为统一的 content.md（主结果）
+            content_md_file = output_path / "content.md"
+            content_md_file.write_text(markdown_content, encoding='utf-8')
+            logger.info(f"📄 Main result saved: content.md")
             
-            # 保存 JSON
-            json_file = output_path / f"{audio_path.stem}.json"
-            with open(json_file, 'w', encoding='utf-8') as f:
+            # 同时保留原始命名的文件（用于调试/备份）
+            original_md_file = output_path / f"{audio_path.stem}.md"
+            original_md_file.write_text(markdown_content, encoding='utf-8')
+            logger.info(f"📄 Backup saved: {original_md_file.name}")
+            
+            # 保存为统一的 content.json（主结果）
+            content_json_file = output_path / "content.json"
+            with open(content_json_file, 'w', encoding='utf-8') as f:
                 json.dump(parsed_result, f, ensure_ascii=False, indent=2)
-            logger.info(f"📄 JSON saved: {json_file}")
+            logger.info(f"📄 Main JSON saved: content.json")
+            
+            # 同时保留原始命名的文件（用于调试/备份）
+            original_json_file = output_path / f"{audio_path.stem}.json"
+            with open(original_json_file, 'w', encoding='utf-8') as f:
+                json.dump(parsed_result, f, ensure_ascii=False, indent=2)
+            logger.info(f"📄 Backup JSON saved: {original_json_file.name}")
             
             return {
                 'success': True,
                 'output_path': str(output_path),
                 'markdown': markdown_content,
-                'markdown_file': str(markdown_file),
-                'json_file': str(json_file),
+                'markdown_file': str(content_md_file),
+                'json_file': str(content_json_file),
                 'json_data': parsed_result,
                 'result': result  # 原始结果
             }

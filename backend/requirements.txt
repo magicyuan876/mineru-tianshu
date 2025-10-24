@@ -87,6 +87,13 @@ funasr>=1.1.0  # FunASR framework for SenseVoice
 ffmpeg-python  # Audio processing (also used by video processing)
 
 # ============================================================================
+# Video Processing (Keyframe Extraction)
+# ============================================================================
+opencv-python>=4.8.0  # Video processing and frame extraction
+imagehash>=4.3.0      # Perceptual hashing for image deduplication
+numpy>=1.24.0         # Numerical operations
+
+# ============================================================================
 # Model Download & Management
 # ============================================================================
 modelscope>=1.18.0  # Faster model downloads in China

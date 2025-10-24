@@ -153,6 +153,9 @@ async def submit_task(
     deepseek_prompt_type: str = Form('document', description="DeepSeek OCR 提示词类型: document/image/free/figure"),
     # 视频处理专用参数
     keep_audio: bool = Form(False, description="视频处理时是否保留提取的音频文件"),
+    enable_keyframe_ocr: bool = Form(False, description="是否启用视频关键帧OCR识别（实验性功能）"),
+    ocr_backend: str = Form('paddleocr-vl', description="关键帧OCR引擎: paddleocr-vl/deepseek-ocr"),
+    keep_keyframes: bool = Form(False, description="是否保留提取的关键帧图像"),
 ):
     """
     提交文档解析任务
@@ -187,6 +190,9 @@ async def submit_task(
                 'deepseek_prompt_type': deepseek_prompt_type,
                 # 视频处理参数
                 'keep_audio': keep_audio,
+                'enable_keyframe_ocr': enable_keyframe_ocr,
+                'ocr_backend': ocr_backend,
+                'keep_keyframes': keep_keyframes,
             },
             priority=priority
         )
@@ -272,6 +278,9 @@ async def get_task_status(
                 try:
                     # 初始化 data 字段
                     response['data'] = {}
+                    
+                    # 标记 JSON 是否可用
+                    response['data']['json_available'] = len(json_files) > 0
                     
                     # 根据 format 参数决定返回内容
                     if format in ['markdown', 'both']:

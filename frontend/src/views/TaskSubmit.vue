@@ -155,18 +155,66 @@
 
         <!-- Video 专属配置 -->
         <div v-if="config.backend === 'video'" class="mt-6 pt-6 border-t border-gray-200">
-          <div class="space-y-3">
-            <label class="flex items-center">
-              <input
-                v-model="config.keep_audio"
-                type="checkbox"
-                class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-              />
-              <span class="ml-2 text-sm text-gray-700">保留提取的音频文件</span>
-            </label>
-            <p class="text-xs text-gray-500 ml-6">
-              💡 默认情况下，处理完成后会自动删除临时音频文件以节省空间
-            </p>
+          <h3 class="text-base font-semibold text-gray-900 mb-4">🎬 视频处理选项</h3>
+          
+          <div class="space-y-4">
+            <!-- 音频选项 -->
+            <div>
+              <label class="flex items-center">
+                <input
+                  v-model="config.keep_audio"
+                  type="checkbox"
+                  class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                />
+                <span class="ml-2 text-sm text-gray-700">保留提取的音频文件</span>
+              </label>
+              <p class="text-xs text-gray-500 ml-6 mt-1">
+                💡 默认情况下，处理完成后会自动删除临时音频文件以节省空间
+              </p>
+            </div>
+
+            <!-- 关键帧OCR选项 -->
+            <div class="pt-4 border-t border-gray-100">
+              <label class="flex items-center">
+                <input
+                  v-model="config.enable_keyframe_ocr"
+                  type="checkbox"
+                  class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                />
+                <span class="ml-2 text-sm text-gray-700 font-medium">
+                  启用关键帧 OCR 识别
+                  <span class="ml-1 px-1.5 py-0.5 text-xs bg-blue-100 text-blue-700 rounded">实验性</span>
+                </span>
+              </label>
+              <p class="text-xs text-gray-500 ml-6 mt-1">
+                📸 自动提取视频关键帧并进行 OCR 识别，适用于含有文字内容的视频（如课程、演示等）
+              </p>
+
+              <!-- 关键帧OCR子选项 -->
+              <div v-if="config.enable_keyframe_ocr" class="ml-6 mt-3 space-y-3 pl-4 border-l-2 border-primary-200">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-2">
+                    OCR 引擎
+                  </label>
+                  <select
+                    v-model="config.ocr_backend"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  >
+                    <option value="paddleocr-vl">PaddleOCR-VL（推荐，支持多语言）</option>
+                    <option value="deepseek-ocr">DeepSeek OCR（高精度）</option>
+                  </select>
+                </div>
+
+                <label class="flex items-center">
+                  <input
+                    v-model="config.keep_keyframes"
+                    type="checkbox"
+                    class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                  />
+                  <span class="ml-2 text-sm text-gray-700">保留提取的关键帧图像</span>
+                </label>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -334,6 +382,9 @@ const config = reactive({
   deepseek_prompt_type: 'document',
   // Video 专属配置
   keep_audio: false,
+  enable_keyframe_ocr: false,
+  ocr_backend: 'paddleocr-vl',
+  keep_keyframes: false,
 })
 
 function onFilesChange(newFiles: File[]) {
