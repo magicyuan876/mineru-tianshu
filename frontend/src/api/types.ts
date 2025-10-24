@@ -6,7 +6,7 @@
 export type TaskStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled'
 
 // 后端类型
-export type Backend = 'pipeline' | 'vlm-transformers' | 'vlm-vllm-engine' | 'deepseek-ocr' | 'paddleocr-vl' | 'sensevoice'
+export type Backend = 'pipeline' | 'vlm-transformers' | 'vlm-vllm-engine' | 'deepseek-ocr' | 'paddleocr-vl' | 'sensevoice' | 'video'
 
 // 语言类型
 export type Language = 'auto' | 'ch' | 'en' | 'korean' | 'japan'
@@ -35,6 +35,8 @@ export interface SubmitTaskRequest {
   deepseek_resolution?: string
   deepseek_prompt_type?: string
   deepseek_cache_dir?: string
+  // Video 专属参数
+  keep_audio?: boolean
 }
 
 // 任务信息

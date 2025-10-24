@@ -44,6 +44,17 @@ English | [简体中文](./README.md)
 
 ## 📝 Latest Updates
 
+### 2025-10-24 🎬 Video Processing Support
+
+- ✅ **New Video Processing Engine**
+  - Support for mainstream video formats: MP4, AVI, MKV, MOV, WebM, etc.
+  - Extract audio from videos and transcribe to text (FFmpeg + SenseVoice)
+  - Multi-language recognition, speaker diarization, emotion recognition
+  - Output timestamped transcripts in JSON and Markdown formats
+  - Details: `backend/video_engines/README.md`
+  - **⚠️ Current Version**: Audio track transcription only
+  - **🔮 Future Plans**: Key frame extraction, scene recognition, video content understanding
+
 ### 2025-10-23 🎙️ Audio Processing Engine
 
 - ✅ **New SenseVoice Audio Recognition Engine**
@@ -82,6 +93,11 @@ MinerU Tianshu is an **Enterprise-grade AI Data Preprocessing Platform** that co
 
 - **📄 Document Processing**: PDF, Word, Excel, PPT → Markdown/JSON
   - MinerU Pipeline (complete parsing), DeepSeek OCR (high precision), PaddleOCR-VL (109+ languages)
+  
+- **🎬 Video Processing**: MP4, AVI, MKV, MOV → Speech Transcription + Timestamps
+  - Video audio extraction (FFmpeg) + speech recognition (SenseVoice)
+  - Multi-language support, speaker diarization, emotion recognition
+  - **Current Version**: Audio track transcription only; future plans include key frame extraction and content understanding
   
 - **🎙️ Audio Processing**: MP3, WAV, M4A → Transcription + Speaker Diarization
   - SenseVoice engine with multi-language support, emotion recognition, event detection

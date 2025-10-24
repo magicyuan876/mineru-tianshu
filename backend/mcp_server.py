@@ -1,8 +1,12 @@
 """
 MinerU Tianshu - MCP Server
-通过 Model Context Protocol 暴露文档解析能力
+天枢 MCP 协议服务器
+
+企业级 AI 数据预处理平台 - MCP 接口
+通过 Model Context Protocol 暴露数据处理能力
 
 支持功能:
+- 文档、图片、音频、视频等多模态数据处理
 - Base64 编码的文件传输
 - URL 文件下载
 - 异步任务处理和状态查询

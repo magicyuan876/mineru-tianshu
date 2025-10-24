@@ -1,6 +1,8 @@
 # MinerU Tianshu 后端
 
-企业级多 GPU 文档解析服务后端,基于 FastAPI + LitServe 构建。
+企业级 AI 数据预处理平台后端，基于 FastAPI + LitServe 构建。
+
+支持文档、图片、音频、视频等多模态数据处理，GPU 负载均衡，任务队列管理。
 
 ## 🚀 快速开始
 

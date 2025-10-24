@@ -2,6 +2,8 @@
 MinerU Tianshu - LitServe Worker
 天枢 LitServe Worker
 
+企业级 AI 数据预处理平台 - GPU Worker
+支持文档、图片、音频、视频等多模态数据处理
 使用 LitServe 实现 GPU 资源的自动负载均衡
 Worker 主动循环拉取任务并处理
 """
@@ -86,6 +88,15 @@ except ImportError:
     SENSEVOICE_AVAILABLE = False
     logger.info("ℹ️  SenseVoice not available (optional)")
 
+# 尝试导入视频处理引擎
+try:
+    from video_engines import VideoProcessingEngine
+    VIDEO_ENGINE_AVAILABLE = True
+    logger.info("✅ Video processing engine available")
+except ImportError as e:
+    VIDEO_ENGINE_AVAILABLE = False
+    logger.info(f"ℹ️  Video processing engine not available (optional): {e}")
+
 
 class MinerUWorkerAPI(ls.LitAPI):
     """
@@ -109,6 +120,8 @@ class MinerUWorkerAPI(ls.LitAPI):
     PDF_IMAGE_FORMATS = {'.pdf', '.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.tif', '.webp'}
     # 音频格式
     AUDIO_FORMATS = {'.mp3', '.wav', '.m4a', '.flac', '.ogg', '.aac', '.wma', '.opus'}
+    # 视频格式
+    VIDEO_FORMATS = {'.mp4', '.avi', '.mkv', '.mov', '.flv', '.webm', '.m4v', '.wmv', '.mpeg', '.mpg'}
     # 其他所有格式都使用 MarkItDown 解析
     
     def __init__(self, output_dir='/tmp/mineru_tianshu_output', worker_id_prefix='tianshu', 
@@ -122,6 +135,8 @@ class MinerUWorkerAPI(ls.LitAPI):
         self.db = TaskDB()
         self.worker_id = None
         self.markitdown = None
+        self.audio_engine = None
+        self.video_engine = None
         self.running = False  # Worker 运行状态
         self.worker_thread = None  # Worker 线程
     
@@ -181,6 +196,14 @@ class MinerUWorkerAPI(ls.LitAPI):
                 logger.info(f"✅ SenseVoice audio engine initialized")
             except Exception as e:
                 logger.error(f"❌ Failed to initialize SenseVoice engine: {e}")
+        
+        # 初始化视频处理引擎（如果可用）
+        if VIDEO_ENGINE_AVAILABLE:
+            try:
+                self.video_engine = VideoProcessingEngine()
+                logger.info(f"✅ Video processing engine initialized")
+            except Exception as e:
+                logger.error(f"❌ Failed to initialize video engine: {e}")
         
         logger.info(f"✅ Worker {self.worker_id} ready")
         logger.info(f"   Device: {device_mode}")
@@ -308,6 +331,22 @@ class MinerUWorkerAPI(ls.LitAPI):
                 )
                 parse_method = 'SenseVoice'
                 
+            elif backend == 'video':
+                # 用户显式选择视频处理引擎
+                if not VIDEO_ENGINE_AVAILABLE:
+                    raise RuntimeError(
+                        "Video processing engine not available. "
+                        "Install with: pip install funasr ffmpeg-python"
+                    )
+                
+                self._parse_with_video_engine(
+                    file_path=Path(file_path),
+                    file_name=file_name,
+                    options=options,
+                    output_path=output_path
+                )
+                parse_method = 'Video'
+                
             elif file_type == 'pdf_image':
                 # PDF 和图片：根据 backend 参数选择解析器
                 if backend == 'deepseek-ocr':
@@ -353,6 +392,38 @@ class MinerUWorkerAPI(ls.LitAPI):
                         output_path=output_path
                     )
                     parse_method = 'MinerU'
+                
+            elif file_type == 'audio':
+                # 音频文件：使用 SenseVoice
+                if not SENSEVOICE_AVAILABLE:
+                    raise RuntimeError(
+                        "SenseVoice audio engine not available. "
+                        "Install with: pip install funasr ffmpeg-python"
+                    )
+                
+                self._parse_with_sensevoice(
+                    file_path=Path(file_path),
+                    file_name=file_name,
+                    options=options,
+                    output_path=output_path
+                )
+                parse_method = 'SenseVoice'
+                
+            elif file_type == 'video':
+                # 视频文件：使用视频处理引擎
+                if not VIDEO_ENGINE_AVAILABLE:
+                    raise RuntimeError(
+                        "Video processing engine not available. "
+                        "Install with: pip install funasr ffmpeg-python"
+                    )
+                
+                self._parse_with_video_engine(
+                    file_path=Path(file_path),
+                    file_name=file_name,
+                    options=options,
+                    output_path=output_path
+                )
+                parse_method = 'Video'
                 
             else:  # file_type == 'markitdown' 或其他格式
                 # 使用 markitdown 解析所有其他格式
@@ -406,6 +477,7 @@ class MinerUWorkerAPI(ls.LitAPI):
         Returns:
             'pdf_image': PDF 或图片格式，使用 MinerU 解析
             'audio': 音频格式，使用 SenseVoice 解析
+            'video': 视频格式，使用视频处理引擎
             'markitdown': 其他所有格式，使用 markitdown 解析
         """
         suffix = Path(file_path).suffix.lower()
@@ -414,6 +486,8 @@ class MinerUWorkerAPI(ls.LitAPI):
             return 'pdf_image'
         elif suffix in self.AUDIO_FORMATS:
             return 'audio'
+        elif suffix in self.VIDEO_FORMATS:
+            return 'video'
         else:
             # 所有其他格式都使用 markitdown
             return 'markitdown'
@@ -650,6 +724,55 @@ class MinerUWorkerAPI(ls.LitAPI):
         )
         
         logger.info(f"✅ SenseVoice parsing completed")
+        logger.info(f"   Markdown: {result['markdown_file']}")
+        logger.info(f"   JSON: {result['json_file']}")
+        
+        # 显示识别统计
+        json_data = result['json_data']
+        logger.info(f"   Language: {json_data['metadata']['language']}")
+        logger.info(f"   Speakers: {json_data['metadata']['speaker_count']}")
+        logger.info(f"   Segments: {json_data['metadata']['segment_count']}")
+    
+    def _parse_with_video_engine(self, file_path: Path, file_name: str, 
+                                 options: dict, output_path: Path):
+        """
+        使用视频处理引擎解析视频文件
+        
+        Args:
+            file_path: 视频文件路径
+            file_name: 文件名
+            options: 解析选项（language, keep_audio等）
+            output_path: 输出路径
+        """
+        if not VIDEO_ENGINE_AVAILABLE or self.video_engine is None:
+            raise RuntimeError("Video processing engine is not available. Please install: pip install funasr ffmpeg-python")
+        
+        logger.info(f"🎬 Using Video Engine to parse: {file_name}")
+        
+        # 获取语言设置（如果有）
+        language = options.get('lang', 'auto')
+        # 映射语言代码 (MinerU的语言代码 -> SenseVoice语言代码)
+        lang_map = {
+            'ch': 'zh',
+            'en': 'en',
+            'korean': 'ko',
+            'japan': 'ja',
+        }
+        language = lang_map.get(language, language)
+        
+        # 获取其他选项
+        keep_audio = options.get('keep_audio', False)
+        
+        # 调用视频处理引擎
+        result = self.video_engine.parse(
+            video_path=str(file_path),
+            output_path=str(output_path),
+            language=language,
+            use_itn=True,
+            keep_audio=keep_audio
+        )
+        
+        logger.info(f"✅ Video processing completed")
         logger.info(f"   Markdown: {result['markdown_file']}")
         logger.info(f"   JSON: {result['json_file']}")
         

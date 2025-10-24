@@ -1,8 +1,10 @@
 """
 MinerU Tianshu - API Server
-天枢API服务器
+天枢 API 服务器
 
-提供RESTful API接口用于任务提交、查询和管理
+企业级 AI 数据预处理平台
+支持文档、图片、音频、视频等多模态数据处理
+提供 RESTful API 接口用于任务提交、查询和管理
 """
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query
 from fastapi.responses import JSONResponse
@@ -23,7 +25,7 @@ from task_db import TaskDB
 # 初始化 FastAPI 应用
 app = FastAPI(
     title="MinerU Tianshu API",
-    description="天枢 - 企业级多GPU文档解析服务",
+    description="天枢 - 企业级 AI 数据预处理平台 | 支持文档、图片、音频、视频等多模态数据处理",
     version="1.0.0"
 )
 
@@ -131,15 +133,16 @@ async def root():
     return {
         "service": "MinerU Tianshu",
         "version": "1.0.0",
-        "description": "天枢 - 企业级多GPU文档解析服务",
+        "description": "天枢 - 企业级 AI 数据预处理平台",
+        "features": "文档、图片、音频、视频等多模态数据处理",
         "docs": "/docs"
     }
 
 
 @app.post("/api/v1/tasks/submit")
 async def submit_task(
-    file: UploadFile = File(..., description="文件: PDF/图片/Office/HTML/音频等多种格式"),
-    backend: str = Form('pipeline', description="处理后端: pipeline/deepseek-ocr/paddleocr-vl (文档) | sensevoice (音频)"),
+    file: UploadFile = File(..., description="文件: PDF/图片/Office/HTML/音频/视频等多种格式"),
+    backend: str = Form('pipeline', description="处理后端: pipeline/deepseek-ocr/paddleocr-vl (文档) | sensevoice (音频) | video (视频)"),
     lang: str = Form('auto', description="语言: auto/ch/en/korean/japan等"),
     method: str = Form('auto', description="解析方法: auto/txt/ocr"),
     formula_enable: bool = Form(True, description="是否启用公式识别"),
@@ -148,6 +151,8 @@ async def submit_task(
     # DeepSeek OCR 专用参数
     deepseek_resolution: str = Form('base', description="DeepSeek OCR 分辨率: tiny/small/base/large/dynamic"),
     deepseek_prompt_type: str = Form('document', description="DeepSeek OCR 提示词类型: document/image/free/figure"),
+    # 视频处理专用参数
+    keep_audio: bool = Form(False, description="视频处理时是否保留提取的音频文件"),
 ):
     """
     提交文档解析任务
@@ -180,6 +185,8 @@ async def submit_task(
                 # DeepSeek OCR 参数
                 'deepseek_resolution': deepseek_resolution,
                 'deepseek_prompt_type': deepseek_prompt_type,
+                # 视频处理参数
+                'keep_audio': keep_audio,
             },
             priority=priority
         )

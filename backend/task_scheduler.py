@@ -1,6 +1,7 @@
 """
 MinerU Tianshu - Task Scheduler (Optional)
 天枢任务调度器（可选）
+企业级 AI 数据预处理平台 - 任务调度服务
 
 在 Worker 自动循环模式下，调度器主要用于：
 1. 监控队列状态（默认5分钟一次）

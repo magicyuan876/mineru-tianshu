@@ -133,9 +133,10 @@ class TianshuLauncher:
     def start_services(self):
         """启动所有服务"""
         logger.info("=" * 70)
-        logger.info("🚀 MinerU Tianshu - Starting All Services")
+        logger.info("🚀 MinerU Tianshu - AI Data Preprocessing Platform")
         logger.info("=" * 70)
-        logger.info("天枢 - 企业级多GPU文档解析服务")
+        logger.info("天枢 - 企业级 AI 数据预处理平台")
+        logger.info("支持文档、图片、音频、视频等多模态数据处理")
         logger.info("")
         
         try:

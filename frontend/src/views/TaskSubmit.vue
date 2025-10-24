@@ -14,7 +14,7 @@
           ref="fileUploader"
           :multiple="true"
           :maxSize="100 * 1024 * 1024"
-          acceptHint="支持 PDF、图片、Word、Excel、PowerPoint、HTML、音频（MP3/WAV/M4A）等多种格式"
+          acceptHint="支持 PDF、图片、Word、Excel、PowerPoint、HTML、音频（MP3/WAV/M4A）、视频（MP4/AVI/MKV/MOV）等多种格式"
           @update:files="onFilesChange"
         />
       </div>
@@ -41,8 +41,9 @@
                 <option value="vlm-transformers">VLM Transformers（视觉语言模型）</option>
                 <option value="vlm-vllm-engine">VLM vLLM Engine（高性能 VLM）</option>
               </optgroup>
-              <optgroup label="音频处理">
+              <optgroup label="音频/视频处理">
                 <option value="sensevoice">SenseVoice（语音识别，说话人识别）</option>
+                <option value="video">Video（视频转文字，提取音频+语音识别）</option>
               </optgroup>
             </select>
             <p v-if="config.backend === 'deepseek-ocr'" class="mt-1 text-xs text-gray-500">
@@ -54,12 +55,15 @@
             <p v-if="config.backend === 'sensevoice'" class="mt-1 text-xs text-gray-500">
               🎙️ SenseVoice: 支持多语言语音识别、自动说话人识别、情感识别
             </p>
+            <p v-if="config.backend === 'video'" class="mt-1 text-xs text-gray-500">
+              🎬 Video: 从视频中提取音频并转写为文字，支持多种视频格式（MP4/AVI/MKV/MOV/WebM 等）
+            </p>
           </div>
 
           <!-- 语言选择 -->
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">
-              文档/音频语言
+              文档/音频/视频语言
             </label>
             <select
               v-model="config.lang"
@@ -72,7 +76,7 @@
               <option value="japan">日文</option>
             </select>
             <p class="mt-1 text-xs text-gray-500">
-              💡 音频文件请选择 SenseVoice 引擎，支持说话人识别和情感识别
+              💡 音频文件请选择 SenseVoice 引擎，视频文件请选择 Video 引擎
             </p>
           </div>
 
@@ -146,6 +150,23 @@
               <option value="free">Free（自由 OCR）</option>
               <option value="figure">Figure（图表解析）</option>
             </select>
+          </div>
+        </div>
+
+        <!-- Video 专属配置 -->
+        <div v-if="config.backend === 'video'" class="mt-6 pt-6 border-t border-gray-200">
+          <div class="space-y-3">
+            <label class="flex items-center">
+              <input
+                v-model="config.keep_audio"
+                type="checkbox"
+                class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+              />
+              <span class="ml-2 text-sm text-gray-700">保留提取的音频文件</span>
+            </label>
+            <p class="text-xs text-gray-500 ml-6">
+              💡 默认情况下，处理完成后会自动删除临时音频文件以节省空间
+            </p>
           </div>
         </div>
 
@@ -303,7 +324,7 @@ const submitProgress = ref<SubmitProgress[]>([])
 
 const config = reactive({
   backend: 'pipeline' as Backend,
-  lang: 'auto' as Language,  // 默认自动检测，支持音频
+  lang: 'auto' as Language,  // 默认自动检测，支持音频/视频
   method: 'auto' as ParseMethod,
   formula_enable: true,
   table_enable: true,
@@ -311,6 +332,8 @@ const config = reactive({
   // DeepSeek OCR 专属配置
   deepseek_resolution: 'base',
   deepseek_prompt_type: 'document',
+  // Video 专属配置
+  keep_audio: false,
 })
 
 function onFilesChange(newFiles: File[]) {

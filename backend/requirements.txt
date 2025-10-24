@@ -84,7 +84,7 @@ addict
 # Audio Processing (SenseVoice)
 # ============================================================================
 funasr>=1.1.0  # FunASR framework for SenseVoice
-ffmpeg-python  # Audio processing
+ffmpeg-python  # Audio processing (also used by video processing)
 
 # ============================================================================
 # Model Download & Management

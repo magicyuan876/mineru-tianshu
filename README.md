@@ -48,6 +48,17 @@
 
 ## 📝 最新更新
 
+### 2025-10-24 🎬 视频处理支持
+
+- ✅ **新增视频处理引擎**
+  - 支持 MP4、AVI、MKV、MOV、WebM 等主流视频格式
+  - 从视频中提取音频并转写为文字（基于 FFmpeg + SenseVoice）
+  - 支持多语言识别、说话人识别、情感识别
+  - 输出带时间戳的文字稿（JSON 和 Markdown 格式）
+  - 详见：`backend/video_engines/README.md`
+  - **⚠️ 当前版本**：仅支持视频音频轨道的语音转写
+  - **🔮 后续计划**：将支持视频关键帧提取、场景识别、视频内容理解等功能
+
 ### 2025-10-23 🎙️ 音频处理引擎
 
 - ✅ **新增 SenseVoice 音频识别引擎**
@@ -85,6 +96,11 @@ MinerU Tianshu（天枢）是一个**企业级 AI 数据预处理平台**，将�
 
 - **📄 文档处理**: PDF、Word、Excel、PPT → Markdown/JSON
   - MinerU Pipeline（完整解析）、DeepSeek OCR（高精度）、PaddleOCR-VL（109+ 语言）
+  
+- **🎬 视频处理**: MP4、AVI、MKV、MOV → 语音转写 + 时间戳
+  - 视频音频提取（FFmpeg）+ 语音识别（SenseVoice）
+  - 支持多语言、说话人识别、情感识别
+  - **当前版本**：仅支持音频轨道转写，后续将支持关键帧提取和内容理解
   
 - **🎙️ 音频处理**: MP3、WAV、M4A → 文字转写 + 说话人识别
   - SenseVoice 引擎，支持多语言、情感识别、事件检测
