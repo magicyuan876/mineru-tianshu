@@ -97,6 +97,16 @@ except ImportError as e:
     VIDEO_ENGINE_AVAILABLE = False
     logger.info(f"ℹ️  Video processing engine not available (optional): {e}")
 
+# 尝试导入水印去除引擎
+try:
+    from remove_watermark.watermark_remover import WatermarkRemover
+    from remove_watermark.pdf_watermark_handler import PDFWatermarkHandler
+    WATERMARK_REMOVAL_AVAILABLE = True
+    logger.info("✅ Watermark removal engine available")
+except ImportError as e:
+    WATERMARK_REMOVAL_AVAILABLE = False
+    logger.info(f"ℹ️  Watermark removal engine not available (optional): {e}")
+
 
 class MinerUWorkerAPI(ls.LitAPI):
     """
@@ -205,6 +215,17 @@ class MinerUWorkerAPI(ls.LitAPI):
             except Exception as e:
                 logger.error(f"❌ Failed to initialize video engine: {e}")
         
+        # 初始化水印去除引擎（如果可用）
+        if WATERMARK_REMOVAL_AVAILABLE:
+            try:
+                self.watermark_handler = PDFWatermarkHandler(
+                    device=device_mode,
+                    use_lama=True
+                )
+                logger.info(f"✅ Watermark removal engine initialized")
+            except Exception as e:
+                logger.error(f"❌ Failed to initialize watermark removal engine: {e}")
+        
         logger.info(f"✅ Worker {self.worker_id} ready")
         logger.info(f"   Device: {device_mode}")
         logger.info(f"   VRAM: {os.environ['MINERU_VIRTUAL_VRAM_SIZE']}GB")
@@ -310,6 +331,15 @@ class MinerUWorkerAPI(ls.LitAPI):
             # 准备输出目录
             output_path = self.output_dir / task_id
             output_path.mkdir(parents=True, exist_ok=True)
+            
+            # 水印去除预处理（如果启用）
+            if options.get('remove_watermark', False):
+                file_path = self._preprocess_watermark_removal(
+                    file_path=file_path,
+                    file_name=file_name,
+                    options=options,
+                    output_path=output_path
+                )
             
             # 判断文件类型并根据 backend 选择解析方式
             file_type = self._get_file_type(file_path)
@@ -466,6 +496,108 @@ class MinerUWorkerAPI(ls.LitAPI):
         现在主要用于健康检查和手动触发（兼容旧接口）
         """
         return request.get('action', 'poll')
+    
+    def _preprocess_watermark_removal(
+        self, 
+        file_path: str,
+        file_name: str,
+        options: dict,
+        output_path: Path
+    ) -> str:
+        """
+        水印去除预处理
+        
+        支持：
+        - 图片格式：直接使用 YOLO + LaMa 去除水印
+        - PDF 格式：
+            - 可编辑 PDF：删除水印对象
+            - 扫描件 PDF：转图片 → 去水印 → 重组 PDF
+        
+        Args:
+            file_path: 原始文件路径
+            file_name: 文件名
+            options: 任务选项
+            output_path: 输出目录
+        
+        Returns:
+            处理后的文件路径（如果处理失败则返回原路径）
+        """
+        if not WATERMARK_REMOVAL_AVAILABLE:
+            logger.warning("⚠️  Watermark removal requested but engine not available")
+            return file_path
+        
+        logger.info("=" * 60)
+        logger.info("🎨 Watermark Removal Preprocessing")
+        logger.info("=" * 60)
+        
+        suffix = Path(file_path).suffix.lower()
+        conf_threshold = options.get('watermark_conf_threshold', 0.35)
+        dilation = options.get('watermark_dilation', 10)
+        
+        try:
+            # 图片格式：直接处理
+            if suffix in ['.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.webp']:
+                logger.info(f"📸 Processing image: {file_name}")
+                
+                # 创建水印去除专用目录
+                watermark_dir = output_path / "watermark_removed"
+                watermark_dir.mkdir(exist_ok=True)
+                
+                # 保存去除水印后的图片
+                output_file = watermark_dir / f"clean_{file_name}"
+                
+                # 获取图片水印去除器（延迟初始化）
+                image_remover = self.watermark_handler._get_image_remover()
+                
+                result_path = image_remover.remove_watermark(
+                    image_path=file_path,
+                    output_path=output_file,
+                    conf_threshold=conf_threshold,
+                    dilation=dilation
+                )
+                
+                logger.info(f"✅ Image watermark removed")
+                logger.info(f"   Original: {file_path}")
+                logger.info(f"   Cleaned:  {result_path}")
+                logger.info(f"   📁 Saved for debugging in: {watermark_dir}")
+                return str(result_path)
+            
+            # PDF 格式：自动检测并处理
+            elif suffix == '.pdf':
+                logger.info(f"📄 Processing PDF: {file_name}")
+                
+                # 创建水印去除专用目录
+                watermark_dir = output_path / "watermark_removed"
+                watermark_dir.mkdir(exist_ok=True)
+                
+                # 保存去除水印后的 PDF
+                output_file = watermark_dir / f"clean_{file_name}"
+                
+                result_path = self.watermark_handler.remove_watermark(
+                    input_path=file_path,
+                    output_path=output_file,
+                    auto_detect=True,
+                    conf_threshold=conf_threshold,
+                    dilation=dilation
+                )
+                
+                logger.info(f"✅ PDF watermark removed")
+                logger.info(f"   Original: {file_path}")
+                logger.info(f"   Cleaned:  {result_path}")
+                logger.info(f"   📁 Saved for debugging in: {watermark_dir}")
+                return str(result_path)
+            
+            else:
+                logger.warning(f"⚠️  Unsupported file format for watermark removal: {suffix}")
+                return file_path
+        
+        except Exception as e:
+            logger.error(f"❌ Watermark removal failed: {e}")
+            logger.warning("   Using original file")
+            return file_path
+        finally:
+            logger.info("=" * 60)
+            logger.info("")
     
     def _get_file_type(self, file_path: str) -> str:
         """

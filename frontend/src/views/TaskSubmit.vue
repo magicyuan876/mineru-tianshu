@@ -32,6 +32,7 @@
             </label>
             <select
               v-model="config.backend"
+              @change="onBackendChange"
               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
               <optgroup label="文档解析">
@@ -261,6 +262,92 @@
             <span class="ml-2 text-sm text-gray-700">启用表格识别</span>
           </label>
         </div>
+
+        <!-- 水印去除配置（PDF/图片） -->
+        <div v-if="['pipeline', 'deepseek-ocr', 'paddleocr-vl'].includes(config.backend)" class="mt-6 pt-6 border-t border-gray-200">
+          <h3 class="text-base font-semibold text-gray-900 mb-4">🎨 水印去除选项</h3>
+          
+          <div class="space-y-4">
+            <!-- 水印去除开关 -->
+            <div>
+              <label class="flex items-center">
+                <input
+                  v-model="config.remove_watermark"
+                  type="checkbox"
+                  class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                />
+                <span class="ml-2 text-sm text-gray-700 font-medium">
+                  启用水印去除
+                  <span class="ml-1 px-1.5 py-0.5 text-xs bg-purple-100 text-purple-700 rounded">智能检测</span>
+                </span>
+              </label>
+              <p class="text-xs text-gray-500 ml-6 mt-1">
+                🔍 使用 YOLO11x + LaMa 自动检测并去除图片和 PDF 中的水印
+              </p>
+            </div>
+
+            <!-- 高级选项 -->
+            <div v-if="config.remove_watermark" class="ml-6 mt-3 space-y-3 pl-4 border-l-2 border-purple-200">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                  检测置信度
+                  <span class="text-gray-500 font-normal text-xs">（{{ config.watermark_conf_threshold }}）</span>
+                </label>
+                <input
+                  v-model.number="config.watermark_conf_threshold"
+                  type="range"
+                  min="0.1"
+                  max="0.9"
+                  step="0.05"
+                  class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                />
+                <div class="flex justify-between text-xs text-gray-500 mt-1">
+                  <span>0.1（更多）</span>
+                  <span>0.35（推荐）</span>
+                  <span>0.9（更少）</span>
+                </div>
+                <p class="text-xs text-gray-500 mt-1">
+                  💡 值越小检测越敏感，可能有误检；值越大只检测高置信度水印
+                </p>
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                  去除范围扩展
+                  <span class="text-gray-500 font-normal text-xs">（{{ config.watermark_dilation }} 像素）</span>
+                </label>
+                <input
+                  v-model.number="config.watermark_dilation"
+                  type="range"
+                  min="0"
+                  max="30"
+                  step="5"
+                  class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                />
+                <div class="flex justify-between text-xs text-gray-500 mt-1">
+                  <span>0（精确）</span>
+                  <span>10（推荐）</span>
+                  <span>30（扩大）</span>
+                </div>
+                <p class="text-xs text-gray-500 mt-1">
+                  💡 扩大去除区域，防止水印边缘残留
+                </p>
+              </div>
+            </div>
+
+            <!-- PDF 处理说明 -->
+            <div v-if="config.remove_watermark" class="bg-purple-50 border border-purple-200 rounded-lg p-3 mt-3">
+              <p class="text-xs text-purple-800">
+                <strong>📄 PDF 智能处理：</strong>
+              </p>
+              <ul class="text-xs text-purple-700 mt-1 ml-4 list-disc space-y-0.5">
+                <li>可编辑 PDF：直接删除水印对象</li>
+                <li>扫描件 PDF：转图片 → 去水印 → 重组 PDF</li>
+                <li>图片格式：直接使用 YOLO + LaMa 处理</li>
+              </ul>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- 错误提示 -->
@@ -372,7 +459,7 @@ const submitProgress = ref<SubmitProgress[]>([])
 
 const config = reactive({
   backend: 'pipeline' as Backend,
-  lang: 'auto' as Language,  // 默认自动检测，支持音频/视频
+  lang: 'ch' as Language,  // 初始默认中文（MinerU Pipeline）
   method: 'auto' as ParseMethod,
   formula_enable: true,
   table_enable: true,
@@ -385,10 +472,24 @@ const config = reactive({
   enable_keyframe_ocr: false,
   ocr_backend: 'paddleocr-vl',
   keep_keyframes: false,
+  // 水印去除配置
+  remove_watermark: false,
+  watermark_conf_threshold: 0.35,
+  watermark_dilation: 10,
 })
 
 function onFilesChange(newFiles: File[]) {
   files.value = newFiles
+}
+
+function onBackendChange() {
+  // MinerU Pipeline 不支持 auto，默认使用中文
+  if (config.backend === 'pipeline') {
+    config.lang = 'ch'
+  } else {
+    // 其他引擎（音频/视频/OCR）默认自动检测
+    config.lang = 'auto'
+  }
 }
 
 async function submitTasks() {

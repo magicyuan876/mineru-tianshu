@@ -44,6 +44,18 @@ English | [简体中文](./README.md)
 
 ## 📝 Latest Updates
 
+### 2025-10-27 🎨 Watermark Removal Support (🧪 Experimental)
+
+- ✅ **Intelligent Watermark Detection and Removal**
+  - YOLO11x specialized detection model + LaMa high-quality inpainting
+  - Support for images (PNG/JPG/JPEG etc.) and PDFs (editable/scanned)
+  - Frontend adjustable parameters: detection confidence, removal range
+  - Auto-save debug files (detection visualization, masks, etc.)
+  - Lightweight models, fast processing, low VRAM usage
+
+> **⚠️ Experimental Feature**: May not work well for certain special watermarks. Test on small scale first.  
+> 📖 **Detailed Guide**: [Watermark Removal Optimization Guide](backend/remove_watermark/README_EN.md)
+
 ### 2025-10-24 🎬 Video Processing Support
 
 - ✅ **New Video Processing Engine**
@@ -97,6 +109,7 @@ MinerU Tianshu is an **Enterprise-grade AI Data Preprocessing Platform** that co
 
 - **📄 Document Processing**: PDF, Word, Excel, PPT → Markdown/JSON
   - MinerU Pipeline (complete parsing), DeepSeek OCR (high precision), PaddleOCR-VL (109+ languages)
+  - **🧪 Watermark Removal (Experimental)**: YOLO11x + LaMa intelligent detection and removal
   
 - **🎬 Video Processing**: MP4, AVI, MKV, MOV → Speech Transcription + Keyframe OCR
   - Video audio extraction (FFmpeg) + speech recognition (SenseVoice)
@@ -108,6 +121,7 @@ MinerU Tianshu is an **Enterprise-grade AI Data Preprocessing Platform** that co
   
 - **🖼️ Image Processing**: JPG, PNG → Text extraction + Structuring
   - Multiple OCR engines available with GPU acceleration
+  - **🧪 Watermark Removal Preprocessing (Experimental)**: Intelligent watermark detection and auto-removal
 
 - **🏗️ Enterprise Features**: 
   - GPU load balancing, task queue, priority management, automatic retry

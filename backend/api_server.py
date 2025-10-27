@@ -156,6 +156,10 @@ async def submit_task(
     enable_keyframe_ocr: bool = Form(False, description="是否启用视频关键帧OCR识别（实验性功能）"),
     ocr_backend: str = Form('paddleocr-vl', description="关键帧OCR引擎: paddleocr-vl/deepseek-ocr"),
     keep_keyframes: bool = Form(False, description="是否保留提取的关键帧图像"),
+    # 水印去除专用参数
+    remove_watermark: bool = Form(False, description="是否启用水印去除（支持 PDF/图片）"),
+    watermark_conf_threshold: float = Form(0.35, description="水印检测置信度阈值（0.0-1.0，推荐 0.35）"),
+    watermark_dilation: int = Form(10, description="水印掩码膨胀大小（像素，推荐 10）"),
 ):
     """
     提交文档解析任务
@@ -193,6 +197,10 @@ async def submit_task(
                 'enable_keyframe_ocr': enable_keyframe_ocr,
                 'ocr_backend': ocr_backend,
                 'keep_keyframes': keep_keyframes,
+                # 水印去除参数
+                'remove_watermark': remove_watermark,
+                'watermark_conf_threshold': watermark_conf_threshold,
+                'watermark_dilation': watermark_dilation,
             },
             priority=priority
         )

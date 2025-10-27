@@ -49,6 +49,17 @@ export async function submitTask(request: SubmitTaskRequest): Promise<SubmitTask
     formData.append('keep_keyframes', String(request.keep_keyframes))
   }
 
+  // 水印去除参数
+  if (request.remove_watermark !== undefined) {
+    formData.append('remove_watermark', String(request.remove_watermark))
+  }
+  if (request.watermark_conf_threshold !== undefined) {
+    formData.append('watermark_conf_threshold', String(request.watermark_conf_threshold))
+  }
+  if (request.watermark_dilation !== undefined) {
+    formData.append('watermark_dilation', String(request.watermark_dilation))
+  }
+
   const response = await apiClient.post<SubmitTaskResponse>(
     '/api/v1/tasks/submit',
     formData,

@@ -94,6 +94,13 @@ imagehash>=4.3.0      # Perceptual hashing for image deduplication
 numpy>=1.24.0         # Numerical operations
 
 # ============================================================================
+# Watermark Removal (YOLO11x + LaMa)
+# ============================================================================
+ultralytics>=8.3.0            # YOLO11 framework for watermark detection
+simple-lama-inpainting>=0.1.0 # LaMa model for high-quality image inpainting
+huggingface-hub>=0.20.0       # Model download from HuggingFace
+
+# ============================================================================
 # Model Download & Management
 # ============================================================================
 modelscope>=1.18.0  # Faster model downloads in China

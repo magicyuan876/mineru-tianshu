@@ -40,6 +40,10 @@ export interface SubmitTaskRequest {
   enable_keyframe_ocr?: boolean
   ocr_backend?: string
   keep_keyframes?: boolean
+  // 水印去除参数
+  remove_watermark?: boolean
+  watermark_conf_threshold?: number
+  watermark_dilation?: number
 }
 
 // 任务信息
