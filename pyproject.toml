@@ -1,0 +1,37 @@
+# MinerU-Server Project Configuration
+# https://packaging.python.org/en/latest/guides/writing-pyproject-toml/
+
+[project]
+name = "mineru-server"
+version = "1.0.0"
+description = "MinerU Tianshu - Enterprise AI Data Processing Platform"
+requires-python = ">=3.12"
+
+# ============================================================
+# Ruff - Fast Python Linter & Formatter
+# Docs: https://docs.astral.sh/ruff/
+# Note: Pre-commit hooks will use these settings by default
+# ============================================================
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+# Exclude directories
+exclude = [
+    ".git",
+    "__pycache__",
+    "models",
+    "node_modules",
+    "venv",
+    ".venv",
+]
+
+[tool.ruff.lint]
+# Only enable critical checks (same as pre-commit)
+select = ["E", "F"]
+ignore = ["E402", "E501"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"

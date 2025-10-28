@@ -1,0 +1,109 @@
+# Pre-commit hooks for MinerU-Server
+# Install: pip install pre-commit && pre-commit install
+# Run manually: pre-commit run --all-files
+# Update: pre-commit autoupdate
+
+repos:
+  # ============================================================
+  # 1. 基础文件检查
+  # ============================================================
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      # 检查文件是否以换行符结尾
+      - id: end-of-file-fixer
+
+      # 移除行尾空格
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+
+      # 检查 YAML 语法
+      - id: check-yaml
+        args: [--unsafe]  # 允许自定义 YAML 标签
+
+      # 检查 JSON 语法
+      - id: check-json
+
+      # 检查是否有合并冲突标记
+      - id: check-merge-conflict
+
+      # 检查是否添加了大文件（超过 5MB）
+      - id: check-added-large-files
+        args: [--maxkb=5120]
+
+      # 检查 Python 代码中的 debug 语句
+      - id: debug-statements
+
+      # 检查私钥
+      - id: detect-private-key
+
+  # ============================================================
+  # 2. Python 代码格式化 - Ruff Format
+  # ============================================================
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.4
+    hooks:
+      # Ruff formatter (替代 black)
+      - id: ruff-format
+        files: ^backend/.*\.py$
+
+  # ============================================================
+  # 3. Python 代码检查 - Ruff Linter
+  # ============================================================
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.4
+    hooks:
+      # Ruff linter (替代 pylint/flake8)
+      - id: ruff
+        files: ^backend/.*\.py$
+        args:
+          - --select=E,F      # 只检查语法错误和未使用的变量
+          - --ignore=E402,E501  # 忽略导入位置和行长度
+          - --fix             # 自动修复可以修复的问题
+
+  # ============================================================
+  # 4. Shell 脚本检查
+  # ============================================================
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
+    hooks:
+      - id: shellcheck
+        args: [-e, SC1091]  # 忽略 source 文件不存在的警告
+
+  # ============================================================
+  # 5. UTF-8 编码检查
+  # ============================================================
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: check-case-conflict  # 检查文件名大小写冲突
+      - id: mixed-line-ending    # 检查混合行尾
+        args: [--fix=lf]         # 统一使用 LF
+
+  # ============================================================
+  # 6. Markdown 检查
+  # ============================================================
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.39.0
+    hooks:
+      - id: markdownlint
+        args: [--fix]  # 自动修复格式问题
+
+# ============================================================
+# 配置说明
+# ============================================================
+# 1. 安装 pre-commit:
+#    pip install pre-commit
+#
+# 2. 安装 git hooks:
+#    pre-commit install
+#
+# 3. 手动运行所有检查:
+#    pre-commit run --all-files
+#
+# 4. 更新到最新版本:
+#    pre-commit autoupdate
+#
+# 5. 跳过检查提交（不推荐）:
+#    git commit --no-verify
+# ============================================================
