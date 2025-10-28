@@ -122,7 +122,7 @@
               <Star class="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
             </a>
           </div>
-          
+
           <!-- 版权信息 -->
           <p class="text-center text-sm text-gray-500">
             © 2024 MinerU Tianshu - 天枢文档解析服务
@@ -193,7 +193,7 @@ function handleVisibilityChange() {
 onMounted(() => {
   // 启动自动刷新队列统计（智能轮询）
   queueStore.startAutoRefresh(5000)
-  
+
   // 监听页面可见性变化
   document.addEventListener('visibilitychange', handleVisibilityChange)
 })
@@ -201,7 +201,7 @@ onMounted(() => {
 onUnmounted(() => {
   // 停止自动刷新
   queueStore.stopAutoRefresh()
-  
+
   // 移除监听器
   document.removeEventListener('visibilitychange', handleVisibilityChange)
 })
@@ -218,4 +218,3 @@ onUnmounted(() => {
   opacity: 0;
 }
 </style>
-

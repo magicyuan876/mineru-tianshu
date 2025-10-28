@@ -84,12 +84,14 @@ English | [简体中文](./README.md)
 ### 2025-10-23 ✨
 
 **🎯 Structured JSON Format Output Support**
+
 - MinerU (pipeline) and PaddleOCR-VL engines now support structured JSON format output
 - JSON output contains complete document structure information (pages, paragraphs, tables, etc.)
 - Users can switch between Markdown and JSON formats in the task detail page
 - Frontend provides an interactive JSON viewer with expand/collapse, copy, and download features
 
 **🎉 New PaddleOCR-VL Multi-Language OCR Engine**
+
 - Support for 109+ language automatic recognition without manual specification
 - Enhanced features: document orientation, text unwarping, layout detection
 - Native PDF multi-page support with automatic model download
@@ -98,6 +100,7 @@ English | [简体中文](./README.md)
 ### 2025-10-22
 
 **Integrated DeepSeek OCR High-Precision Engine**
+
 - Support for multiple resolution and prompt type configurations
 - Documentation: [backend/deepseek_ocr/README.md](backend/deepseek_ocr/README.md)
 
@@ -110,20 +113,20 @@ MinerU Tianshu is an **Enterprise-grade AI Data Preprocessing Platform** that co
 - **📄 Document Processing**: PDF, Word, Excel, PPT → Markdown/JSON
   - MinerU Pipeline (complete parsing), DeepSeek OCR (high precision), PaddleOCR-VL (109+ languages)
   - **🧪 Watermark Removal (Experimental)**: YOLO11x + LaMa intelligent detection and removal
-  
+
 - **🎬 Video Processing**: MP4, AVI, MKV, MOV → Speech Transcription + Keyframe OCR
   - Video audio extraction (FFmpeg) + speech recognition (SenseVoice)
   - **🧪 Keyframe OCR (Experimental)**: Scene detection + quality filtering + image deduplication + OCR
   - Multi-language support, speaker diarization, emotion recognition
-  
+
 - **🎙️ Audio Processing**: MP3, WAV, M4A → Transcription + Speaker Diarization
   - SenseVoice engine with multi-language support, emotion recognition, event detection
-  
+
 - **🖼️ Image Processing**: JPG, PNG → Text extraction + Structuring
   - Multiple OCR engines available with GPU acceleration
   - **🧪 Watermark Removal Preprocessing (Experimental)**: Intelligent watermark detection and auto-removal
 
-- **🏗️ Enterprise Features**: 
+- **🏗️ Enterprise Features**:
   - GPU load balancing, task queue, priority management, automatic retry
   - MCP protocol support for direct integration with AI assistants (Claude Desktop, etc.)
   - Modern web interface for easy management and monitoring
@@ -184,6 +187,7 @@ MinerU Tianshu is an **Enterprise-grade AI Data Preprocessing Platform** that co
 </div>
 
 ### Main Features
+
 - ✅ **Dashboard**: Real-time monitoring of queue statistics and recent tasks
 - ✅ **Task Submission**: Drag-and-drop file upload, batch processing, and advanced configuration
 - ✅ **Task Details**: Real-time status tracking, Markdown preview, automatic polling updates
@@ -192,6 +196,7 @@ MinerU Tianshu is an **Enterprise-grade AI Data Preprocessing Platform** that co
 - ✅ **MCP Protocol Support**: AI assistant integration via Model Context Protocol
 
 ### Supported File Formats
+
 - 📄 **PDF and Images** - Three GPU-accelerated engines available
   - **MinerU**: Complete document parsing with table and formula recognition
   - **DeepSeek OCR**: High-precision OCR recognition for scenarios requiring ultimate accuracy
@@ -255,6 +260,7 @@ powershell -ExecutionPolicy Bypass -File install.ps1
 ```
 
 The installation script will automatically:
+
 - ✅ Check Python version
 - ✅ Install system dependencies (libgomp1, ffmpeg, etc.)
 - ✅ Install Python dependencies (MinerU, FunASR, OCR engines, etc.)
@@ -280,10 +286,11 @@ python start_all.py --enable-mcp
 ```
 
 Backend services will start on the following ports:
-- API Server: http://localhost:8000
-- API Documentation: http://localhost:8000/docs
-- Worker Pool: http://localhost:9000
-- MCP Server: http://localhost:8001 (if enabled)
+
+- API Server: <http://localhost:8000>
+- API Documentation: <http://localhost:8000/docs>
+- Worker Pool: <http://localhost:9000>
+- MCP Server: <http://localhost:8001> (if enabled)
 
 ### 2. Start Frontend Service
 
@@ -298,11 +305,11 @@ npm install
 npm run dev
 ```
 
-Frontend service will start at http://localhost:3000
+Frontend service will start at <http://localhost:3000>
 
 ### 3. Access the Application
 
-Open your browser and visit http://localhost:3000
+Open your browser and visit <http://localhost:3000>
 
 ## 📖 Usage Guide
 
@@ -343,6 +350,7 @@ Open your browser and visit http://localhost:3000
 ## 🎯 Core Features
 
 ### Frontend Features
+
 - **Modern UI**: Beautiful interface based on TailwindCSS
 - **Responsive Design**: Perfect adaptation for desktop and mobile
 - **Real-time Updates**: Automatic refresh of queue statistics and task status
@@ -350,12 +358,13 @@ Open your browser and visit http://localhost:3000
 - **Markdown Preview**: Real-time rendering of parsing results with code highlighting
 
 ### Backend Features
+
 - **Worker Active Pull**: 0.5s response time, no scheduler trigger needed
 - **Concurrency Safe**: Atomic operations prevent task duplication, supports multi-worker concurrency
 - **GPU Load Balancing**: LitServe automatic scheduling, avoiding VRAM conflicts
 - **Multi-GPU Isolation**: Each process only uses allocated GPUs
 - **Automatic Cleanup**: Periodically clean old result files, retain database records
-- **Multiple Parsing Engines**: 
+- **Multiple Parsing Engines**:
   - **MinerU**: Complete document parsing with table and formula recognition
   - **DeepSeek OCR**: High-precision OCR recognition with multiple resolution and prompt types
   - **PaddleOCR-VL**: Multi-language OCR (109+ languages), document enhancement processing
@@ -454,6 +463,7 @@ Parse this online paper: https://arxiv.org/pdf/2301.12345.pdf
 ```
 
 Claude will automatically:
+
 1. Read the file or download URL
 2. Call MinerU Tianshu parsing service
 3. Wait for processing to complete
@@ -490,15 +500,18 @@ MinerU / MarkItDown
 #### FAQ
 
 **Q: MCP Server won't start?**
+
 - Check if port 8001 is occupied
 - Use `--mcp-port` to specify another port
 
 **Q: Claude Desktop cannot connect?**
+
 1. Confirm MCP Server is running: `curl http://localhost:8001/mcp/sse`
 2. Check if configuration file JSON format is correct
 3. Restart Claude Desktop
 
 **Q: File transfer failed?**
+
 - Small files automatically use Base64 encoding
 - Large files (> 100MB) will return error
 - URL files need to be publicly accessible
@@ -508,11 +521,13 @@ MinerU / MarkItDown
 ### Frontend Configuration
 
 Modify `frontend/.env.development` for development:
+
 ```
 VITE_API_BASE_URL=http://localhost:8000
 ```
 
 Modify `frontend/.env.production` for production:
+
 ```
 VITE_API_BASE_URL=/api
 ```
@@ -569,6 +584,7 @@ python start_all.py --api-port 8000 --worker-port 9000
 ## 📚 Tech Stack
 
 ### Frontend
+
 - Vue 3 (Composition API)
 - TypeScript
 - Vite
@@ -581,6 +597,7 @@ python start_all.py --api-port 8000 --worker-port 9000
 - Lucide Vue (icons)
 
 ### Backend
+
 - FastAPI
 - LitServe
 - MinerU
@@ -595,11 +612,13 @@ python start_all.py --api-port 8000 --worker-port 9000
 ### Frontend Cannot Connect to Backend
 
 Check if backend is running normally:
+
 ```bash
 curl http://localhost:8000/api/v1/health
 ```
 
 Check frontend proxy configuration:
+
 ```typescript
 // frontend/vite.config.ts
 server: {
@@ -615,24 +634,28 @@ server: {
 ### Worker Cannot Start
 
 Check GPU availability:
+
 ```bash
 nvidia-smi
 ```
 
 Check Python dependencies:
+
 ```bash
 pip list | grep -E "(mineru|litserve|torch)"
 ```
 
 For more troubleshooting:
+
 - [Frontend Troubleshooting](frontend/README.md)
 - [Backend Troubleshooting](backend/README.md)
 
 ## 📄 API Documentation
 
-After starting the backend, visit http://localhost:8000/docs to view complete API documentation.
+After starting the backend, visit <http://localhost:8000/docs> to view complete API documentation.
 
 Main API endpoints:
+
 - `POST /api/v1/tasks/submit` - Submit task
 - `GET /api/v1/tasks/{task_id}` - Query task status
 - `DELETE /api/v1/tasks/{task_id}` - Cancel task
@@ -648,6 +671,7 @@ Issues and Pull Requests are welcome!
 This project is built upon the following excellent open-source projects:
 
 **Core Engines**
+
 - [MinerU](https://github.com/opendatalab/MinerU) - PDF/Image document parsing
 - [DeepSeek OCR](https://huggingface.co/deepseek-ai/DeepSeek-OCR) - High-precision OCR model
 - [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR) - Multi-language OCR engine
@@ -656,6 +680,7 @@ This project is built upon the following excellent open-source projects:
 - [MarkItDown](https://github.com/microsoft/markitdown) - Document conversion tool
 
 **Frameworks & Tools**
+
 - [LitServe](https://github.com/Lightning-AI/LitServe) - GPU load balancing
 - [FastAPI](https://fastapi.tiangolo.com/) - Backend web framework
 - [Vue.js](https://vuejs.org/) - Frontend framework
@@ -706,4 +731,3 @@ limitations under the License.
 **Click ⭐ Star to support this project. Thank you!**
 
 </div>
-

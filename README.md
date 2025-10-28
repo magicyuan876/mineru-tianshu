@@ -30,8 +30,6 @@
 
 [![Verified on MseeP](https://mseep.ai/badge.svg)](https://mseep.ai/app/819ff68b-5154-4717-9361-7db787d5a2f8)
 
-
-
 [English](./README_EN.md) | 简体中文
 
 <p>
@@ -87,12 +85,14 @@
 ### 2025-10-23 ✨
 
 **🎯 支持内容结构化 JSON 格式输出**
+
 - MinerU (pipeline) 和 PaddleOCR-VL 引擎现在支持输出结构化的 JSON 格式
 - JSON 输出包含完整的文档内容结构信息（页面、段落、表格等）
 - 用户可在任务详情页面切换查看 Markdown 或 JSON 格式
 - 前端提供交互式 JSON 查看器，支持展开/收起、复制、下载等功能
 
 **🎉 新增 PaddleOCR-VL 多语言 OCR 引擎**
+
 - 支持 109+ 语言自动识别，无需手动指定语言
 - 文档方向分类、文本图像矫正、版面区域检测等增强功能
 - 原生 PDF 多页文档支持，模型自动下载管理
@@ -101,6 +101,7 @@
 ### 2025-10-22
 
 **集成 DeepSeek OCR 高精度引擎**
+
 - 支持多种分辨率和提示词类型配置
 - 详细文档：[backend/deepseek_ocr/README.md](backend/deepseek_ocr/README.md)
 
@@ -113,20 +114,20 @@ MinerU Tianshu（天枢）是一个**企业级 AI 数据预处理平台**，将�
 - **📄 文档处理**: PDF、Word、Excel、PPT → Markdown/JSON
   - MinerU Pipeline（完整解析）、DeepSeek OCR（高精度）、PaddleOCR-VL（109+ 语言）
   - **🧪 水印去除（实验性）**：YOLO11x + LaMa 智能检测与去除
-  
+
 - **🎬 视频处理**: MP4、AVI、MKV、MOV → 语音转写 + 关键帧 OCR
   - 视频音频提取（FFmpeg）+ 语音识别（SenseVoice）
   - **🧪 关键帧 OCR（实验性）**：场景检测 + 质量过滤 + 图像去重 + OCR 识别
   - 支持多语言、说话人识别、情感识别
-  
+
 - **🎙️ 音频处理**: MP3、WAV、M4A → 文字转写 + 说话人识别
   - SenseVoice 引擎，支持多语言、情感识别、事件检测
-  
+
 - **🖼️ 图片处理**: JPG、PNG → 文字提取 + 结构化
   - 多种 OCR 引擎可选，GPU 加速
   - **🧪 水印去除预处理（实验性）**：智能检测水印并自动去除
 
-- **🏗️ 企业级特性**: 
+- **🏗️ 企业级特性**:
   - GPU 负载均衡、任务队列、优先级管理、自动重试
   - MCP 协议支持，可被 AI 助手（Claude Desktop 等）直接调用
   - 现代化 Web 界面，易于管理和监控
@@ -187,6 +188,7 @@ MinerU Tianshu（天枢）是一个**企业级 AI 数据预处理平台**，将�
 </div>
 
 ### 主要功能
+
 - ✅ **仪表盘**: 实时监控队列统计和最近任务
 - ✅ **任务提交**: 文件拖拽上传,支持批量处理和高级配置
 - ✅ **任务详情**: 实时状态追踪,Markdown/JSON 预览,自动轮询更新
@@ -196,6 +198,7 @@ MinerU Tianshu（天枢）是一个**企业级 AI 数据预处理平台**，将�
 - ✅ **音频识别**: SenseVoice 引擎支持多语言、说话人识别、情感识别
 
 ### 支持的文件格式
+
 - 📄 **PDF 和图片** - 支持三种 GPU 加速引擎
   - **MinerU**: 完整文档解析，支持表格、公式识别
   - **DeepSeek OCR**: 高精度 OCR 识别，适合需要极致精度的场景
@@ -268,6 +271,7 @@ powershell -ExecutionPolicy Bypass -File install.ps1
 ```
 
 安装脚本会自动完成：
+
 - ✅ 检测 Python 版本
 - ✅ 安装系统依赖（libgomp1、ffmpeg 等）
 - ✅ 安装 Python 依赖（MinerU、FunASR、OCR 引擎等）
@@ -293,10 +297,11 @@ python start_all.py --enable-mcp
 ```
 
 后端服务将在以下端口启动:
-- API Server: http://localhost:8000
-- API 文档: http://localhost:8000/docs
-- Worker Pool: http://localhost:9000
-- MCP Server: http://localhost:8001 (如启用)
+
+- API Server: <http://localhost:8000>
+- API 文档: <http://localhost:8000/docs>
+- Worker Pool: <http://localhost:9000>
+- MCP Server: <http://localhost:8001> (如启用)
 
 ### 2. 启动前端服务
 
@@ -311,11 +316,11 @@ npm install
 npm run dev
 ```
 
-前端服务将在 http://localhost:3000 启动
+前端服务将在 <http://localhost:3000> 启动
 
 ### 3. 访问应用
 
-打开浏览器访问 http://localhost:3000
+打开浏览器访问 <http://localhost:3000>
 
 ## 📖 使用指南
 
@@ -356,6 +361,7 @@ npm run dev
 ## 🎯 核心特性
 
 ### 前端特性
+
 - **现代化 UI**: 基于 TailwindCSS 的美观界面
 - **响应式设计**: 完美适配桌面端和移动端
 - **实时更新**: 自动刷新队列统计和任务状态
@@ -363,12 +369,13 @@ npm run dev
 - **Markdown 预览**: 实时渲染解析结果,支持代码高亮
 
 ### 后端特性
+
 - **Worker 主动拉取**: 0.5秒响应速度,无需调度器触发
 - **并发安全**: 原子操作防止任务重复,支持多Worker并发
 - **GPU 负载均衡**: LitServe 自动调度,避免显存冲突
 - **多GPU隔离**: 每个进程只使用分配的GPU
 - **自动清理**: 定期清理旧结果文件,保留数据库记录
-- **多解析引擎**: 
+- **多解析引擎**:
   - **MinerU**: 完整文档解析，支持表格、公式识别
   - **DeepSeek OCR**: 高精度 OCR 识别，支持多种分辨率和提示词类型
   - **PaddleOCR-VL**: 多语言 OCR（109+ 语言），文档增强处理
@@ -469,6 +476,7 @@ python start_all.py --enable-mcp
 ```
 
 Claude 会自动：
+
 1. 读取文件或下载 URL
 2. 调用 MinerU Tianshu 解析服务
 3. 等待处理完成
@@ -505,16 +513,19 @@ MinerU / MarkItDown
 #### 常见问题
 
 **Q: MCP Server 无法启动？**
+
 - 检查端口 8001 是否被占用
 - 使用 `--mcp-port` 指定其他端口
 
 **Q: Claude Desktop 无法连接？**
+
 1. 确认 MCP Server 正在运行：访问 `http://localhost:8001/health`
 2. 检查配置文件 JSON 格式是否正确
 3. 确认端点 URL 是 `/sse` 而不是 `/mcp/sse`
 4. 重启 Claude Desktop
 
 **Q: 文件传输失败？**
+
 - 小文件自动使用 Base64 编码
 - 大文件（> 100MB）会返回错误
 - URL 文件需要公开可访问
@@ -524,11 +535,13 @@ MinerU / MarkItDown
 ### 前端配置
 
 开发环境修改 `frontend/.env.development`:
+
 ```
 VITE_API_BASE_URL=http://localhost:8000
 ```
 
 生产环境修改 `frontend/.env.production`:
+
 ```
 VITE_API_BASE_URL=/api
 ```
@@ -585,6 +598,7 @@ python start_all.py --api-port 8000 --worker-port 9000
 ## 📚 技术栈
 
 ### 前端
+
 - Vue 3 (Composition API)
 - TypeScript
 - Vite
@@ -597,6 +611,7 @@ python start_all.py --api-port 8000 --worker-port 9000
 - Lucide Vue (图标)
 
 ### 后端
+
 - FastAPI
 - LitServe
 - MinerU
@@ -611,11 +626,13 @@ python start_all.py --api-port 8000 --worker-port 9000
 ### 前端无法连接后端
 
 检查后端是否正常运行:
+
 ```bash
 curl http://localhost:8000/api/v1/health
 ```
 
 检查前端代理配置:
+
 ```typescript
 // frontend/vite.config.ts
 server: {
@@ -631,24 +648,28 @@ server: {
 ### Worker 无法启动
 
 检查 GPU 可用性:
+
 ```bash
 nvidia-smi
 ```
 
 检查 Python 依赖:
+
 ```bash
 pip list | grep -E "(mineru|litserve|torch)"
 ```
 
 更多故障排查,请参考:
+
 - [前端故障排查](frontend/README.md)
 - [后端故障排查](backend/README.md)
 
 ## 📄 API 文档
 
-启动后端后,访问 http://localhost:8000/docs 查看完整的 API 文档。
+启动后端后,访问 <http://localhost:8000/docs> 查看完整的 API 文档。
 
 主要 API 端点:
+
 - `POST /api/v1/tasks/submit` - 提交任务
 - `GET /api/v1/tasks/{task_id}` - 查询任务状态
 - `DELETE /api/v1/tasks/{task_id}` - 取消任务
@@ -664,6 +685,7 @@ pip list | grep -E "(mineru|litserve|torch)"
 本项目基于以下优秀的开源项目构建：
 
 **核心引擎**
+
 - [MinerU](https://github.com/opendatalab/MinerU) - PDF/图片文档解析
 - [DeepSeek OCR](https://huggingface.co/deepseek-ai/DeepSeek-OCR) - 高精度 OCR 模型
 - [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR) - 多语言 OCR 引擎
@@ -672,6 +694,7 @@ pip list | grep -E "(mineru|litserve|torch)"
 - [MarkItDown](https://github.com/microsoft/markitdown) - 文档转换工具
 
 **框架与工具**
+
 - [LitServe](https://github.com/Lightning-AI/LitServe) - GPU 负载均衡
 - [FastAPI](https://fastapi.tiangolo.com/) - 后端 Web 框架
 - [Vue.js](https://vuejs.org/) - 前端框架

@@ -23,7 +23,7 @@ export async function submitTask(request: SubmitTaskRequest): Promise<SubmitTask
   formData.append('formula_enable', String(request.formula_enable ?? true))
   formData.append('table_enable', String(request.table_enable ?? true))
   formData.append('priority', String(request.priority || 0))
-  
+
   // DeepSeek OCR 专用参数
   if (request.deepseek_resolution) {
     formData.append('deepseek_resolution', request.deepseek_resolution)
@@ -81,11 +81,11 @@ export async function getTaskStatus(
   format: 'markdown' | 'json' | 'both' = 'markdown'
 ): Promise<TaskStatusResponse> {
   console.log('getTaskStatus called with:', { taskId, uploadImages, format })
-  
+
   const response = await apiClient.get<TaskStatusResponse>(
     `/api/v1/tasks/${taskId}`,
     {
-      params: { 
+      params: {
         upload_images: uploadImages,
         format: format
       },
@@ -114,4 +114,3 @@ export async function listTasks(
   })
   return response.data
 }
-

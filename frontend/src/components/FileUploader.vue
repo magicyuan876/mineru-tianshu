@@ -16,7 +16,7 @@
         class="hidden"
         @change="onFileChange"
       />
-      
+
       <Upload class="mx-auto h-12 w-12 text-gray-400" />
       <p class="mt-2 text-sm text-gray-600">
         <span class="font-semibold text-primary-600">点击上传</span> 或拖拽文件到此处
@@ -124,7 +124,7 @@ function addFiles(newFiles: File[]) {
   } else {
     files.value = newFiles.slice(0, 1)
   }
-  
+
   emit('update:files', files.value)
 }
 
@@ -141,4 +141,3 @@ defineExpose({
   }
 })
 </script>
-

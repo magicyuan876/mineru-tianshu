@@ -68,8 +68,8 @@ echo "✓ PyTorch installed"
 echo ""
 echo "[Step 5/8] Installing OCR engines..."
 cd "$(dirname "$0")"
-pip install mineru[core] -i https://pypi.tuna.tsinghua.edu.cn/simple --no-deps || echo "⚠ MinerU install warning (non-critical)"
-pip install paddleocr[doc-parser] -i https://pypi.tuna.tsinghua.edu.cn/simple --no-deps || echo "⚠ PaddleOCR install warning (non-critical)"
+pip install "mineru[core]" -i https://pypi.tuna.tsinghua.edu.cn/simple --no-deps || echo "⚠ MinerU install warning (non-critical)"
+pip install "paddleocr[doc-parser]" -i https://pypi.tuna.tsinghua.edu.cn/simple --no-deps || echo "⚠ PaddleOCR install warning (non-critical)"
 pip install transformers==4.46.3 tokenizers==0.20.3 -i https://pypi.tuna.tsinghua.edu.cn/simple --no-deps
 echo "✓ OCR engines installed"
 
@@ -183,4 +183,3 @@ else
     echo "See INSTALL.md for troubleshooting."
     echo "============================================================"
 fi
-

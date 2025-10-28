@@ -125,7 +125,7 @@
         <h2 class="text-lg font-semibold text-gray-900 mb-4">状态时间轴</h2>
         <div class="relative">
           <div class="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-200"></div>
-          
+
           <div class="space-y-4">
             <!-- 创建 -->
             <div class="relative flex items-start">
@@ -188,8 +188,8 @@
                 :disabled="switchingFormat"
                 :class="[
                   'px-3 py-1 text-sm rounded transition-colors',
-                  activeTab === 'markdown' 
-                    ? 'bg-primary-100 text-primary-700 font-medium' 
+                  activeTab === 'markdown'
+                    ? 'bg-primary-100 text-primary-700 font-medium'
                     : 'text-gray-600 hover:bg-gray-100',
                   switchingFormat ? 'opacity-50 cursor-not-allowed' : ''
                 ]"
@@ -201,8 +201,8 @@
                 :disabled="switchingFormat"
                 :class="[
                   'px-3 py-1 text-sm rounded transition-colors flex items-center gap-1',
-                  activeTab === 'json' 
-                    ? 'bg-primary-100 text-primary-700 font-medium' 
+                  activeTab === 'json'
+                    ? 'bg-primary-100 text-primary-700 font-medium'
                     : 'text-gray-600 hover:bg-gray-100',
                   switchingFormat ? 'opacity-50 cursor-not-allowed' : ''
                 ]"
@@ -217,7 +217,7 @@
             </div>
           </div>
         </div>
-        
+
         <!-- Markdown View -->
         <div v-show="activeTab === 'markdown'">
           <MarkdownViewer v-if="task.data.content" :content="task.data.content" />
@@ -225,7 +225,7 @@
             <p>暂无 Markdown 内容</p>
           </div>
         </div>
-        
+
         <!-- JSON View -->
         <div v-show="activeTab === 'json'">
           <!-- 加载中 -->
@@ -233,14 +233,14 @@
             <Loader class="w-8 h-8 text-primary-600 animate-spin" />
             <span class="ml-3 text-gray-600">正在加载 JSON 数据...</span>
           </div>
-          
+
           <!-- JSON 内容 -->
-          <JsonViewer 
-            v-else-if="task.data.json_content" 
+          <JsonViewer
+            v-else-if="task.data.json_content"
             :data="task.data.json_content"
             :file-name="task.data.json_file || `${task.task_id}.json`"
           />
-          
+
           <!-- 无 JSON 内容 -->
           <div v-else class="text-center py-12">
             <div class="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
@@ -329,7 +329,7 @@ async function refreshTask(format: 'markdown' | 'json' | 'both' = 'markdown') {
 
 async function switchTab(tab: 'markdown' | 'json') {
   if (activeTab.value === tab) return
-  
+
   // 如果切换到 JSON，但当前没有 JSON 数据，则重新请求
   if (tab === 'json' && !task.value?.data?.json_content) {
     console.log('切换到 JSON，当前无数据，开始加载...')
@@ -345,14 +345,14 @@ async function switchTab(tab: 'markdown' | 'json') {
       switchingFormat.value = false
     }
   }
-  
+
   activeTab.value = tab
   console.log('切换到标签:', tab)
 }
 
 async function handleCancel() {
   if (!confirm('确定要取消此任务吗？')) return
-  
+
   cancelling.value = true
   try {
     await taskStore.cancelTask(taskId.value)
@@ -366,7 +366,7 @@ async function handleCancel() {
 
 function downloadMarkdown() {
   if (!task.value?.data?.content) return
-  
+
   const blob = new Blob([task.value.data.content], { type: 'text/markdown' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
@@ -380,7 +380,7 @@ onMounted(async () => {
   // 首次加载时，如果是支持 JSON 的引擎，预加载两种格式
   const initialFormat: 'markdown' | 'json' | 'both' = 'markdown'
   await refreshTask(initialFormat)
-  
+
   // 如果任务未完成，启动轮询
   if (task.value && (task.value.status === 'pending' || task.value.status === 'processing')) {
     stopPolling = taskStore.pollTaskStatus(taskId.value, 2000, async (updatedTask) => {
@@ -403,4 +403,3 @@ onUnmounted(() => {
   }
 })
 </script>
-

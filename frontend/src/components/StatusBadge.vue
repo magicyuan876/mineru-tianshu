@@ -46,4 +46,3 @@ const dotClass = computed(() => {
   return classMap[props.status] || 'bg-gray-400'
 })
 </script>
-

@@ -82,12 +82,14 @@ Model cache location: `~/.cache/watermark_models/`
 ### Which Watermarks Work Best?
 
 ✅ **Recommended Use Cases**:
+
 - Regular text/logo watermarks (e.g., "Copyright", company logos)
 - Fixed position, medium contrast watermarks
 - Watermarks with clear distinction from background
 - Good image quality with moderate resolution
 
 ❌ **May Not Work Well**:
+
 - Large-area background watermarks (covering entire image)
 - Semi-transparent, low-contrast watermarks
 - Artistic watermarks deeply integrated with content
@@ -102,7 +104,7 @@ Model cache location: `~/.cache/watermark_models/`
 - **Lower (0.2-0.3)**:
   - ✅ Suitable for: Unclear, semi-transparent, low-contrast watermarks
   - ⚠️ Risk: May falsely detect normal content
-  
+
 - **Higher (0.4-0.5)**:
   - ✅ Suitable for: Clear watermarks, avoid false detection
   - ⚠️ Risk: May miss some watermarks
@@ -114,7 +116,7 @@ Model cache location: `~/.cache/watermark_models/`
 - **Smaller (0-5)**:
   - ✅ Suitable for: Precise watermark boundaries, concerned about affecting surrounding content
   - ⚠️ Risk: May leave watermark edge residue
-  
+
 - **Larger (15-30)**:
   - ✅ Suitable for: Blurred watermark edges with ghosting
   - ⚠️ Risk: May remove too much normal content
@@ -170,7 +172,7 @@ If default model doesn't work well, train your own YOLO model:
 3. **Train Model**: Use Ultralytics YOLO framework for training
    - Recommend starting with pre-trained weights (e.g., yolo11x.pt) for fine-tuning
    - Adjust training parameters based on validation performance
-   - Detailed tutorial: https://docs.ultralytics.com/
+   - Detailed tutorial: <https://docs.ultralytics.com/>
 
 4. **Replace Model**: Replace trained model in cache directory
 
@@ -216,6 +218,7 @@ watermark_removed/
 ```
 
 **Debug Steps**:
+
 1. Check `detection_*.jpg` to verify all watermarks are detected
 2. If missed → Lower confidence
 3. If false detection → Raise confidence
@@ -291,6 +294,7 @@ curl -X POST http://localhost:8000/api/v1/tasks/submit \
 ### Q1: Why can't watermarks be detected?
 
 **Possible Reasons**:
+
 1. Confidence threshold too high → Lower to 0.25-0.30
 2. Watermark type not in training data → Consider training custom model
 3. Watermark too blurry or transparent → Check original image quality
@@ -300,6 +304,7 @@ curl -X POST http://localhost:8000/api/v1/tasks/submit \
 ### Q2: Why are there residues after removal?
 
 **Possible Reasons**:
+
 1. Dilation value too small → Increase to 15-20
 2. Watermark edges blurry → Increase dilation value
 3. Complex watermark → May need multiple passes
@@ -309,6 +314,7 @@ curl -X POST http://localhost:8000/api/v1/tasks/submit \
 ### Q3: Why was normal content also removed?
 
 **Possible Reasons**:
+
 1. Confidence too low causing false detection → Raise to 0.4-0.5
 2. Dilation value too large → Reduce to 5-10
 3. Normal content similar to watermark → Need more precise model
@@ -320,6 +326,7 @@ curl -X POST http://localhost:8000/api/v1/tasks/submit \
 **Reason**: First run needs to download YOLO11x model (~200MB)
 
 **Solution**:
+
 - Ensure network connection is normal
 - Users in China may need to configure proxy
 - Model is cached locally, subsequent runs start instantly
@@ -327,6 +334,7 @@ curl -X POST http://localhost:8000/api/v1/tasks/submit \
 ### Q5: GPU memory insufficient?
 
 **Solution**:
+
 ```python
 # Use CPU
 remover = WatermarkRemover(device="cpu", use_lama=True)
@@ -338,11 +346,13 @@ remover = WatermarkRemover(device="cuda", use_lama=False)
 ### Q6: Large-area background watermarks don't work well?
 
 **Explanation**: Large-area background watermarks are the most difficult to handle because:
+
 - Watermarks cover wide area, repair region is large
 - Easily damage original image structure
 - YOLO may not detect completely
 
 **Suggestions**:
+
 - In this case, traditional image processing methods may work better
 - Consider using other specialized tools
 - Or accept partial residue and manually post-process
@@ -384,4 +394,3 @@ remover = WatermarkRemover(device="cuda", use_lama=False)
 ---
 
 **Need Help?** Check main project [README](../../README_EN.md) or submit an Issue.
-

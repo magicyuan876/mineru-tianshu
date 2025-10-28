@@ -338,7 +338,7 @@ async function batchCancel() {
 
 async function confirmCancel() {
   const ids = Array.isArray(taskToCancel.value) ? taskToCancel.value : [taskToCancel.value]
-  
+
   for (const id of ids) {
     try {
       await taskStore.cancelTask(id)
@@ -380,4 +380,3 @@ onMounted(async () => {
   @apply px-3 py-1.5 text-sm;
 }
 </style>
-

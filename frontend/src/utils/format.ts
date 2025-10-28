@@ -29,11 +29,11 @@ export function formatRelativeTime(date: string | null | undefined): string {
  */
 export function formatFileSize(bytes: number): string {
   if (bytes === 0) return '0 B'
-  
+
   const k = 1024
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
   const i = Math.floor(Math.log(bytes) / Math.log(k))
-  
+
   return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
 }
 
@@ -42,11 +42,11 @@ export function formatFileSize(bytes: number): string {
  */
 export function formatDuration(startTime: string | null, endTime: string | null): string {
   if (!startTime || !endTime) return '-'
-  
+
   const start = dayjs(startTime)
   const end = dayjs(endTime)
   const seconds = end.diff(start, 'second')
-  
+
   if (seconds < 60) {
     return `${seconds}秒`
   } else if (seconds < 3600) {
@@ -73,4 +73,3 @@ export function formatBackendName(backend: string): string {
   }
   return backendNames[backend] || backend
 }
-

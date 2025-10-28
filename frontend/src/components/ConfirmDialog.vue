@@ -4,16 +4,16 @@
       <div v-if="modelValue" class="fixed inset-0 z-50 overflow-y-auto">
         <!-- 遮罩层 -->
         <div class="fixed inset-0 bg-black bg-opacity-50 transition-opacity" @click="onCancel"></div>
-        
+
         <!-- 对话框 -->
         <div class="flex min-h-screen items-center justify-center p-4">
           <div class="relative bg-white rounded-lg shadow-xl max-w-md w-full p-6 transform transition-all">
             <!-- 标题 -->
             <h3 class="text-lg font-semibold text-gray-900 mb-4">{{ title }}</h3>
-            
+
             <!-- 内容 -->
             <p class="text-sm text-gray-600 mb-6">{{ message }}</p>
-            
+
             <!-- 按钮 -->
             <div class="flex justify-end gap-3">
               <button
@@ -92,4 +92,3 @@ function onCancel() {
   opacity: 0;
 }
 </style>
-

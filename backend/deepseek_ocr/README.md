@@ -7,14 +7,17 @@
 **DeepSeek OCR 模型必须在 GPU 环境下运行，不支持 CPU。**
 
 ### 硬件要求
+
 - ✅ **必须有 NVIDIA 显卡** (支持 CUDA)
 - 显存建议: ≥ 8GB
 
 ### 软件要求
+
 - CUDA Toolkit (11.8 或 12.1)
 - GPU 版本的 PyTorch
 
-如果您遇到 `Torch not compiled with CUDA enabled` 错误，请查看 [GPU_REQUIREMENT.md](./GPU_REQUIREMENT.md) 获取详细解决方案。
+如果您遇到 `Torch not compiled with CUDA enabled` 错误，请查看
+[GPU_REQUIREMENT.md](./GPU_REQUIREMENT.md) 获取详细解决方案。
 
 ## 安装
 
@@ -51,6 +54,7 @@ python check_environment.py
 ```
 
 这个脚本会检查:
+
 - ✅ Python 版本
 - ✅ PyTorch 安装和 CUDA 支持
 - ✅ GPU 信息和显存
@@ -60,6 +64,7 @@ python check_environment.py
 如果检查失败,会给出详细的解决方案。
 
 **特性：**
+
 - **跨平台支持**: Linux 自动安装 flash-attn，Windows/macOS 使用默认实现
 - **自动下载模型**: 首次使用时自动从 ModelScope/HuggingFace 下载
 - **指定缓存目录**: 可通过参数指定模型下载位置
@@ -94,11 +99,12 @@ curl -X POST http://localhost:8000/api/v1/tasks/submit \
 | 参数 | 说明 | 可选值 | 默认值 |
 |------|------|--------|--------|
 | `backend` | 解析引擎 | `pipeline` / `deepseek-ocr` | `pipeline` |
-| `deepseek_resolution` | 分辨率 | `tiny` / `small` / `base` / `large` / `dynamic` | `base` |
-| `deepseek_prompt_type` | 提示词类型 | `document` / `image` / `free` / `figure` | `document` |
-| `deepseek_cache_dir` | 模型缓存目录 | 任意路径 | 项目根目录 `/models/deepseek_ocr` |
+| `deepseek_resolution` | 分辨率 | `tiny`/`small`/`base`/`large`/`dynamic` | `base` |
+| `deepseek_prompt_type` | 提示词 | `document`/`image`/`free`/`figure` | `document` |
+| `deepseek_cache_dir` | 缓存目录 | 任意路径 | 根目录 `/models/deepseek_ocr` |
 
 **模型下载说明：**
+
 - **默认位置**: 项目根目录下的 `models/deepseek_ocr/` 文件夹
 - **首次使用**: 自动下载（约 5-10GB）
 - **下载源**: 优先从 ModelScope 下载（国内更快）
@@ -167,6 +173,7 @@ output/
 | dynamic | 动态 | 动态 | 长文档 | 动态 |
 
 **显存建议**:
+
 - 6GB 显存: 推荐使用 `small`
 - 8GB 显存: 可以使用 `base`
 - 12GB+ 显存: 可以使用 `large`
@@ -198,7 +205,7 @@ async with aiohttp.ClientSession() as session:
     data.add_field('file', open('document.pdf', 'rb'))
     data.add_field('backend', 'deepseek-ocr')
     data.add_field('deepseek_resolution', 'base')
-    
+
     async with session.post(
         'http://localhost:8000/api/v1/tasks/submit',
         data=data
@@ -221,4 +228,3 @@ curl -X POST http://localhost:8000/api/v1/tasks/submit \
   -F "file=@test.pdf" \
   -F "backend=pipeline"
 ```
-

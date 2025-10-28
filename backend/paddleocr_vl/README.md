@@ -42,6 +42,7 @@
 ### 安装步骤
 
 **方式一：一键安装（推荐）**
+
 ```bash
 # 安装统一的后端依赖
 cd backend
@@ -80,6 +81,7 @@ python check_environment.py
 ```
 
 这个脚本会检查:
+
 - ✅ Python 版本
 - ✅ PaddlePaddle GPU 支持
 - ✅ GPU 可用性和计算能力
@@ -119,12 +121,14 @@ PaddleOCR-VL 新版本支持 **109+ 种语言的自动识别**，包括但不限
 - **中东语言**: 阿拉伯文、希伯来文等
 - **印度语言**: 印地文、泰米尔文等
 
-**关键优势**: 
+**关键优势**:
+
 - ✅ **无需指定语言**: 模型会自动检测文档中的语言
 - ✅ **混合语言支持**: 可以识别包含多种语言的文档
 - ✅ **高准确率**: 基于最新的视觉-语言大模型
 
 **模型管理说明：**
+
 - **自动管理**: 模型由 PaddleOCR 自动下载和管理，无需手动操作
 - **缓存位置**: `~/.paddleocr/models/` 目录（由 PaddleOCR 自动创建）
 - **首次使用**: 自动下载模型（约 2GB）
@@ -209,7 +213,7 @@ async with aiohttp.ClientSession() as session:
     data.add_field('file', open('document.pdf', 'rb'))
     data.add_field('backend', 'paddleocr-vl')
     data.add_field('paddleocr_lang', 'ch')
-    
+
     async with session.post(
         'http://localhost:8000/api/v1/tasks/submit',
         data=data
@@ -247,6 +251,7 @@ curl -X POST http://localhost:8000/api/v1/tasks/submit \
 如果安装了 GPU 版本，PaddleOCR 会自动使用 GPU 加速。
 
 检查 GPU 是否可用：
+
 ```bash
 python -c "import paddle; print(paddle.device.is_compiled_with_cuda())"
 ```
@@ -275,22 +280,27 @@ PaddleOCR-VL 会自动管理模型缓存：
 **原因**: PaddleOCR-VL 会自动从 Hugging Face 或 ModelScope 下载模型
 
 **解决方案:**
+
 1. 确保网络连接正常，可以访问 Hugging Face 或 ModelScope
 2. 如果网络受限，可以配置代理环境变量：
+
 ```bash
 export http_proxy=http://your-proxy:port
 export https_proxy=http://your-proxy:port
 ```
+
 3. 等待模型自动下载完成（首次使用需要一些时间，取决于网络速度）
 
 ### 问题 2: GPU 不可用
 
 **检查:**
+
 ```bash
 python -c "import paddle; print(paddle.device.is_compiled_with_cuda())"
 ```
 
 **解决方案:**
+
 - 确认安装了 GPU 版本的 PaddlePaddle: `pip install paddlepaddle-gpu==3.2.0`
 - 检查 CUDA 驱动是否正确安装（需要 CUDA 12.6）
 - **注意**: PaddleOCR-VL 仅支持 GPU 模式，不支持 CPU 推理
@@ -298,6 +308,7 @@ python -c "import paddle; print(paddle.device.is_compiled_with_cuda())"
 ### 问题 3: 识别效果不佳
 
 **建议:**
+
 1. 确保图片清晰度足够（DPI ≥ 200）
 2. 尝试不同的语言参数
 3. 对于复杂文档，考虑使用 DeepSeek OCR
@@ -308,4 +319,3 @@ python -c "import paddle; print(paddle.device.is_compiled_with_cuda())"
 - [PaddleOCR 语言支持列表](https://github.com/PaddlePaddle/PaddleOCR/blob/main/doc/doc_ch/multi_languages.md)
 - [PaddlePaddle 安装指南](https://www.paddlepaddle.org.cn/install/quick)
 - [ModelScope 平台](https://www.modelscope.cn/)
-

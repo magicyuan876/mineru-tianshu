@@ -66,7 +66,7 @@
       <!-- 管理操作 -->
       <div class="card">
         <h2 class="text-lg font-semibold text-gray-900 mb-4">管理操作</h2>
-        
+
         <div class="space-y-4">
           <!-- 重置超时任务 -->
           <div class="flex items-start justify-between p-4 bg-gray-50 rounded-lg">
@@ -306,4 +306,3 @@ async function handleHealthCheck() {
   }
 }
 </script>
-

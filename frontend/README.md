@@ -16,7 +16,7 @@ npm install
 npm run dev
 ```
 
-访问 http://localhost:3000
+访问 <http://localhost:3000>
 
 ### 生产构建
 
@@ -94,11 +94,13 @@ frontend/
 ## 🌟 主要功能
 
 ### 仪表盘 (Dashboard)
+
 - 实时队列统计
 - 最近任务列表
 - 快捷操作入口
 
 ### 任务提交 (TaskSubmit)
+
 - 文件拖拽上传
 - 批量文件上传
 - 高级配置选项
@@ -111,6 +113,7 @@ frontend/
 - 上传进度显示
 
 ### 任务详情 (TaskDetail)
+
 - 任务基本信息展示
 - 状态时间轴
 - Markdown 结果预览
@@ -119,6 +122,7 @@ frontend/
 - 取消任务
 
 ### 任务列表 (TaskList)
+
 - 状态筛选 (pending/processing/completed/failed/cancelled)
 - Backend 类型筛选
 - 文件名搜索
@@ -127,6 +131,7 @@ frontend/
 - 实时刷新
 
 ### 队列管理 (QueueManagement)
+
 - 队列统计展示
 - 历史统计 (已完成/失败)
 - 管理操作
@@ -140,11 +145,13 @@ frontend/
 ### 环境变量
 
 开发环境 (`.env.development`):
+
 ```
 VITE_API_BASE_URL=http://localhost:8000
 ```
 
 生产环境 (`.env.production`):
+
 ```
 VITE_API_BASE_URL=/api
 ```
@@ -158,20 +165,24 @@ VITE_API_BASE_URL=/api
 ## 📝 开发规范
 
 ### 组件命名
+
 - 使用 PascalCase 命名组件文件
 - 组件名使用多个单词 (避免与 HTML 标签冲突)
 
 ### 样式规范
+
 - 优先使用 TailwindCSS 工具类
 - 自定义样式使用 `<style scoped>`
 - 避免全局样式污染
 
 ### TypeScript
+
 - 所有 API 接口使用明确的类型定义
 - Props 使用 TypeScript 类型注解
 - 避免使用 `any` 类型
 
 ### 状态管理
+
 - 组件内部状态使用 `ref`/`reactive`
 - 跨组件共享状态使用 Pinia Store
 - Store 按功能模块拆分
@@ -211,4 +222,3 @@ server {
 ## 📄 许可证
 
 遵循 MinerU 主项目许可证
-

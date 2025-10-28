@@ -42,4 +42,3 @@ const textClass = computed(() => {
   return sizeMap[props.size]
 })
 </script>
-

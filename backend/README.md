@@ -61,11 +61,12 @@ backend/
 
 ## 📡 API 接口
 
-完整 API 文档: http://localhost:8000/docs
+完整 API 文档: <http://localhost:8000/docs>
 
 ### 任务管理
 
 #### 提交任务
+
 ```
 POST /api/v1/tasks/submit
 
@@ -77,7 +78,7 @@ POST /api/v1/tasks/submit
   - formula_enable: boolean (默认: true)
   - table_enable: boolean (默认: true)
   - priority: 0-100 (默认: 0)
-  
+
   DeepSeek OCR 额外参数（当 backend=deepseek-ocr 时）:
   - deepseek_resolution: tiny | small | base | large | dynamic (默认: base)
   - deepseek_prompt_type: document | image | free | figure (默认: document)
@@ -94,6 +95,7 @@ POST /api/v1/tasks/submit
 ```
 
 #### 查询任务状态
+
 ```
 GET /api/v1/tasks/{task_id}?upload_images=false
 
@@ -121,6 +123,7 @@ GET /api/v1/tasks/{task_id}?upload_images=false
 ```
 
 #### 取消任务
+
 ```
 DELETE /api/v1/tasks/{task_id}
 
@@ -132,6 +135,7 @@ DELETE /api/v1/tasks/{task_id}
 ```
 
 #### 获取任务列表
+
 ```
 GET /api/v1/queue/tasks?status=pending&limit=100
 
@@ -146,6 +150,7 @@ GET /api/v1/queue/tasks?status=pending&limit=100
 ### 队列管理
 
 #### 获取队列统计
+
 ```
 GET /api/v1/queue/stats
 
@@ -165,6 +170,7 @@ GET /api/v1/queue/stats
 ```
 
 #### 重置超时任务
+
 ```
 POST /api/v1/admin/reset-stale?timeout_minutes=60
 
@@ -177,6 +183,7 @@ POST /api/v1/admin/reset-stale?timeout_minutes=60
 ```
 
 #### 清理旧任务
+
 ```
 POST /api/v1/admin/cleanup?days=7
 
@@ -189,6 +196,7 @@ POST /api/v1/admin/cleanup?days=7
 ```
 
 #### 健康检查
+
 ```
 GET /api/v1/health
 
@@ -251,21 +259,25 @@ export MINERU_VIRTUAL_VRAM_SIZE=6
 ## 🎯 核心功能
 
 ### Worker 主动拉取模式
+
 - Workers 持续循环拉取任务,无需调度器触发
 - 默认 0.5 秒拉取间隔,响应速度极快
 - 空闲时自动休眠,不占用 CPU 资源
 
 ### 并发安全
+
 - 使用 `BEGIN IMMEDIATE` 和原子操作
 - 防止任务重复处理
 - 支持多 Worker 并发拉取
 
 ### 多解析器支持
+
 - **MinerU**: 完整文档解析，支持表格、公式等 (GPU 加速)
 - **DeepSeek OCR**: 高精度 OCR，单例模式加载 (可选)
 - **MarkItDown**: 处理 Office、HTML、文本等 (快速处理)
 
 ### 自动清理
+
 - 自动清理旧结果文件 (默认 7 天)
 - 保留数据库记录供查询
 - 可配置清理周期或禁用
@@ -278,7 +290,7 @@ import asyncio
 
 async def main():
     client = TianshuClient('http://localhost:8000')
-    
+
     async with aiohttp.ClientSession() as session:
         # 提交任务
         result = await client.submit_task(
@@ -289,12 +301,12 @@ async def main():
             formula_enable=True,
             table_enable=True
         )
-        
+
         task_id = result['task_id']
-        
+
         # 等待完成
         final_status = await client.wait_for_task(session, task_id)
-        
+
         print(f"Task completed: {final_status}")
 
 if __name__ == '__main__':
@@ -306,11 +318,13 @@ if __name__ == '__main__':
 ### Worker 无法启动
 
 检查 GPU:
+
 ```bash
 nvidia-smi
 ```
 
 检查依赖:
+
 ```bash
 pip list | grep -E "(mineru|litserve|torch)"
 ```
@@ -318,6 +332,7 @@ pip list | grep -E "(mineru|litserve|torch)"
 ### 任务一直 pending
 
 检查 Worker 是否运行:
+
 ```bash
 # Windows
 tasklist | findstr python
@@ -327,6 +342,7 @@ ps aux | grep litserve_worker
 ```
 
 检查 Worker 健康状态:
+
 ```bash
 curl -X POST http://localhost:9000/predict \
   -H "Content-Type: application/json" \
@@ -336,11 +352,13 @@ curl -X POST http://localhost:9000/predict \
 ### 显存不足
 
 减少 worker 数量:
+
 ```bash
 python start_all.py --workers-per-device 1
 ```
 
 设置显存限制:
+
 ```bash
 export MINERU_VIRTUAL_VRAM_SIZE=6
 python start_all.py
@@ -374,6 +392,7 @@ MCP Server 将在 `http://localhost:8001` 启动，提供以下端点：
 ### 详细文档
 
 完整的 MCP 配置和使用指南，请参考：
+
 - [MCP_GUIDE.md](MCP_GUIDE.md) - MCP 详细指南
 - [主 README](../README.md#mcp-协议集成) - 快速配置指南
 
@@ -444,4 +463,3 @@ curl -X POST http://localhost:8000/api/v1/tasks/submit \
 ## 📄 许可证
 
 遵循 MinerU 主项目许可证
-

@@ -5,5 +5,4 @@ Audio Processing Engines
 
 from .sensevoice_engine import SenseVoiceEngine
 
-__all__ = ['SenseVoiceEngine']
-
+__all__ = ["SenseVoiceEngine"]

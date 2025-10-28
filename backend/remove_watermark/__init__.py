@@ -10,9 +10,8 @@ from .watermark_remover import WatermarkRemover
 from .pdf_watermark_handler import PDFWatermarkHandler
 
 __all__ = [
-    'WatermarkRemover',
-    'PDFWatermarkHandler',
+    "WatermarkRemover",
+    "PDFWatermarkHandler",
 ]
 
-__version__ = '2.0.0'
-
+__version__ = "2.0.0"

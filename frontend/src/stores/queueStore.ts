@@ -15,7 +15,7 @@ export const useQueueStore = defineStore('queue', () => {
     failed: 0,
     cancelled: 0,
   })
-  
+
   const total = ref(0)
   const lastUpdate = ref<string>('')
   const loading = ref(false)
@@ -34,21 +34,21 @@ export const useQueueStore = defineStore('queue', () => {
   async function fetchStats() {
     // 防止并发请求
     if (loading.value) return
-    
+
     loading.value = true
     error.value = null
-    
+
     try {
       const response = await queueApi.getQueueStats()
-      
+
       // 检测是否有变化
-      const hasChange = 
+      const hasChange =
         stats.value.pending !== (response.stats.pending || 0) ||
         stats.value.processing !== (response.stats.processing || 0) ||
         stats.value.completed !== (response.stats.completed || 0) ||
         stats.value.failed !== (response.stats.failed || 0) ||
         stats.value.cancelled !== (response.stats.cancelled || 0)
-      
+
       // 更新统计
       stats.value = {
         pending: response.stats.pending || 0,
@@ -59,7 +59,7 @@ export const useQueueStore = defineStore('queue', () => {
       }
       total.value = response.total
       lastUpdate.value = response.timestamp
-      
+
       // 自适应轮询间隔
       if (hasChange) {
         // 有变化，重置为基础间隔
@@ -92,7 +92,7 @@ export const useQueueStore = defineStore('queue', () => {
           consecutiveNoChange = 0 // 重置计数
         }
       }
-      
+
       return response
     } catch (err: any) {
       error.value = err.message || '获取队列统计失败'
@@ -107,14 +107,14 @@ export const useQueueStore = defineStore('queue', () => {
    */
   function startAutoRefresh(interval: number = baseInterval) {
     if (autoRefresh.value) return
-    
+
     autoRefresh.value = true
     currentInterval = interval
     consecutiveNoChange = 0
-    
+
     // 立即获取一次
     fetchStats()
-    
+
     // 设置定时刷新
     refreshTimer = window.setInterval(() => {
       fetchStats()
@@ -140,7 +140,7 @@ export const useQueueStore = defineStore('queue', () => {
   async function resetStaleTasks(timeoutMinutes: number = 60) {
     loading.value = true
     error.value = null
-    
+
     try {
       const response = await queueApi.resetStaleTasks(timeoutMinutes)
       // 重新获取统计
@@ -160,7 +160,7 @@ export const useQueueStore = defineStore('queue', () => {
   async function cleanupOldTasks(days: number = 7) {
     loading.value = true
     error.value = null
-    
+
     try {
       const response = await queueApi.cleanupOldTasks(days)
       // 重新获取统计
@@ -220,7 +220,7 @@ export const useQueueStore = defineStore('queue', () => {
     loading,
     error,
     autoRefresh,
-    
+
     // 动作
     fetchStats,
     startAutoRefresh,
@@ -232,4 +232,3 @@ export const useQueueStore = defineStore('queue', () => {
     reset,
   }
 })
-

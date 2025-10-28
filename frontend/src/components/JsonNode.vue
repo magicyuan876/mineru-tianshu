@@ -105,9 +105,9 @@ const pathStr = computed(() => props.path.join('.'))
 const isExpanded = computed(() => props.expandedPaths.has(pathStr.value))
 
 // 类型判断
-const isObject = computed(() => 
-  typeof props.data === 'object' && 
-  props.data !== null && 
+const isObject = computed(() =>
+  typeof props.data === 'object' &&
+  props.data !== null &&
   !Array.isArray(props.data)
 )
 
@@ -277,4 +277,3 @@ async function copyValue() {
   @apply cursor-pointer select-text hover:bg-yellow-100 hover:px-1 hover:-mx-1 rounded transition-all;
 }
 </style>
-

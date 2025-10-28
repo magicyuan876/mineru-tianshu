@@ -75,7 +75,7 @@
           @toggle="togglePath"
         />
       </div>
-      
+
       <!-- 原始视图 -->
       <div v-else class="json-raw">
         <pre class="text-sm text-gray-800 whitespace-pre-wrap font-mono">{{ JSON.stringify(jsonData, null, 2) }}</pre>
@@ -125,7 +125,7 @@ const objectInfo = computed(() => {
 // 获取所有路径
 function getAllPaths(obj: any, currentPath: string[] = []): string[] {
   const paths: string[] = []
-  
+
   if (Array.isArray(obj)) {
     paths.push(currentPath.join('.'))
     obj.forEach((item, index) => {
@@ -143,7 +143,7 @@ function getAllPaths(obj: any, currentPath: string[] = []): string[] {
       }
     })
   }
-  
+
   return paths
 }
 
@@ -161,10 +161,10 @@ function collapseAll() {
 // 展开到指定层级
 function expandLevel(level: number) {
   const paths: string[] = []
-  
+
   function collectPaths(obj: any, currentPath: string[] = [], currentLevel: number = 0) {
     if (currentLevel >= level) return
-    
+
     if (Array.isArray(obj)) {
       paths.push(currentPath.join('.'))
       obj.forEach((item, index) => {
@@ -181,7 +181,7 @@ function expandLevel(level: number) {
       })
     }
   }
-  
+
   collectPaths(jsonData.value)
   expandedPaths.value = new Set(paths)
 }
@@ -279,4 +279,3 @@ onMounted(() => {
   @apply font-mono text-sm;
 }
 </style>
-

@@ -5,6 +5,7 @@
 基于阿里达摩院的 SenseVoiceSmall 模型，支持多语言识别和说话人识别。
 
 **核心特性**：
+
 - ✅ 多语言识别（中文/英文/日文/韩文/粤语）
 - ✅ 说话人识别（自动区分不同说话人）
 - ✅ 情感识别（中性 😐/开心 😊/生气 😠/悲伤 😢）
@@ -26,6 +27,7 @@ cd backend
 ```
 
 额外需要的系统依赖：
+
 ```bash
 # Ubuntu/Debian
 sudo apt-get install ffmpeg
@@ -35,6 +37,7 @@ brew install ffmpeg
 ```
 
 **环境检查**：
+
 ```bash
 python backend/audio_engines/check_environment.py
 ```
@@ -101,6 +104,7 @@ print(f"文本: {json_data['content']['text']}")
 ### `parse(audio_path, output_path, language, use_itn)`
 
 **参数**：
+
 - `audio_path` (str): 音频文件路径
 - `output_path` (str): 输出目录
 - `language` (str): 语言代码 (auto/zh/en/ja/ko/yue)，默认 "auto"
@@ -114,4 +118,3 @@ print(f"文本: {json_data['content']['text']}")
 
 - [SenseVoice 模型](https://www.modelscope.cn/models/iic/SenseVoiceSmall)
 - [FunASR 框架](https://github.com/alibaba-damo-academy/FunASR)
-

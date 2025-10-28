@@ -22,7 +22,7 @@
       <!-- 配置选项 -->
       <div class="card mb-6">
         <h2 class="text-lg font-semibold text-gray-900 mb-4">解析配置</h2>
-        
+
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <!-- Backend 选择 -->
           <div>
@@ -157,7 +157,7 @@
         <!-- Video 专属配置 -->
         <div v-if="config.backend === 'video'" class="mt-6 pt-6 border-t border-gray-200">
           <h3 class="text-base font-semibold text-gray-900 mb-4">🎬 视频处理选项</h3>
-          
+
           <div class="space-y-4">
             <!-- 音频选项 -->
             <div>
@@ -230,7 +230,7 @@
               <li>✅ 自动多语言识别（109+ 语言，无需手动指定）</li>
             </ul>
           </div>
-          
+
           <div class="text-sm text-gray-600">
             <p class="mb-2">💡 <strong>提示：</strong></p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -266,7 +266,7 @@
         <!-- 水印去除配置（PDF/图片） -->
         <div v-if="['pipeline', 'deepseek-ocr', 'paddleocr-vl'].includes(config.backend)" class="mt-6 pt-6 border-t border-gray-200">
           <h3 class="text-base font-semibold text-gray-900 mb-4">🎨 水印去除选项</h3>
-          
+
           <div class="space-y-4">
             <!-- 水印去除开关 -->
             <div>
@@ -540,4 +540,3 @@ function resetForm() {
   fileUploader.value?.clearFiles()
 }
 </script>
-

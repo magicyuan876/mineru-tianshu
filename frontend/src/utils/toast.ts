@@ -12,15 +12,15 @@ interface ToastOptions {
 
 export function showToast(options: ToastOptions) {
   const { message, type = 'info', duration = 3000 } = options
-  
+
   // 创建 toast 元素
   const toast = document.createElement('div')
   toast.className = `fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg text-white transform transition-all duration-300 translate-x-0 ${getToastClass(type)}`
   toast.textContent = message
-  
+
   // 添加到页面
   document.body.appendChild(toast)
-  
+
   // 自动移除
   setTimeout(() => {
     toast.classList.add('opacity-0', 'translate-x-full')
@@ -47,4 +47,3 @@ export const toast = {
   warning: (message: string) => showToast({ message, type: 'warning' }),
   info: (message: string) => showToast({ message, type: 'info' }),
 }
-

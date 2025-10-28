@@ -5,6 +5,7 @@ MinerU Tianshu - Unified Startup Script
 一键启动所有服务：API Server + LitServe Workers + Task Scheduler
 自动检查并下载 OCR 模型（DeepSeek OCR、PaddleOCR-VL）
 """
+
 import subprocess
 import signal
 import sys
@@ -17,17 +18,17 @@ import argparse
 
 class TianshuLauncher:
     """天枢服务启动器"""
-    
+
     def __init__(
         self,
-        output_dir='/tmp/mineru_tianshu_output',
+        output_dir="/tmp/mineru_tianshu_output",
         api_port=8000,
         worker_port=9000,
         workers_per_device=1,
-        devices='auto',
-        accelerator='auto',
+        devices="auto",
+        accelerator="auto",
         enable_mcp=False,
-        mcp_port=8001
+        mcp_port=8001,
     ):
         self.output_dir = output_dir
         self.api_port = api_port
@@ -38,98 +39,98 @@ class TianshuLauncher:
         self.enable_mcp = enable_mcp
         self.mcp_port = mcp_port
         self.processes = []
-    
+
     def check_ocr_models(self):
         """检查并下载所有 OCR 模型（异步，不阻塞启动）"""
         import threading
-        
+
         # 1. 检查 DeepSeek OCR 模型
         def check_deepseek():
             try:
                 from deepseek_ocr import DeepSeekOCREngine
-                
+
                 logger.info("🔍 Checking DeepSeek OCR model...")
-                
+
                 # 获取项目根目录
                 project_root = Path(__file__).parent.parent
-                cache_dir = project_root / 'models' / 'deepseek_ocr'
-                
+                cache_dir = project_root / "models" / "deepseek_ocr"
+
                 # 检查模型是否已存在
                 model_exists = False
-                local_model_path = cache_dir / 'deepseek-ai' / 'DeepSeek-OCR'
-                
+                local_model_path = cache_dir / "deepseek-ai" / "DeepSeek-OCR"
+
                 if local_model_path.exists():
                     required_files = [
-                        'config.json',
-                        'tokenizer.json',
-                        'modeling_deepseekocr.py',
-                        'model-00001-of-000001.safetensors'
+                        "config.json",
+                        "tokenizer.json",
+                        "modeling_deepseekocr.py",
+                        "model-00001-of-000001.safetensors",
                     ]
                     model_exists = all((local_model_path / f).exists() for f in required_files)
-                    
+
                     if model_exists:
                         logger.info(f"✅ DeepSeek OCR model found at: {local_model_path}")
                     else:
                         missing = [f for f in required_files if not (local_model_path / f).exists()]
                         logger.warning(f"⚠️  DeepSeek OCR model incomplete, missing: {missing}")
-                
+
                 if not model_exists:
                     logger.info("📥 DeepSeek OCR model not found, starting download...")
                     logger.info(f"📁 Download location: {cache_dir}")
                     logger.info("⏳ This may take a few minutes (5-10GB)...")
                     logger.info("💡 Tip: Model downloads in background")
-                    
+
                     try:
-                        engine = DeepSeekOCREngine(cache_dir=str(cache_dir), auto_download=True)
+                        DeepSeekOCREngine(cache_dir=str(cache_dir), auto_download=True)
                         logger.info("✅ DeepSeek OCR model download completed!")
                     except Exception as e:
                         logger.warning(f"⚠️  DeepSeek OCR model download failed: {e}")
                         logger.info("   Model will be downloaded on first use")
-                        
+
             except ImportError:
                 logger.debug("DeepSeek OCR not installed, skipping model check")
             except Exception as e:
                 logger.debug(f"DeepSeek model check skipped: {e}")
-        
+
         # 2. 检查 PaddleOCR-VL 模型
         def check_paddleocr_vl():
             try:
                 from paddleocr_vl import PaddleOCRVLEngine
-                
+
                 logger.info("🔍 Checking PaddleOCR-VL...")
                 logger.info("   Note: PaddleOCR-VL models are auto-managed by PaddleOCR")
                 logger.info("   Cache location: ~/.paddleocr/models/")
                 logger.info("   Model will be auto-downloaded on first use (~2GB)")
-                
+
                 # 检查 home 目录的模型缓存
                 home_dir = Path.home()
-                model_cache_dir = home_dir / '.paddleocr' / 'models'
-                
+                model_cache_dir = home_dir / ".paddleocr" / "models"
+
                 if model_cache_dir.exists():
                     logger.info(f"✅ PaddleOCR model cache found at: {model_cache_dir}")
                 else:
                     logger.info("ℹ️  PaddleOCR model cache not found, will be created on first use")
-                
+
                 # 简单初始化引擎（不触发下载）
                 try:
-                    engine = PaddleOCRVLEngine()
+                    PaddleOCRVLEngine()
                     logger.info("✅ PaddleOCR-VL engine initialized successfully")
                 except Exception as e:
                     logger.warning(f"⚠️  PaddleOCR-VL initialization failed: {e}")
                     logger.info("   This is normal if GPU is not available or dependencies are missing")
-                        
+
             except ImportError:
                 logger.debug("PaddleOCR-VL not installed, skipping check")
             except Exception as e:
                 logger.debug(f"PaddleOCR-VL check skipped: {e}")
-        
+
         # 在后台线程中并行下载两个模型
         thread1 = threading.Thread(target=check_deepseek, daemon=True)
         thread2 = threading.Thread(target=check_paddleocr_vl, daemon=True)
-        
+
         thread1.start()
         thread2.start()
-    
+
     def start_services(self):
         """启动所有服务"""
         logger.info("=" * 70)
@@ -138,103 +139,97 @@ class TianshuLauncher:
         logger.info("天枢 - 企业级 AI 数据预处理平台")
         logger.info("支持文档、图片、音频、视频等多模态数据处理")
         logger.info("")
-        
+
         try:
             total_services = 4 if self.enable_mcp else 3
-            
+
             # 1. 启动 API Server
             logger.info(f"📡 [1/{total_services}] Starting API Server...")
             env = os.environ.copy()
-            env['API_PORT'] = str(self.api_port)
-            api_proc = subprocess.Popen(
-                [sys.executable, 'api_server.py'],
-                cwd=Path(__file__).parent,
-                env=env
-            )
-            self.processes.append(('API Server', api_proc))
+            env["API_PORT"] = str(self.api_port)
+            api_proc = subprocess.Popen([sys.executable, "api_server.py"], cwd=Path(__file__).parent, env=env)
+            self.processes.append(("API Server", api_proc))
             time.sleep(3)
-            
+
             if api_proc.poll() is not None:
                 logger.error("❌ API Server failed to start!")
                 return False
-            
+
             logger.info(f"   ✅ API Server started (PID: {api_proc.pid})")
             logger.info(f"   📖 API Docs: http://localhost:{self.api_port}/docs")
             logger.info("")
-            
+
             # 2. 启动 LitServe Worker Pool
             logger.info(f"⚙️  [2/{total_services}] Starting LitServe Worker Pool...")
             worker_cmd = [
-                sys.executable, 'litserve_worker.py',
-                '--output-dir', self.output_dir,
-                '--accelerator', self.accelerator,
-                '--workers-per-device', str(self.workers_per_device),
-                '--port', str(self.worker_port),
-                '--devices', str(self.devices) if isinstance(self.devices, str) else ','.join(map(str, self.devices))
+                sys.executable,
+                "litserve_worker.py",
+                "--output-dir",
+                self.output_dir,
+                "--accelerator",
+                self.accelerator,
+                "--workers-per-device",
+                str(self.workers_per_device),
+                "--port",
+                str(self.worker_port),
+                "--devices",
+                str(self.devices) if isinstance(self.devices, str) else ",".join(map(str, self.devices)),
             ]
-            
-            worker_proc = subprocess.Popen(
-                worker_cmd,
-                cwd=Path(__file__).parent
-            )
-            self.processes.append(('LitServe Workers', worker_proc))
+
+            worker_proc = subprocess.Popen(worker_cmd, cwd=Path(__file__).parent)
+            self.processes.append(("LitServe Workers", worker_proc))
             time.sleep(5)
-            
+
             if worker_proc.poll() is not None:
                 logger.error("❌ LitServe Workers failed to start!")
                 return False
-            
+
             logger.info(f"   ✅ LitServe Workers started (PID: {worker_proc.pid})")
             logger.info(f"   🔌 Worker Port: {self.worker_port}")
             logger.info(f"   👷 Workers per Device: {self.workers_per_device}")
             logger.info("")
-            
+
             # 3. 启动 Task Scheduler
             logger.info(f"🔄 [3/{total_services}] Starting Task Scheduler...")
             scheduler_cmd = [
-                sys.executable, 'task_scheduler.py',
-                '--litserve-url', f'http://localhost:{self.worker_port}/predict',
-                '--wait-for-workers'
+                sys.executable,
+                "task_scheduler.py",
+                "--litserve-url",
+                f"http://localhost:{self.worker_port}/predict",
+                "--wait-for-workers",
             ]
-            
-            scheduler_proc = subprocess.Popen(
-                scheduler_cmd,
-                cwd=Path(__file__).parent
-            )
-            self.processes.append(('Task Scheduler', scheduler_proc))
+
+            scheduler_proc = subprocess.Popen(scheduler_cmd, cwd=Path(__file__).parent)
+            self.processes.append(("Task Scheduler", scheduler_proc))
             time.sleep(3)
-            
+
             if scheduler_proc.poll() is not None:
                 logger.error("❌ Task Scheduler failed to start!")
                 return False
-            
+
             logger.info(f"   ✅ Task Scheduler started (PID: {scheduler_proc.pid})")
             logger.info("")
-            
+
             # 4. 启动 MCP Server（可选）
             if self.enable_mcp:
                 logger.info(f"🔌 [4/{total_services}] Starting MCP Server...")
                 mcp_env = os.environ.copy()
-                mcp_env['API_BASE_URL'] = f'http://localhost:{self.api_port}'
-                mcp_env['MCP_PORT'] = str(self.mcp_port)
-                mcp_env['MCP_HOST'] = '0.0.0.0'
-                
-                mcp_proc = subprocess.Popen(
-                    [sys.executable, 'mcp_server.py'],
-                    cwd=Path(__file__).parent,
-                    env=mcp_env
-                )
-                self.processes.append(('MCP Server', mcp_proc))
+                mcp_env["API_BASE_URL"] = f"http://localhost:{self.api_port}"
+                mcp_env["MCP_PORT"] = str(self.mcp_port)
+                mcp_env["MCP_HOST"] = "0.0.0.0"
+
+                mcp_proc = subprocess.Popen([sys.executable, "mcp_server.py"], cwd=Path(__file__).parent, env=mcp_env)
+                self.processes.append(("MCP Server", mcp_proc))
                 time.sleep(3)
-                
+
                 if mcp_proc.poll() is not None:
                     logger.error("❌ MCP Server failed to start!")
                     return False
-                
+
                 logger.info(f"   ✅ MCP Server started (PID: {mcp_proc.pid})")
                 logger.info(f"   🌐 MCP Endpoint: http://localhost:{self.mcp_port}/mcp")
                 logger.info("")
-            
+
             # 启动成功
             logger.info("=" * 70)
             logger.info("✅ All Services Started Successfully!")
@@ -261,29 +256,29 @@ class TianshuLauncher:
             logger.info("")
             logger.info("=" * 70)
             logger.info("")
-            
+
             # 所有服务启动完成后，检查并下载所有 OCR 模型
             self.check_ocr_models()
-            
+
             return True
-            
+
         except Exception as e:
             logger.error(f"❌ Failed to start services: {e}")
             self.stop_services()
             return False
-    
+
     def stop_services(self, signum=None, frame=None):
         """停止所有服务"""
         logger.info("")
         logger.info("=" * 70)
         logger.info("⏹️  Stopping All Services...")
         logger.info("=" * 70)
-        
+
         for name, proc in self.processes:
             if proc.poll() is None:  # 进程仍在运行
                 logger.info(f"   Stopping {name} (PID: {proc.pid})...")
                 proc.terminate()
-        
+
         # 等待所有进程结束
         for name, proc in self.processes:
             try:
@@ -293,25 +288,25 @@ class TianshuLauncher:
                 logger.warning(f"   ⚠️  {name} did not stop gracefully, forcing...")
                 proc.kill()
                 proc.wait()
-        
+
         logger.info("=" * 70)
         logger.info("✅ All Services Stopped")
         logger.info("=" * 70)
         sys.exit(0)
-    
+
     def wait(self):
         """等待所有服务"""
         try:
             while True:
                 time.sleep(1)
-                
+
                 # 检查进程状态
                 for name, proc in self.processes:
                     if proc.poll() is not None:
                         logger.error(f"❌ {name} unexpectedly stopped!")
                         self.stop_services()
                         return
-                        
+
         except KeyboardInterrupt:
             self.stop_services()
 
@@ -319,59 +314,63 @@ class TianshuLauncher:
 def main():
     """主函数"""
     parser = argparse.ArgumentParser(
-        description='MinerU Tianshu - 统一启动脚本',
+        description="MinerU Tianshu - 统一启动脚本",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例:
   # 使用默认配置启动（自动检测GPU）
   python start_all.py
-  
+
   # 使用CPU模式
   python start_all.py --accelerator cpu
-  
+
   # 指定输出目录和端口
   python start_all.py --output-dir /data/output --api-port 8080
-  
+
   # 每个GPU启动2个worker
   python start_all.py --accelerator cuda --workers-per-device 2
-  
+
   # 只使用指定的GPU
   python start_all.py --accelerator cuda --devices 0,1
-  
+
   # 启用 MCP Server 支持（用于 AI 助手调用）
   python start_all.py --enable-mcp --mcp-port 8001
-        """
+        """,
     )
-    
-    parser.add_argument('--output-dir', type=str, default='/tmp/mineru_tianshu_output',
-                       help='输出目录 (默认: /tmp/mineru_tianshu_output)')
-    parser.add_argument('--api-port', type=int, default=8000,
-                       help='API服务器端口 (默认: 8000)')
-    parser.add_argument('--worker-port', type=int, default=9000,
-                       help='Worker服务器端口 (默认: 9000)')
-    parser.add_argument('--accelerator', type=str, default='auto',
-                       choices=['auto', 'cuda', 'cpu', 'mps'],
-                       help='加速器类型 (默认: auto，自动检测)')
-    parser.add_argument('--workers-per-device', type=int, default=1,
-                       help='每个GPU的worker数量 (默认: 1)')
-    parser.add_argument('--devices', type=str, default='auto',
-                       help='使用的GPU设备，逗号分隔 (默认: auto，使用所有GPU)')
-    parser.add_argument('--enable-mcp', action='store_true',
-                       help='启用 MCP Server（支持 Model Context Protocol 远程调用）')
-    parser.add_argument('--mcp-port', type=int, default=8001,
-                       help='MCP Server 端口 (默认: 8001)')
-    
+
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default="/tmp/mineru_tianshu_output",
+        help="输出目录 (默认: /tmp/mineru_tianshu_output)",
+    )
+    parser.add_argument("--api-port", type=int, default=8000, help="API服务器端口 (默认: 8000)")
+    parser.add_argument("--worker-port", type=int, default=9000, help="Worker服务器端口 (默认: 9000)")
+    parser.add_argument(
+        "--accelerator",
+        type=str,
+        default="auto",
+        choices=["auto", "cuda", "cpu", "mps"],
+        help="加速器类型 (默认: auto，自动检测)",
+    )
+    parser.add_argument("--workers-per-device", type=int, default=1, help="每个GPU的worker数量 (默认: 1)")
+    parser.add_argument("--devices", type=str, default="auto", help="使用的GPU设备，逗号分隔 (默认: auto，使用所有GPU)")
+    parser.add_argument(
+        "--enable-mcp", action="store_true", help="启用 MCP Server（支持 Model Context Protocol 远程调用）"
+    )
+    parser.add_argument("--mcp-port", type=int, default=8001, help="MCP Server 端口 (默认: 8001)")
+
     args = parser.parse_args()
-    
+
     # 处理 devices 参数
     devices = args.devices
-    if devices != 'auto':
+    if devices != "auto":
         try:
-            devices = [int(d) for d in devices.split(',')]
-        except:
+            devices = [int(d) for d in devices.split(",")]
+        except ValueError:
             logger.warning(f"Invalid devices format: {devices}, using 'auto'")
-            devices = 'auto'
-    
+            devices = "auto"
+
     # 创建启动器
     launcher = TianshuLauncher(
         output_dir=args.output_dir,
@@ -381,13 +380,13 @@ def main():
         devices=devices,
         accelerator=args.accelerator,
         enable_mcp=args.enable_mcp,
-        mcp_port=args.mcp_port
+        mcp_port=args.mcp_port,
     )
-    
+
     # 设置信号处理
     signal.signal(signal.SIGINT, launcher.stop_services)
     signal.signal(signal.SIGTERM, launcher.stop_services)
-    
+
     # 启动服务
     if launcher.start_services():
         launcher.wait()
@@ -395,6 +394,5 @@ def main():
         sys.exit(1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
-

@@ -39,4 +39,3 @@ export async function healthCheck(): Promise<ApiResponse> {
   const response = await apiClient.get<ApiResponse>('/api/v1/health')
   return response.data
 }
-

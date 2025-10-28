@@ -10,5 +10,4 @@ Video Processing Engines
 
 from .video_engine import VideoProcessingEngine, get_engine
 
-__all__ = ['VideoProcessingEngine', 'get_engine']
-
+__all__ = ["VideoProcessingEngine", "get_engine"]

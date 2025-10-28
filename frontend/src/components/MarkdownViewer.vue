@@ -48,56 +48,56 @@ const renderedContent = computed(() => {
   if (!props.content) return ''
   try {
     let html = marked.parse(props.content)
-    
+
     // 先渲染块级公式 $$...$$ (支持多行)
     html = html.replace(/\$\$([\s\S]+?)\$\$/g, (match, formula) => {
       try {
-        return katex.renderToString(formula.trim(), { 
-          throwOnError: false, 
-          displayMode: true 
+        return katex.renderToString(formula.trim(), {
+          throwOnError: false,
+          displayMode: true
         })
       } catch (e) {
         console.error('KaTeX block error:', e)
         return match
       }
     })
-    
+
     // 再渲染行内公式 $...$
     html = html.replace(/\$([^\$\n]+?)\$/g, (match, formula) => {
       try {
-        return katex.renderToString(formula, { 
-          throwOnError: false, 
-          displayMode: false 
+        return katex.renderToString(formula, {
+          throwOnError: false,
+          displayMode: false
         })
       } catch (e) {
         console.error('KaTeX inline error:', e)
         return match
       }
     })
-    
+
     // 处理 \[...\] 和 \(...\) 格式
     html = html.replace(/\\\[([\s\S]+?)\\\]/g, (match, formula) => {
       try {
-        return katex.renderToString(formula.trim(), { 
-          throwOnError: false, 
-          displayMode: true 
+        return katex.renderToString(formula.trim(), {
+          throwOnError: false,
+          displayMode: true
         })
       } catch (e) {
         return match
       }
     })
-    
+
     html = html.replace(/\\\(([^\)]+?)\\\)/g, (match, formula) => {
       try {
-        return katex.renderToString(formula, { 
-          throwOnError: false, 
-          displayMode: false 
+        return katex.renderToString(formula, {
+          throwOnError: false,
+          displayMode: false
         })
       } catch (e) {
         return match
       }
     })
-    
+
     return html
   } catch (err) {
     console.error('Markdown parse error:', err)
@@ -169,4 +169,3 @@ const renderedContent = computed(() => {
   @apply text-lg font-bold mt-4 mb-2;
 }
 </style>
-

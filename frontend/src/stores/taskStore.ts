@@ -14,19 +14,19 @@ export const useTaskStore = defineStore('task', () => {
   const error = ref<string | null>(null)
 
   // 计算属性
-  const pendingTasks = computed(() => 
+  const pendingTasks = computed(() =>
     tasks.value.filter(t => t.status === 'pending')
   )
-  
-  const processingTasks = computed(() => 
+
+  const processingTasks = computed(() =>
     tasks.value.filter(t => t.status === 'processing')
   )
-  
-  const completedTasks = computed(() => 
+
+  const completedTasks = computed(() =>
     tasks.value.filter(t => t.status === 'completed')
   )
-  
-  const failedTasks = computed(() => 
+
+  const failedTasks = computed(() =>
     tasks.value.filter(t => t.status === 'failed')
   )
 
@@ -37,10 +37,10 @@ export const useTaskStore = defineStore('task', () => {
   async function submitTask(request: SubmitTaskRequest) {
     loading.value = true
     error.value = null
-    
+
     try {
       const response = await taskApi.submitTask(request)
-      
+
       // 添加到任务列表
       const newTask: Task = {
         task_id: response.task_id,
@@ -56,7 +56,7 @@ export const useTaskStore = defineStore('task', () => {
         retry_count: 0,
         result_path: null,
       }
-      
+
       tasks.value.unshift(newTask)
       return response
     } catch (err: any) {
@@ -71,13 +71,13 @@ export const useTaskStore = defineStore('task', () => {
    * 获取任务状态
    */
   async function fetchTaskStatus(
-    taskId: string, 
+    taskId: string,
     uploadImages: boolean = false,
     format: 'markdown' | 'json' | 'both' = 'markdown'
   ) {
     loading.value = true
     error.value = null
-    
+
     try {
       const response = await taskApi.getTaskStatus(taskId, uploadImages, format)
       currentTask.value = {
@@ -95,13 +95,13 @@ export const useTaskStore = defineStore('task', () => {
         result_path: null,
         data: response.data,
       }
-      
+
       // 更新任务列表中的任务
       const index = tasks.value.findIndex(t => t.task_id === taskId)
       if (index !== -1) {
         tasks.value[index] = currentTask.value
       }
-      
+
       return response
     } catch (err: any) {
       error.value = err.message || '获取任务状态失败'
@@ -117,16 +117,16 @@ export const useTaskStore = defineStore('task', () => {
   async function cancelTask(taskId: string) {
     loading.value = true
     error.value = null
-    
+
     try {
       await taskApi.cancelTask(taskId)
-      
+
       // 更新任务状态
       const task = tasks.value.find(t => t.task_id === taskId)
       if (task) {
         task.status = 'cancelled'
       }
-      
+
       if (currentTask.value?.task_id === taskId) {
         currentTask.value.status = 'cancelled'
       }
@@ -144,7 +144,7 @@ export const useTaskStore = defineStore('task', () => {
   async function fetchTasks(status?: TaskStatus, limit: number = 100) {
     loading.value = true
     error.value = null
-    
+
     try {
       const response = await taskApi.listTasks(status, limit)
       tasks.value = response.tasks
@@ -174,7 +174,7 @@ export const useTaskStore = defineStore('task', () => {
 
       try {
         const response = await fetchTaskStatus(taskId, false, format)
-        
+
         if (onUpdate && currentTask.value) {
           onUpdate(currentTask.value)
         }
@@ -232,13 +232,13 @@ export const useTaskStore = defineStore('task', () => {
     currentTask,
     loading,
     error,
-    
+
     // 计算属性
     pendingTasks,
     processingTasks,
     completedTasks,
     failedTasks,
-    
+
     // 动作
     submitTask,
     fetchTaskStatus,
@@ -249,4 +249,3 @@ export const useTaskStore = defineStore('task', () => {
     reset,
   }
 })
-

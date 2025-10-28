@@ -5,6 +5,7 @@
 ## 功能特性
 
 ### 支持的视频格式
+
 - MP4 (最常用)
 - AVI
 - MKV
@@ -16,6 +17,7 @@
 - MPEG/MPG
 
 ### 核心功能
+
 1. **音频提取**：使用 FFmpeg 从视频中提取音频
 2. **语音识别**：复用 SenseVoice 引擎进行多语言语音识别
 3. **说话人识别**：支持多说话人场景
@@ -27,6 +29,7 @@
 ### 1. FFmpeg（必需）
 
 **Windows:**
+
 ```bash
 # 使用 Chocolatey
 choco install ffmpeg
@@ -37,12 +40,14 @@ choco install ffmpeg
 ```
 
 **Linux:**
+
 ```bash
 sudo apt-get update
 sudo apt-get install ffmpeg
 ```
 
 **macOS:**
+
 ```bash
 brew install ffmpeg
 ```
@@ -126,6 +131,7 @@ print(f"大小: {info['format']['size']} 字节")
 主处理方法，完成视频 → 音频 → 文字的转换。
 
 **参数：**
+
 - `video_path` (str): 视频文件路径
 - `output_path` (str): 输出目录
 - `language` (str): 语言代码，默认 "auto"
@@ -139,6 +145,7 @@ print(f"大小: {info['format']['size']} 字节")
 - `keep_audio` (bool): 是否保留提取的音频文件，默认 False
 
 **返回：**
+
 ```python
 {
     'success': True,
@@ -156,11 +163,13 @@ print(f"大小: {info['format']['size']} 字节")
 从视频中提取音频。
 
 **参数：**
+
 - `video_path` (str): 视频文件路径
 - `output_path` (str): 输出音频路径（可选）
 - `audio_format` (str): 音频格式（wav/mp3/aac），默认 'wav'
 
 **返回：**
+
 - `str`: 提取的音频文件路径
 
 ### `VideoProcessingEngine.check_ffmpeg()`
@@ -168,6 +177,7 @@ print(f"大小: {info['format']['size']} 字节")
 检查 FFmpeg 是否可用。
 
 **返回：**
+
 - `bool`: True 表示 FFmpeg 可用
 
 ### `VideoProcessingEngine.get_video_info()`
@@ -175,9 +185,11 @@ print(f"大小: {info['format']['size']} 字节")
 获取视频详细信息（使用 ffprobe）。
 
 **参数：**
+
 - `video_path` (str): 视频文件路径
 
 **返回：**
+
 - `dict`: 视频元信息（格式、流、时长等）
 
 ## 输出格式
@@ -285,6 +297,7 @@ FFmpeg 使用以下参数优化语音识别效果：
 ```
 
 **解决方法**：
+
 1. 确认 FFmpeg 已安装：`ffmpeg -version`
 2. 将 FFmpeg 添加到系统 PATH
 3. 重启终端/IDE
@@ -296,11 +309,13 @@ FFmpeg 使用以下参数优化语音识别效果：
 ```
 
 **可能原因**：
+
 - 视频文件损坏
 - 视频格式不支持
 - 磁盘空间不足
 
 **解决方法**：
+
 1. 使用 VLC 等播放器验证视频是否正常
 2. 检查视频格式是否在支持列表中
 3. 确保有足够的磁盘空间
@@ -312,6 +327,7 @@ FFmpeg 使用以下参数优化语音识别效果：
 ```
 
 **解决方法**：
+
 1. 确认已安装 FunASR：`pip install funasr`
 2. 检查 SenseVoice 引擎是否正常
 3. 运行环境检查：`python backend/video_engines/check_environment.py`
@@ -328,15 +344,15 @@ def process_video(video_path: str):
     """处理视频文件"""
     # 初始化引擎
     engine = get_engine()
-    
+
     # 检查 FFmpeg
     if not engine.check_ffmpeg():
         raise RuntimeError("FFmpeg 未安装")
-    
+
     # 创建输出目录
     output_dir = Path('output') / Path(video_path).stem
     output_dir.mkdir(parents=True, exist_ok=True)
-    
+
     # 处理视频
     result = engine.parse(
         video_path=video_path,
@@ -344,12 +360,12 @@ def process_video(video_path: str):
         language='auto',
         use_itn=True
     )
-    
+
     # 打印结果
     print(f"✅ 处理完成!")
     print(f"📄 Markdown: {result['markdown_file']}")
     print(f"📄 JSON: {result['json_file']}")
-    
+
     return result
 
 # 使用示例
@@ -368,14 +384,14 @@ def batch_process_videos(video_dir: str):
     """批量处理视频文件"""
     engine = get_engine()
     video_dir = Path(video_dir)
-    
+
     # 查找所有视频文件
     video_files = []
     for ext in engine.SUPPORTED_FORMATS:
         video_files.extend(video_dir.glob(f'*{ext}'))
-    
+
     print(f"找到 {len(video_files)} 个视频文件")
-    
+
     # 逐个处理
     results = []
     for video_file in video_files:
@@ -389,7 +405,7 @@ def batch_process_videos(video_dir: str):
             print(f"✅ {video_file.name} 完成")
         except Exception as e:
             print(f"❌ {video_file.name} 失败: {e}")
-    
+
     return results
 
 # 使用示例
@@ -420,4 +436,3 @@ curl http://localhost:8000/api/v1/tasks/{task_id}
 - [FFmpeg 官方文档](https://ffmpeg.org/documentation.html)
 - [SenseVoice 引擎](../audio_engines/README.md)
 - [FunASR 文档](https://github.com/alibaba-damo-academy/FunASR)
-
