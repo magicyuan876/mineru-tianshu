@@ -34,8 +34,8 @@ services:
       - ./data/output:/app/output:rw
       # 日志
       - ./logs/backend:/app/logs:rw
-      # 数据库
-      - ./data/db:/app/backend:rw
+      # 数据库（只挂载数据库文件，不要覆盖整个 backend 目录）
+      - ./data/db:/app/data/db:rw
     environment:
       # 应用配置
       - HOST=0.0.0.0
@@ -62,6 +62,9 @@ services:
       # 模型路径
       - MODEL_PATH=/app/models
       - OUTPUT_PATH=/app/output
+
+      # 数据库路径
+      - DATABASE_PATH=${DATABASE_PATH:-/app/data/db/mineru_tianshu.db}
     deploy:
       resources:
         reservations:
@@ -90,7 +93,7 @@ services:
     image: tianshu-backend:latest
     container_name: tianshu-worker
     restart: unless-stopped
-    command: ["python", "litserve_worker.py"]
+    command: ["worker", "python", "litserve_worker.py"]
     ports:
       - "${WORKER_PORT:-8001}:8001"
     volumes:
@@ -102,6 +105,8 @@ services:
       - ./data/output:/app/output:rw
       # 日志
       - ./logs/worker:/app/logs:rw
+      # 数据库（读写，需要更新任务状态）
+      - ./data/db:/app/data/db:rw
     environment:
       # 应用配置
       - HOST=0.0.0.0
@@ -115,6 +120,9 @@ services:
       # 模型路径
       - MODEL_PATH=/app/models
       - OUTPUT_PATH=/app/output
+
+      # 数据库路径（必须与 backend 一致）
+      - DATABASE_PATH=${DATABASE_PATH:-/app/data/db/mineru_tianshu.db}
 
       # Worker 配置
       - MAX_BATCH_SIZE=${MAX_BATCH_SIZE:-4}
@@ -145,7 +153,7 @@ services:
     image: tianshu-backend:latest
     container_name: tianshu-mcp
     restart: unless-stopped
-    command: ["python", "mcp_server.py"]
+    command: ["mcp", "python", "mcp_server.py"]
     ports:
       - "${MCP_PORT:-8002}:8002"
     volumes:

@@ -19,7 +19,6 @@ import os
 import sys
 from typing import Any
 from pathlib import Path
-import tempfile
 import base64
 
 from mcp.server import Server
@@ -241,11 +240,14 @@ async def parse_document(args: dict) -> list[TextContent]:
 
                 logger.info(f"📦 File: {file_name}, Size: {size_mb:.2f}MB")
 
-                # 创建临时文件
-                temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=Path(file_name).suffix)
-                temp_file.write(file_content)
-                temp_file.close()
-                file_data = open(temp_file.name, "rb")
+                # 创建临时文件（使用共享上传目录）
+                import uuid
+
+                upload_dir = Path("/app/uploads")
+                upload_dir.mkdir(parents=True, exist_ok=True)
+                temp_file_path = upload_dir / f"{uuid.uuid4().hex}_{file_name}"
+                temp_file_path.write_bytes(file_content)
+                file_data = open(temp_file_path, "rb")
 
             # 方式 2: URL 下载
             elif "file_url" in args:
@@ -296,10 +298,14 @@ async def parse_document(args: dict) -> list[TextContent]:
 
                         logger.info(f"📦 Downloaded: {file_name}, Size: {size_mb:.2f}MB")
 
-                        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=Path(file_name).suffix)
-                        temp_file.write(file_content)
-                        temp_file.close()
-                        file_data = open(temp_file.name, "rb")
+                        # 创建临时文件（使用共享上传目录）
+                        import uuid
+
+                        upload_dir = Path("/app/uploads")
+                        upload_dir.mkdir(parents=True, exist_ok=True)
+                        temp_file_path = upload_dir / f"{uuid.uuid4().hex}_{file_name}"
+                        temp_file_path.write_bytes(file_content)
+                        file_data = open(temp_file_path, "rb")
 
                 except asyncio.TimeoutError:
                     return [

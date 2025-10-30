@@ -75,7 +75,7 @@ const router = createRouter({
 })
 
 // 全局导航守卫
-router.beforeEach(async (to, from, next) => {
+router.beforeEach(async (to, _from, next) => {
   // 设置页面标题
   if (to.meta.title) {
     document.title = `${to.meta.title} - MinerU Tianshu`

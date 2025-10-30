@@ -188,15 +188,22 @@ class MinerUWorkerAPI(ls.LitAPI):
 
         self.device = device
         # 从类属性获取配置（由 start_litserve_workers 设置）
-        self.output_dir = getattr(self.__class__, "_output_dir", "/tmp/mineru_tianshu_output")
+        # 默认使用共享输出目录（Docker 环境）
+        default_output = os.getenv("OUTPUT_PATH", "/app/output")
+        self.output_dir = getattr(self.__class__, "_output_dir", default_output)
         self.poll_interval = getattr(self.__class__, "_poll_interval", 0.5)
         self.enable_worker_loop = getattr(self.__class__, "_enable_worker_loop", True)
 
         # 创建输出目录
         Path(self.output_dir).mkdir(parents=True, exist_ok=True)
 
-        # 初始化任务数据库
-        db_path = Path(__file__).parent / "mineru_tianshu.db"
+        # 初始化任务数据库（从环境变量读取，兼容 Docker 和本地）
+        db_path_env = os.getenv("DATABASE_PATH")
+        if db_path_env:
+            db_path = Path(db_path_env)
+        else:
+            # 默认路径（本地开发）
+            db_path = Path(__file__).parent / "mineru_tianshu.db"
         self.task_db = TaskDB(str(db_path))
 
         # Worker 状态
@@ -859,7 +866,7 @@ class MinerUWorkerAPI(ls.LitAPI):
 
 
 def start_litserve_workers(
-    output_dir="/tmp/mineru_tianshu_output",
+    output_dir=None,  # 默认从环境变量读取
     accelerator="auto",
     devices="auto",
     workers_per_device=1,
@@ -879,6 +886,10 @@ def start_litserve_workers(
         poll_interval: Worker 拉取任务的间隔（秒）
         enable_worker_loop: 是否启用 worker 自动循环拉取任务
     """
+    # 如果没有指定输出目录，从环境变量读取
+    if output_dir is None:
+        output_dir = os.getenv("OUTPUT_PATH", "/app/output")
+
     logger.info("=" * 60)
     logger.info("🚀 Starting MinerU Tianshu LitServe Worker Pool")
     logger.info("=" * 60)
@@ -943,7 +954,10 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="MinerU Tianshu LitServe Worker Pool")
     parser.add_argument(
-        "--output-dir", type=str, default="/tmp/mineru_tianshu_output", help="Output directory for processed files"
+        "--output-dir",
+        type=str,
+        default=None,
+        help="Output directory for processed files (default: from OUTPUT_PATH env or /app/output)",
     )
     parser.add_argument("--port", type=int, default=9000, help="Server port (default: 9000)")
     parser.add_argument(

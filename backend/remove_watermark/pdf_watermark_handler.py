@@ -10,7 +10,6 @@ import fitz  # PyMuPDF
 from pathlib import Path
 from typing import Optional, Union, List
 from loguru import logger
-import tempfile
 import shutil
 
 from .watermark_remover import WatermarkRemover
@@ -238,8 +237,13 @@ class PDFWatermarkHandler:
         logger.info(f"🔧 DPI: {dpi}")
         logger.info("")
 
-        # 创建临时目录
-        temp_dir = Path(tempfile.mkdtemp(prefix="pdf_watermark_"))
+        # 创建临时目录（使用共享输出目录）
+        import uuid
+        import os
+
+        output_base = Path(os.getenv("OUTPUT_PATH", "/app/output"))
+        temp_dir = output_base / f"pdf_watermark_{uuid.uuid4().hex}"
+        temp_dir.mkdir(parents=True, exist_ok=True)
 
         try:
             # 1. PDF → 图片

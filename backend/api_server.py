@@ -11,7 +11,6 @@ MinerU Tianshu - API Server
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query, Depends
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-import tempfile
 from pathlib import Path
 from loguru import logger
 import uvicorn
@@ -57,8 +56,8 @@ auth_db = AuthDB()
 # 注册认证路由
 app.include_router(auth_router)
 
-# 配置输出目录
-OUTPUT_DIR = Path("/tmp/mineru_tianshu_output")
+# 配置输出目录（使用共享目录，Docker 环境可访问）
+OUTPUT_DIR = Path(os.getenv("OUTPUT_PATH", "/app/output"))
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # MinIO 配置
@@ -189,22 +188,26 @@ async def submit_task(
     立即返回 task_id，任务在后台异步处理。
     """
     try:
-        # 保存上传的文件到临时目录
-        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=Path(file.filename).suffix)
+        # 创建共享的上传目录（Backend 和 Worker 都能访问）
+        upload_dir = Path("/app/uploads")
+        upload_dir.mkdir(parents=True, exist_ok=True)
+
+        # 生成唯一的文件名（避免冲突）
+        unique_filename = f"{uuid.uuid4().hex}_{file.filename}"
+        temp_file_path = upload_dir / unique_filename
 
         # 流式写入文件到磁盘，避免高内存使用
-        while True:
-            chunk = await file.read(1 << 23)  # 8MB chunks
-            if not chunk:
-                break
-            temp_file.write(chunk)
-
-        temp_file.close()
+        with open(temp_file_path, "wb") as temp_file:
+            while True:
+                chunk = await file.read(1 << 23)  # 8MB chunks
+                if not chunk:
+                    break
+                temp_file.write(chunk)
 
         # 创建任务 (关联用户)
         task_id = db.create_task(
             file_name=file.filename,
-            file_path=temp_file.name,
+            file_path=str(temp_file_path),
             backend=backend,
             options={
                 "lang": lang,

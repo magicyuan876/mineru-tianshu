@@ -14,7 +14,6 @@ from typing import Dict, Any, Optional
 from threading import Lock
 from loguru import logger
 import subprocess
-import tempfile
 
 
 class VideoProcessingEngine:
@@ -122,10 +121,13 @@ class VideoProcessingEngine:
 
         # 确定输出路径
         if output_path is None:
-            # 创建临时文件
-            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=f".{audio_format}")
-            output_path = temp_file.name
-            temp_file.close()
+            # 创建临时文件（使用共享输出目录）
+            import uuid
+            import os
+
+            output_dir = Path(os.getenv("OUTPUT_PATH", "/app/output"))
+            output_dir.mkdir(parents=True, exist_ok=True)
+            output_path = output_dir / f"{uuid.uuid4().hex}_audio.{audio_format}"
 
         output_path = Path(output_path)
 

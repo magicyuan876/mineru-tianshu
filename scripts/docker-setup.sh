@@ -17,6 +17,18 @@ log_warning() { echo -e "${YELLOW}[⚠]${NC} $1"; }
 log_error() { echo -e "${RED}[✗]${NC} $1"; }
 
 # ============================================================================
+# 初始化 Docker Compose 命令
+# ============================================================================
+if command -v docker-compose &> /dev/null; then
+    COMPOSE_CMD="docker-compose"
+elif docker compose version &> /dev/null 2>&1; then
+    COMPOSE_CMD="docker compose"
+else
+    log_error "Docker Compose 未安装或无法使用"
+    exit 1
+fi
+
+# ============================================================================
 # 检查依赖
 # ============================================================================
 check_dependencies() {
@@ -37,13 +49,7 @@ check_dependencies() {
         exit 1
     fi
 
-    if command -v docker-compose &> /dev/null; then
-        log_success "Docker Compose 已安装: $(docker-compose --version)"
-        COMPOSE_CMD="docker-compose"
-    else
-        log_success "Docker Compose 已安装: $(docker compose version)"
-        COMPOSE_CMD="docker compose"
-    fi
+    log_success "Docker Compose 已安装: $($COMPOSE_CMD version 2>&1 | head -n1)"
 
     # 检查 NVIDIA Container Toolkit（GPU 支持）
     if command -v nvidia-smi &> /dev/null; then
@@ -174,7 +180,7 @@ show_info() {
 show_menu() {
     echo ""
     echo "╔════════════════════════════════════════╗"
-    echo "║   Tianshu (天枢) Docker 部署脚本         ║"
+    echo "║   Tianshu (天枢) Docker 部署脚本       ║"
     echo "╚════════════════════════════════════════╝"
     echo ""
     echo "请选择操作:"

@@ -16,7 +16,12 @@ from pathlib import Path
 class TaskDB:
     """任务数据库管理类"""
 
-    def __init__(self, db_path="mineru_tianshu.db"):
+    def __init__(self, db_path=None):
+        # 优先使用传入的路径，其次使用环境变量，最后使用默认路径
+        if db_path is None:
+            import os
+
+            db_path = os.getenv("DATABASE_PATH", "mineru_tianshu.db")
         self.db_path = db_path
         self._init_db()
 

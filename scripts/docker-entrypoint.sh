@@ -32,6 +32,8 @@ log_error() {
 # 环境检查
 # ============================================================================
 check_environment() {
+    local service_type=$1
+
     log_info "检查环境配置..."
 
     # 检查 Python 版本
@@ -46,14 +48,16 @@ check_environment() {
         log_warning "未检测到 NVIDIA GPU 或驱动"
     fi
 
-    # 检查必要的环境变量
-    if [ -z "$JWT_SECRET_KEY" ]; then
-        log_error "JWT_SECRET_KEY 未设置！请在 .env 中配置"
-        exit 1
-    fi
+    # 检查必要的环境变量（仅 API Server 需要 JWT）
+    if [ "$service_type" != "worker" ] && [ "$service_type" != "mcp" ]; then
+        if [ -z "$JWT_SECRET_KEY" ]; then
+            log_error "JWT_SECRET_KEY 未设置！请在 .env 中配置"
+            exit 1
+        fi
 
-    if [ "$JWT_SECRET_KEY" = "CHANGE_THIS_TO_A_SECURE_RANDOM_STRING_IN_PRODUCTION" ]; then
-        log_warning "JWT_SECRET_KEY 使用默认值，生产环境必须修改！"
+        if [ "$JWT_SECRET_KEY" = "CHANGE_THIS_TO_A_SECURE_RANDOM_STRING_IN_PRODUCTION" ]; then
+            log_warning "JWT_SECRET_KEY 使用默认值，生产环境必须修改！"
+        fi
     fi
 }
 
@@ -178,29 +182,37 @@ main() {
     log_info "Tianshu (天枢) 启动中..."
     log_info "=========================================="
 
-    # 运行检查
-    check_environment
+    # 首先确定服务类型
+    SERVICE_TYPE=${1:-api}
+
+    # 运行检查（传递服务类型）
+    check_environment "$SERVICE_TYPE"
     initialize_directories
     initialize_database
     check_models
 
     # 根据服务类型执行不同的检查
-    SERVICE_TYPE=${1:-api}
 
     if [ "$SERVICE_TYPE" = "worker" ]; then
         log_info "启动类型: LitServe Worker"
         check_gpu
+        shift  # 移除第一个参数（服务类型）
     elif [ "$SERVICE_TYPE" = "mcp" ]; then
         log_info "启动类型: MCP Server"
+        shift  # 移除第一个参数（服务类型）
     else
         log_info "启动类型: API Server"
+        # 如果第一个参数是 "api"，也需要移除
+        if [ "$1" = "api" ]; then
+            shift
+        fi
     fi
 
     log_info "=========================================="
     log_success "初始化完成，启动服务..."
     log_info "=========================================="
 
-    # 执行传入的命令
+    # 执行传入的命令（此时 $@ 已经不包含服务类型参数）
     exec "$@"
 }
 
