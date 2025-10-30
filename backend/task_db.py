@@ -77,7 +77,13 @@ class TaskDB:
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_worker_id ON tasks(worker_id)")
 
     def create_task(
-        self, file_name: str, file_path: str, backend: str = "pipeline", options: dict = None, priority: int = 0
+        self,
+        file_name: str,
+        file_path: str,
+        backend: str = "pipeline",
+        options: dict = None,
+        priority: int = 0,
+        user_id: str = None,
     ) -> str:
         """
         创建新任务
@@ -88,6 +94,7 @@ class TaskDB:
             backend: 处理后端 (pipeline/vlm-transformers/vlm-vllm-engine)
             options: 处理选项 (dict)
             priority: 优先级，数字越大越优先
+            user_id: 用户ID (可选,用于权限控制)
 
         Returns:
             task_id: 任务ID
@@ -96,10 +103,10 @@ class TaskDB:
         with self.get_cursor() as cursor:
             cursor.execute(
                 """
-                INSERT INTO tasks (task_id, file_name, file_path, backend, options, priority)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO tasks (task_id, file_name, file_path, backend, options, priority, user_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
-                (task_id, file_name, file_path, backend, json.dumps(options or {}), priority),
+                (task_id, file_name, file_path, backend, json.dumps(options or {}), priority, user_id),
             )
         return task_id
 

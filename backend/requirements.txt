@@ -8,27 +8,29 @@
 # ============================================================================
 
 # ============================================================================
-# Installation Instructions (IMPORTANT - Read before installing!)
+# Installation Instructions for Python 3.12 (IMPORTANT!)
 # ============================================================================
-# PyTorch and PaddlePaddle have conflicting CUDA library dependencies.
-# You MUST use the step-by-step installation method:
+# 此 requirements.txt 已针对 Python 3.12 优化
+# PyTorch 和 PaddlePaddle 有 CUDA 库冲突,必须分步安装
 #
-# Step 1: Install system library (WSL/Linux)
+# Step 1: 安装系统库 (WSL/Linux)
 #   sudo apt-get update && sudo apt-get install -y libgomp1
 #
-# Step 2: Install PaddlePaddle FIRST (from official source)
+# Step 2: 先安装 PaddlePaddle (官方源)
 #   pip install paddlepaddle-gpu==3.2.0 -i https://www.paddlepaddle.org.cn/packages/stable/cu126/
 #
-# Step 3: Install PyTorch with specific CUDA version
+# Step 3: 安装 PyTorch (指定 CUDA 版本)
 #   pip install torch==2.6.0+cu126 torchvision==0.21.0+cu126 --index-url https://download.pytorch.org/whl/cu126
 #
-# Step 4: Install other dependencies (use --no-deps to skip conflicts)
-#   pip install -r requirements.txt --no-deps
+# Step 4: 预先安装 Python 3.12 关键依赖 (避免构建错误)
+#   pip install "kiwisolver>=1.4.5" "Pillow>=11.0.0" "numpy>=1.26.0,<2.0.0" "setuptools>=75.0.0" "lxml>=5.3.0" -i https://pypi.tuna.tsinghua.edu.cn/simple
 #
-# Step 5: Install missing dependencies
+# Step 5: 安装其他依赖 (跳过冲突包)
+#   pip install -r requirements.txt --no-deps -i https://pypi.tuna.tsinghua.edu.cn/simple
+#
+# Step 6: 补充安装缺失的依赖
 #   pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 #
-# For detailed instructions, see: backend/INSTALL.md
 # ============================================================================
 
 # ============================================================================
@@ -50,25 +52,28 @@
 # OCR Engines
 # ============================================================================
 # MinerU - Core OCR Pipeline
-mineru[core]>=2.5.0
+mineru[core]==2.6.2
 
 # PaddleOCR-VL - Document Parser (Auto language detection for 109+ languages)
 paddleocr[doc-parser]
 
 # Transformers - For DeepSeek OCR
-transformers==4.46.3
-tokenizers==0.20.3
+transformers==4.51.1
+tokenizers==0.21
 
 # ============================================================================
-# Image Processing (Shared)
+# Image Processing (Shared) - Python 3.12 兼容
 # ============================================================================
-PyMuPDF  # PDF processing
-Pillow   # Image processing
-img2pdf  # Image to PDF conversion
+PyMuPDF>=1.24.0  # PDF processing
+Pillow>=11.0.0   # Image processing (Python 3.12 需要 11.0+)
+img2pdf>=0.5.0   # Image to PDF conversion
 
-# Image Augmentation (Version pinned for compatibility)
+# Image Augmentation (Python 3.12 兼容版本)
 albumentations>=1.4.4,<2.0.0
 albucore>=0.0.13,<0.0.20
+kiwisolver>=1.4.5  # Python 3.12 必需
+matplotlib>=3.9.0  # Python 3.12 兼容
+contourpy>=1.3.0   # matplotlib 依赖,Python 3.12 兼容
 
 # ============================================================================
 # DeepSeek OCR Specific
@@ -87,11 +92,16 @@ funasr>=1.1.0  # FunASR framework for SenseVoice
 ffmpeg-python  # Audio processing (also used by video processing)
 
 # ============================================================================
-# Video Processing (Keyframe Extraction)
+# Video Processing (Keyframe Extraction) - Python 3.12 兼容
 # ============================================================================
-opencv-python>=4.8.0  # Video processing and frame extraction
-imagehash>=4.3.0      # Perceptual hashing for image deduplication
-numpy>=1.24.0         # Numerical operations
+opencv-python>=4.10.0  # Video processing (Python 3.12 需要 4.10+)
+imagehash>=4.3.0       # Perceptual hashing for image deduplication
+numpy>=1.26.0,<2.0.0   # Python 3.12 推荐 1.26.x (避免 2.0 breaking changes)
+
+# ============================================================================
+# Bioinformatics Format Engines (FASTA, GenBank, etc.)
+# ============================================================================
+biopython>=1.80  # Biological sequence parsing (optional but recommended)
 
 # ============================================================================
 # Watermark Removal (YOLO11x + LaMa)
@@ -106,19 +116,37 @@ huggingface-hub>=0.20.0       # Model download from HuggingFace
 modelscope>=1.18.0  # Faster model downloads in China
 
 # ============================================================================
-# Web Framework & API Server
+# Web Framework & API Server (固定版本避免冲突)
 # ============================================================================
-fastapi>=0.115.0
-uvicorn[standard]>=0.32.0
+fastapi==0.115.6          # 固定版本
+uvicorn[standard]==0.34.0 # 固定版本
 
 # LitServe for GPU Load Balancing
-litserve>=0.2.0
+litserve==0.2.16          # 固定版本
 
 # Async HTTP Client
-aiohttp>=3.11.0
+aiohttp==3.11.11          # 固定版本
 
 # ============================================================================
-# Utilities
+# Authentication & Authorization - Python 3.12 兼容
+# ============================================================================
+# JWT Token handling
+pyjwt>=2.9.0
+
+# Password hashing (using standard hashlib)
+# secrets (built-in Python module)
+
+# SSO Integration (Optional)
+authlib>=1.3.0        # OIDC (OpenID Connect) support
+python3-saml>=1.16.0  # SAML 2.0 support
+
+# Pydantic for data validation (Python 3.12 兼容,固定版本)
+pydantic[email]==2.10.5  # Python 3.12 兼容,固定避免冲突
+pydantic-core==2.27.2    # Pydantic 核心依赖
+email-validator>=2.2.0   # Pydantic email 验证依赖
+
+# ============================================================================
+# Utilities - Python 3.12 兼容
 # ============================================================================
 # Logging
 loguru>=0.7.0
@@ -129,10 +157,16 @@ markitdown[all]>=0.1.3
 # MinIO Object Storage (optional)
 minio>=7.2.0
 
-# MCP Protocol Support
-mcp>=1.1.0
-starlette>=0.37.0
-sse-starlette>=2.0.0
+# MCP Protocol Support (固定版本避免依赖冲突)
+mcp==1.1.2
+sse-starlette==2.2.1
+jsonschema>=4.20.0         # MCP 依赖,固定下限避免回溯
+jsonschema-specifications>=2023.12.1  # 固定避免回溯
+
+# Python 3.12 额外依赖
+typing-extensions>=4.12.0  # Python 3.12 类型支持
+setuptools>=75.0.0         # Python 3.12 构建工具
+lxml>=5.3.0                # Python 3.12 兼容版本 (有预编译 wheel)
 
 # ============================================================================
 # System Requirements

@@ -362,10 +362,18 @@ class PDFWatermarkHandler:
 
         if is_editable:
             logger.info("📝 Processing as Editable PDF")
-            return self.remove_watermark_from_editable_pdf(input_path, output_path, **kwargs)
+            # 过滤出可编辑 PDF 的参数
+            editable_kwargs = {
+                k: v
+                for k, v in kwargs.items()
+                if k in ["remove_text", "remove_images", "remove_annotations", "keywords"]
+            }
+            return self.remove_watermark_from_editable_pdf(input_path, output_path, **editable_kwargs)
         else:
             logger.info("📷 Processing as Scanned PDF")
-            return self.remove_watermark_from_scanned_pdf(input_path, output_path, **kwargs)
+            # 过滤出扫描件 PDF 的参数
+            scanned_kwargs = {k: v for k, v in kwargs.items() if k in ["dpi", "conf_threshold", "dilation"]}
+            return self.remove_watermark_from_scanned_pdf(input_path, output_path, **scanned_kwargs)
 
     def cleanup(self):
         """清理资源"""

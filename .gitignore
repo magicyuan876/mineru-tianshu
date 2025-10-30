@@ -3,6 +3,7 @@
 *.iml
 /.idea
 .vscode/
+.cursor/
 
 # Python
 __pycache__/

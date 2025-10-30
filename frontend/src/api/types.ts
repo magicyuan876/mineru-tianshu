@@ -2,11 +2,98 @@
  * API 类型定义
  */
 
+// ==================== 认证相关类型 ====================
+
+// 用户角色
+export type UserRole = 'admin' | 'manager' | 'user'
+
+// 用户信息
+export interface User {
+  user_id: string
+  username: string
+  email: string
+  full_name?: string
+  role: UserRole
+  is_active: boolean
+  is_sso: boolean
+  sso_provider?: string
+  created_at: string
+  last_login?: string
+}
+
+// 登录请求
+export interface LoginRequest {
+  username: string
+  password: string
+}
+
+// 登录响应
+export interface LoginResponse {
+  access_token: string
+  token_type: string
+  expires_in: number
+}
+
+// 注册请求
+export interface RegisterRequest {
+  username: string
+  email: string
+  password: string
+  full_name?: string
+  role?: UserRole
+}
+
+// API Key 创建请求
+export interface APIKeyCreate {
+  name: string
+  expires_days?: number
+}
+
+// API Key 响应
+export interface APIKeyResponse {
+  key_id: string
+  api_key: string
+  prefix: string
+  name: string
+  created_at: string
+  expires_at?: string
+}
+
+// API Key 信息 (列表项)
+export interface APIKeyInfo {
+  key_id: string
+  name: string
+  prefix: string
+  is_active: boolean
+  created_at: string
+  expires_at?: string
+  last_used?: string
+}
+
+// API Key 列表响应
+export interface APIKeyListResponse {
+  success: boolean
+  count: number
+  api_keys: APIKeyInfo[]
+}
+
+// ==================== 任务相关类型 ====================
+
 // 任务状态
 export type TaskStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled'
 
 // 后端类型
-export type Backend = 'pipeline' | 'vlm-transformers' | 'vlm-vllm-engine' | 'deepseek-ocr' | 'paddleocr-vl' | 'sensevoice' | 'video'
+export type Backend =
+  | 'auto'  // 自动选择引擎
+  | 'pipeline'
+  | 'vlm-transformers'
+  | 'vlm-vllm-engine'
+  | 'deepseek-ocr'
+  | 'paddleocr-vl'
+  | 'sensevoice'
+  | 'video'
+  | 'fasta'  // FASTA 生物序列格式
+  | 'genbank'  // GenBank 基因序列注释格式
 
 // 语言类型
 export type Language = 'auto' | 'ch' | 'en' | 'korean' | 'japan'

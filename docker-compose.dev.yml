@@ -1,0 +1,216 @@
+# Tianshu (天枢) - Development Docker Compose
+# 开发环境配置：支持热重载、调试、日志输出
+#
+# 使用方式:
+#   1. 复制 .env.example 为 .env.dev 并配置
+#   2. 启动: docker-compose -f docker-compose.dev.yml up
+#   3. 查看日志: docker-compose -f docker-compose.dev.yml logs -f
+#   4. 停止: docker-compose -f docker-compose.dev.yml down
+#
+# 开发特性:
+#   - 代码热重载（挂载本地代码）
+#   - 详细日志输出
+#   - 调试端口暴露
+#   - 不需要重新构建镜像
+
+services:
+  # ============================================================================
+  # Backend API Server (Development)
+  # ============================================================================
+  backend-dev:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: dependencies  # 只构建到依赖阶段，代码通过挂载
+    image: tianshu-backend:dev
+    container_name: tianshu-backend-dev
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+      - "5678:5678"  # Python debugpy
+    volumes:
+      # 挂载源代码（支持热重载）
+      - ./backend:/app/backend:rw
+      - ./pyproject.toml:/app/pyproject.toml:ro
+
+      # 模型存储
+      - ./models:/app/models:rw
+      # 数据目录
+      - ./data/uploads:/app/uploads:rw
+      - ./data/output:/app/output:rw
+      - ./logs/backend:/app/logs:rw
+      - ./data/db:/app/backend:rw
+    environment:
+      # 开发模式
+      - ENV=development
+      - DEBUG=true
+      - LOG_LEVEL=DEBUG
+
+      # 应用配置
+      - HOST=0.0.0.0
+      - PORT=8000
+
+      # JWT 认证（开发用密钥）
+      - JWT_SECRET_KEY=dev-secret-key-change-in-production
+      - JWT_ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=1440  # 24小时
+
+      # CORS 配置（开发环境允许所有）
+      - ALLOWED_ORIGINS=*
+
+      # GPU 配置
+      - CUDA_VISIBLE_DEVICES=0
+
+      # Worker 配置
+      - WORKER_URL=http://worker-dev:8001
+
+      # 热重载
+      - RELOAD=true
+
+      # 模型路径
+      - MODEL_PATH=/app/models
+      - OUTPUT_PATH=/app/output
+    working_dir: /app/backend
+    command: >
+      sh -c "pip install debugpy -q &&
+             python -m debugpy --listen 0.0.0.0:5678 --wait-for-client api_server.py ||
+             python api_server.py"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    networks:
+      - tianshu-dev-network
+    depends_on:
+      - worker-dev
+
+  # ============================================================================
+  # LitServe GPU Worker (Development)
+  # ============================================================================
+  worker-dev:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: dependencies
+    image: tianshu-backend:dev
+    container_name: tianshu-worker-dev
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+      - "5679:5679"  # Python debugpy
+    volumes:
+      # 挂载源代码
+      - ./backend:/app/backend:rw
+      - ./pyproject.toml:/app/pyproject.toml:ro
+
+      # 模型存储
+      - ./models:/app/models:ro
+      # 数据目录
+      - ./data/uploads:/app/uploads:ro
+      - ./data/output:/app/output:rw
+      - ./logs/worker:/app/logs:rw
+    environment:
+      # 开发模式
+      - ENV=development
+      - DEBUG=true
+      - LOG_LEVEL=DEBUG
+
+      # 应用配置
+      - HOST=0.0.0.0
+      - PORT=8001
+
+      # GPU 配置
+      - CUDA_VISIBLE_DEVICES=0
+      - WORKER_GPUS=1
+
+      # Worker 配置
+      - MAX_BATCH_SIZE=2  # 开发环境减小批次
+      - TIMEOUT=300
+
+      # 热重载
+      - RELOAD=true
+
+      # 模型路径
+      - MODEL_PATH=/app/models
+      - OUTPUT_PATH=/app/output
+    working_dir: /app/backend
+    command: >
+      sh -c "pip install debugpy -q &&
+             python -m debugpy --listen 0.0.0.0:5679 litserve_worker.py ||
+             python litserve_worker.py"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    networks:
+      - tianshu-dev-network
+
+  # ============================================================================
+  # MCP Server (Development)
+  # ============================================================================
+  mcp-server-dev:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: dependencies
+    image: tianshu-backend:dev
+    container_name: tianshu-mcp-dev
+    restart: unless-stopped
+    ports:
+      - "8002:8002"
+    volumes:
+      # 挂载源代码
+      - ./backend:/app/backend:rw
+      - ./mcp_config.example.json:/app/backend/mcp_config.json:ro
+      - ./logs/mcp:/app/logs:rw
+    environment:
+      - ENV=development
+      - DEBUG=true
+      - LOG_LEVEL=DEBUG
+      - HOST=0.0.0.0
+      - PORT=8002
+      - API_URL=http://backend-dev:8000
+      - RELOAD=true
+    working_dir: /app/backend
+    command: ["python", "mcp_server.py"]
+    networks:
+      - tianshu-dev-network
+    depends_on:
+      - backend-dev
+
+  # ============================================================================
+  # Frontend (Development - Vite Dev Server)
+  # ============================================================================
+  frontend-dev:
+    image: node:20-alpine
+    container_name: tianshu-frontend-dev
+    restart: unless-stopped
+    ports:
+      - "5173:5173"  # Vite dev server
+    volumes:
+      # 挂载源代码（支持热重载）
+      - ./frontend:/app:rw
+      - /app/node_modules  # 使用容器内的 node_modules
+    working_dir: /app
+    environment:
+      - NODE_ENV=development
+      - VITE_API_BASE_URL=http://localhost:8000
+    command: >
+      sh -c "npm config set registry https://registry.npmmirror.com &&
+             npm install &&
+             npm run dev -- --host 0.0.0.0"
+    networks:
+      - tianshu-dev-network
+    depends_on:
+      - backend-dev
+
+networks:
+  tianshu-dev-network:
+    driver: bridge
+    name: tianshu-dev-network

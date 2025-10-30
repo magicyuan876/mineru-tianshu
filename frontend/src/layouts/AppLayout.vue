@@ -65,6 +65,70 @@
               <RefreshCw :class="{ 'animate-spin': queueStore.loading }" class="w-5 h-5" />
             </button>
 
+            <!-- 用户菜单 -->
+            <div class="relative hidden sm:block" ref="userMenuRef">
+              <button
+                @click="userMenuOpen = !userMenuOpen"
+                class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
+              >
+                <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+                  <UserIcon class="w-4 h-4 text-blue-600" />
+                </div>
+                <span class="hidden lg:block">{{ authStore.user?.username }}</span>
+                <ChevronDown :class="{ 'rotate-180': userMenuOpen }" class="w-4 h-4 transition-transform" />
+              </button>
+
+              <!-- 下拉菜单 -->
+              <div
+                v-if="userMenuOpen"
+                class="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50"
+              >
+                <div class="px-4 py-2 border-b border-gray-200">
+                  <p class="text-sm font-medium text-gray-900">{{ authStore.user?.username }}</p>
+                  <p class="text-xs text-gray-500">{{ authStore.user?.email }}</p>
+                  <span
+                    :class="{
+                      'bg-red-100 text-red-800': authStore.user?.role === 'admin',
+                      'bg-yellow-100 text-yellow-800': authStore.user?.role === 'manager',
+                      'bg-blue-100 text-blue-800': authStore.user?.role === 'user',
+                    }"
+                    class="inline-block mt-1 px-2 py-0.5 text-xs font-medium rounded"
+                  >
+                    {{ roleLabel(authStore.user?.role) }}
+                  </span>
+                </div>
+
+                <router-link
+                  to="/profile"
+                  @click="userMenuOpen = false"
+                  class="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  <UserIcon class="w-4 h-4" />
+                  <span>个人资料</span>
+                </router-link>
+
+                <router-link
+                  v-if="authStore.isAdmin"
+                  to="/users"
+                  @click="userMenuOpen = false"
+                  class="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  <Users class="w-4 h-4" />
+                  <span>用户管理</span>
+                </router-link>
+
+                <div class="border-t border-gray-200 my-2"></div>
+
+                <button
+                  @click="handleLogout"
+                  class="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                >
+                  <LogOut class="w-4 h-4" />
+                  <span>退出登录</span>
+                </button>
+              </div>
+            </div>
+
             <!-- 移动端菜单按钮 -->
             <button
               @click="mobileMenuOpen = !mobileMenuOpen"
@@ -134,9 +198,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
-import { useRoute } from 'vue-router'
-import { useQueueStore } from '@/stores'
+import { ref, onMounted, onUnmounted, onBeforeUnmount } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useQueueStore, useAuthStore } from '@/stores'
 import {
   Sparkles,
   LayoutDashboard,
@@ -148,11 +212,19 @@ import {
   RefreshCw,
   Github,
   Star,
+  User as UserIcon,
+  Users,
+  ChevronDown,
+  LogOut,
 } from 'lucide-vue-next'
 
 const route = useRoute()
+const router = useRouter()
 const queueStore = useQueueStore()
+const authStore = useAuthStore()
 const mobileMenuOpen = ref(false)
+const userMenuOpen = ref(false)
+const userMenuRef = ref<HTMLElement | null>(null)
 
 const navItems = [
   { name: '仪表盘', path: '/', icon: LayoutDashboard },
@@ -173,8 +245,31 @@ function isActive(path: string): boolean {
   return route.path.startsWith(path)
 }
 
+function roleLabel(role?: string) {
+  const labels = {
+    admin: '管理员',
+    manager: '管理者',
+    user: '普通用户',
+  }
+  return labels[role as keyof typeof labels] || role
+}
+
 function refreshStats() {
   queueStore.fetchStats()
+}
+
+// 退出登录
+function handleLogout() {
+  userMenuOpen.value = false
+  authStore.logout()
+  router.push('/login')
+}
+
+// 点击外部关闭用户菜单
+function handleClickOutside(event: MouseEvent) {
+  if (userMenuRef.value && !userMenuRef.value.contains(event.target as Node)) {
+    userMenuOpen.value = false
+  }
 }
 
 // 页面可见性检测
@@ -196,6 +291,9 @@ onMounted(() => {
 
   // 监听页面可见性变化
   document.addEventListener('visibilitychange', handleVisibilityChange)
+
+  // 监听点击外部关闭菜单
+  document.addEventListener('click', handleClickOutside)
 })
 
 onUnmounted(() => {
@@ -204,6 +302,7 @@ onUnmounted(() => {
 
   // 移除监听器
   document.removeEventListener('visibilitychange', handleVisibilityChange)
+  document.removeEventListener('click', handleClickOutside)
 })
 </script>
 

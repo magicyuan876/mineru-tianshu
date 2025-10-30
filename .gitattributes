@@ -1,0 +1,112 @@
+# Git 换行符配置
+# 自动检测文本文件并标准化换行符
+
+# 默认行为：自动检测文本文件
+* text=auto
+
+# ============================================================================
+# Shell 脚本强制使用 LF（Unix 风格）
+# ============================================================================
+*.sh text eol=lf
+
+# ============================================================================
+# Docker 和容器相关文件使用 LF
+# ============================================================================
+Dockerfile text eol=lf
+docker-compose*.yml text eol=lf
+.dockerignore text eol=lf
+Makefile text eol=lf
+
+# ============================================================================
+# Python 文件使用 LF
+# ============================================================================
+*.py text eol=lf
+*.pyi text eol=lf
+
+# ============================================================================
+# 前端文件使用 LF
+# ============================================================================
+*.js text eol=lf
+*.ts text eol=lf
+*.vue text eol=lf
+*.jsx text eol=lf
+*.tsx text eol=lf
+*.json text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.scss text eol=lf
+*.sass text eol=lf
+*.less text eol=lf
+
+# ============================================================================
+# Windows 特定文件使用 CRLF
+# ============================================================================
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# ============================================================================
+# 配置文件使用 LF
+# ============================================================================
+*.yml text eol=lf
+*.yaml text eol=lf
+*.toml text eol=lf
+*.ini text eol=lf
+*.conf text eol=lf
+*.cfg text eol=lf
+*.env text eol=lf
+.env* text eol=lf
+
+# ============================================================================
+# 文档使用 LF
+# ============================================================================
+*.md text eol=lf
+*.txt text eol=lf
+*.rst text eol=lf
+
+# ============================================================================
+# 特殊文件
+# ============================================================================
+.gitignore text eol=lf
+.gitattributes text eol=lf
+.editorconfig text eol=lf
+.cursorrules text eol=lf
+LICENSE text eol=lf
+README* text eol=lf
+
+# ============================================================================
+# 二进制文件
+# ============================================================================
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.db binary
+*.sqlite binary
+*.sqlite3 binary
+*.pyc binary
+*.pyd binary
+*.so binary
+*.dll binary
+*.exe binary
+*.zip binary
+*.tar binary
+*.gz binary
+*.tgz binary
+*.rar binary
+*.7z binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.otf binary
+*.mp3 binary
+*.mp4 binary
+*.wav binary
+*.avi binary
+*.mov binary
+*.flac binary
+*.webm binary
+*.mkv binary

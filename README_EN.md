@@ -44,6 +44,51 @@ English | [简体中文](./README.md)
 
 ## 📝 Latest Updates
 
+### 2025-10-30 🐳 Docker Deployment + Enterprise Authentication
+
+- ✅ **Docker Containerization Support**
+  - **One-Click Deployment**: Complete full-stack deployment with `make setup` or deployment scripts
+  - **Multi-Stage Build**: Optimized image size, separated dependency and application layers
+  - **GPU Support**: NVIDIA CUDA 12.6 + Container Toolkit integration
+  - **Service Orchestration**: Complete orchestration of frontend, backend, Worker, MCP (docker-compose)
+  - **Developer Friendly**: Hot reload, remote debugging (debugpy), real-time logs
+  - **Production Ready**: Health checks, data persistence, zero-downtime deployment, resource limits
+  - **Cross-Platform Scripts**:
+    - Linux/Mac: `scripts/docker-setup.sh` or `Makefile`
+    - Windows: `scripts/docker-setup.bat`
+  - **Complete Documentation**: `scripts/DOCKER_QUICK_START.txt`, `scripts/docker-commands.sh`
+  - See: Docker configuration files (`docker-compose.yml`, `backend/Dockerfile`, `frontend/Dockerfile`)
+
+- ✅ **Enterprise-Grade User Authentication & Authorization**
+  - **JWT Authentication**: Secure token-based authentication with Access Token and Refresh Token
+  - **User Data Isolation**: Each user can only access and manage their own task data
+  - **Role-Based Access**: Administrator (admin) and regular user (user) roles
+  - **API Key Management**: Users can self-generate and manage API keys for third-party integration
+  - **User Management**: Admins can manage all users, reset passwords, enable/disable accounts
+  - **SSO Ready**: Support for OIDC and SAML 2.0 single sign-on (optional configuration)
+  - **Frontend Integration**: Login/registration pages, user profile, permission route guards
+  - **Database Migration**: Automatic default user creation for existing data
+  - See: `backend/auth/` directory
+
+### 2025-10-29 🧬 Bioinformatics Format Support
+
+- ✅ **New Plugin-Based Format Engine System**
+  - Support for parsing and structuring professional domain document formats
+  - Unified engine interface, easy to extend new formats
+  - Provide both Markdown and JSON format output for RAG applications
+
+- ✅ **Bioinformatics Format Engines**
+  - **FASTA Format**: DNA/RNA/Protein sequence parsing
+    - Sequence statistics (count, length, average)
+    - Base composition analysis (A/T/G/C ratios)
+    - Automatic sequence type detection (DNA/RNA/Protein)
+  - **GenBank Format**: NCBI gene sequence annotation format
+    - Complete annotation information extraction
+    - Feature type statistics (gene/CDS/mRNA, etc.)
+    - GC content calculation and organism information
+  - Support BioPython or built-in parser (optional dependency)
+  - See: `backend/format_engines/README.md`
+
 ### 2025-10-27 🎨 Watermark Removal Support (🧪 Experimental)
 
 - ✅ **Intelligent Watermark Detection and Removal**
@@ -188,12 +233,15 @@ MinerU Tianshu is an **Enterprise-grade AI Data Preprocessing Platform** that co
 
 ### Main Features
 
+- ✅ **User Authentication**: JWT-based secure authentication, role-based access control
 - ✅ **Dashboard**: Real-time monitoring of queue statistics and recent tasks
 - ✅ **Task Submission**: Drag-and-drop file upload, batch processing, and advanced configuration
-- ✅ **Task Details**: Real-time status tracking, Markdown preview, automatic polling updates
+- ✅ **Task Details**: Real-time status tracking, Markdown/JSON preview, automatic polling updates
 - ✅ **Task List**: Filtering, searching, pagination, batch operations
 - ✅ **Queue Management**: System monitoring, reset timeout tasks, clean up old files
+- ✅ **User Management**: Admin panel for user management, API key generation
 - ✅ **MCP Protocol Support**: AI assistant integration via Model Context Protocol
+- ✅ **Docker Support**: One-click deployment with complete containerization
 
 ### Supported File Formats
 
@@ -203,6 +251,18 @@ MinerU Tianshu is an **Enterprise-grade AI Data Preprocessing Platform** that co
   - **PaddleOCR-VL**: Multi-language OCR (109+ languages), auto orientation and layout analysis
 - 📊 **Office Documents** - Word, Excel, PowerPoint (using MarkItDown)
 - 🌐 **Web and Text** - HTML, Markdown, TXT, CSV, etc.
+- 🎙️ **Audio Files** - MP3, WAV, M4A, FLAC, etc. (using SenseVoice)
+  - Multi-language recognition (Chinese/English/Japanese/Korean/Cantonese)
+  - Speaker diarization and separation
+  - Emotion recognition (Neutral/Happy/Angry/Sad)
+  - Output in JSON and Markdown formats
+- 🎬 **Video Files** - MP4, AVI, MKV, MOV, WebM, etc.
+  - Audio transcription from video (FFmpeg + SenseVoice)
+  - Keyframe OCR (🧪 Experimental)
+- 🧬 **Bioinformatics Formats** - FASTA, GenBank (using plugin-based format engines)
+  - **FASTA**: DNA/RNA/Protein sequence parsing
+  - **GenBank**: NCBI gene sequence annotation format
+  - Sequence statistics, base composition analysis, GC content calculation
 
 ## 🏗️ Project Structure
 
@@ -224,21 +284,109 @@ mineru-server/
 ├── backend/                # Python backend project
 │   ├── api_server.py      # FastAPI server
 │   ├── task_db.py         # Database management
+│   ├── auth/              # Authentication & Authorization
+│   │   ├── jwt_handler.py       # JWT token handling
+│   │   ├── models.py            # User data models
+│   │   ├── routes.py            # Auth routes
+│   │   ├── dependencies.py      # Dependency injection
+│   │   └── sso.py               # SSO support (optional)
+│   ├── audio_engines/     # Audio processing engines
+│   │   ├── sensevoice_engine.py  # SenseVoice engine
+│   │   └── README.md      # Audio engine documentation
+│   ├── format_engines/    # Format engines (professional formats)
+│   │   ├── base.py        # Base format engine
+│   │   ├── fasta_engine.py      # FASTA format engine
+│   │   ├── genbank_engine.py    # GenBank format engine
+│   │   └── README.md      # Format engine documentation
+│   ├── video_engines/     # Video processing engines
+│   │   ├── video_engine.py      # Video processing engine
+│   │   ├── keyframe_extractor.py # Keyframe extraction
+│   │   └── README.md      # Video engine documentation
+│   ├── remove_watermark/  # Watermark removal module
+│   │   ├── watermark_remover.py     # Watermark remover
+│   │   ├── pdf_watermark_handler.py # PDF watermark handling
+│   │   └── README.md      # Watermark removal documentation
 │   ├── litserve_worker.py # Worker Pool
 │   ├── task_scheduler.py  # Task scheduler
 │   ├── mcp_server.py      # MCP Protocol server (optional)
 │   ├── start_all.py       # Startup script
+│   ├── Dockerfile         # Docker image build file
 │   ├── requirements.txt
 │   ├── README.md          # Backend documentation
 │   └── MCP_GUIDE.md       # MCP integration guide
 │
+├── scripts/               # Deployment and utility scripts
+│   ├── docker-setup.sh          # Linux/Mac Docker deployment script
+│   ├── docker-setup.bat         # Windows Docker deployment script
+│   ├── docker-entrypoint.sh     # Docker container entrypoint
+│   ├── docker-commands.sh       # Docker command reference
+│   └── DOCKER_QUICK_START.txt   # Docker quick start guide
+│
+├── docker-compose.yml     # Docker Compose production config
+├── docker-compose.dev.yml # Docker Compose development config
+├── Makefile               # Docker shortcuts (make setup/start/stop)
+├── .dockerignore          # Docker build ignore file
+├── .env.example           # Environment variables template
 ├── mcp_config.example.json # MCP configuration example
 └── README.md              # This file
 ```
 
 ## 🚀 Quick Start
 
-### Prerequisites
+Tianshu offers **two deployment options**:
+
+### Option 1: Docker Deployment (⭐ Recommended for Enterprise Production)
+
+**Use Case**: Production deployment, team collaboration, containerization and service orchestration
+
+#### Prerequisites
+
+- **Docker** 20.10+
+- **Docker Compose** 2.0+
+- **NVIDIA Container Toolkit** (for GPU support, optional)
+- 16GB+ RAM
+- 50GB+ available disk space
+
+#### One-Click Deployment
+
+```bash
+# Using Makefile (recommended)
+make setup
+
+# Or using deployment scripts
+# Linux/Mac
+./scripts/docker-setup.sh
+
+# Windows
+scripts\docker-setup.bat
+```
+
+#### Common Commands
+
+```bash
+make start      # Start services
+make stop       # Stop services
+make logs       # View logs
+make status     # Check status
+make dev        # Start development environment
+```
+
+#### Service Access
+
+- Frontend: <http://localhost:80>
+- API Docs: <http://localhost:8000/docs>
+- Worker: <http://localhost:8001>
+- MCP: <http://localhost:8002>
+
+**Detailed Documentation**: See `scripts/DOCKER_QUICK_START.txt`
+
+---
+
+### Option 2: Local Development Deployment
+
+**Use Case**: Quick testing, local development, learning and research
+
+#### Prerequisites
 
 - **Node.js** 18+ (frontend)
 - **Python** 3.8+ (backend)

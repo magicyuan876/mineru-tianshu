@@ -5,9 +5,10 @@ MinerU Tianshu - API Server
 企业级 AI 数据预处理平台
 支持文档、图片、音频、视频等多模态数据处理
 提供 RESTful API 接口用于任务提交、查询和管理
+企业级认证授权: JWT Token + API Key + SSO
 """
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query, Depends
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import tempfile
@@ -23,11 +24,21 @@ from minio import Minio
 
 from task_db import TaskDB
 
+# 导入认证模块
+from auth import (
+    User,
+    Permission,
+    get_current_active_user,
+    require_permission,
+)
+from auth.routes import router as auth_router
+from auth.auth_db import AuthDB
+
 # 初始化 FastAPI 应用
 app = FastAPI(
     title="MinerU Tianshu API",
-    description="天枢 - 企业级 AI 数据预处理平台 | 支持文档、图片、音频、视频等多模态数据处理",
-    version="1.0.0",
+    description="天枢 - 企业级 AI 数据预处理平台 | 支持文档、图片、音频、视频等多模态数据处理 | 企业级认证授权",
+    version="2.0.0",
 )
 
 # 添加 CORS 中间件
@@ -41,6 +52,10 @@ app.add_middleware(
 
 # 初始化数据库
 db = TaskDB()
+auth_db = AuthDB()
+
+# 注册认证路由
+app.include_router(auth_router)
 
 # 配置输出目录
 OUTPUT_DIR = Path("/tmp/mineru_tianshu_output")
@@ -144,7 +159,8 @@ async def root():
 async def submit_task(
     file: UploadFile = File(..., description="文件: PDF/图片/Office/HTML/音频/视频等多种格式"),
     backend: str = Form(
-        "pipeline", description="处理后端: pipeline/deepseek-ocr/paddleocr-vl (文档) | sensevoice (音频) | video (视频)"
+        "auto",
+        description="处理后端: auto (自动选择) | pipeline/deepseek-ocr/paddleocr-vl (文档) | sensevoice (音频) | video (视频) | fasta/genbank (专业格式)",
     ),
     lang: str = Form("auto", description="语言: auto/ch/en/korean/japan等"),
     method: str = Form("auto", description="解析方法: auto/txt/ocr"),
@@ -163,11 +179,14 @@ async def submit_task(
     remove_watermark: bool = Form(False, description="是否启用水印去除（支持 PDF/图片）"),
     watermark_conf_threshold: float = Form(0.35, description="水印检测置信度阈值（0.0-1.0，推荐 0.35）"),
     watermark_dilation: int = Form(10, description="水印掩码膨胀大小（像素，推荐 10）"),
+    # 认证依赖
+    current_user: User = Depends(require_permission(Permission.TASK_SUBMIT)),
 ):
     """
     提交文档解析任务
 
-    立即返回 task_id，任务在后台异步处理
+    需要认证和 TASK_SUBMIT 权限。
+    立即返回 task_id，任务在后台异步处理。
     """
     try:
         # 保存上传的文件到临时目录
@@ -182,7 +201,7 @@ async def submit_task(
 
         temp_file.close()
 
-        # 创建任务
+        # 创建任务 (关联用户)
         task_id = db.create_task(
             file_name=file.filename,
             file_path=temp_file.name,
@@ -206,9 +225,11 @@ async def submit_task(
                 "watermark_dilation": watermark_dilation,
             },
             priority=priority,
+            user_id=current_user.user_id,  # 关联用户
         )
 
         logger.info(f"✅ Task submitted: {task_id} - {file.filename}")
+        logger.info(f"   User: {current_user.username} ({current_user.role.value})")
         logger.info(f"   Backend: {backend}")
         logger.info(f"   Priority: {priority}")
         if backend == "deepseek-ocr":
@@ -221,6 +242,7 @@ async def submit_task(
             "status": "pending",
             "message": "Task submitted successfully",
             "file_name": file.filename,
+            "user_id": current_user.user_id,
             "created_at": datetime.now().isoformat(),
         }
 
@@ -234,10 +256,12 @@ async def get_task_status(
     task_id: str,
     upload_images: bool = Query(False, description="是否上传图片到MinIO并替换链接（仅当任务完成时有效）"),
     format: str = Query("markdown", description="返回格式: markdown(默认)/json/both"),
+    current_user: User = Depends(get_current_active_user),
 ):
     """
     查询任务状态和详情
 
+    需要认证。用户只能查看自己的任务，管理员可以查看所有任务。
     当任务完成时，会自动返回解析后的内容（data 字段）
     - format=markdown: 只返回 Markdown 内容（默认）
     - format=json: 只返回 JSON 结构化数据（MinerU 和 PaddleOCR-VL 支持）
@@ -248,6 +272,11 @@ async def get_task_status(
 
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
+
+    # 权限检查: 用户只能查看自己的任务，管理员/经理可以查看所有任务
+    if not current_user.has_permission(Permission.TASK_VIEW_ALL):
+        if task.get("user_id") != current_user.user_id:
+            raise HTTPException(status_code=403, detail="Permission denied: You can only view your own tasks")
 
     response = {
         "success": True,
@@ -262,6 +291,7 @@ async def get_task_status(
         "completed_at": task["completed_at"],
         "worker_id": task["worker_id"],
         "retry_count": task["retry_count"],
+        "user_id": task.get("user_id"),
     }
     logger.info(f"✅ Task status: {task['status']} - (result_path: {task['result_path']})")
 
@@ -280,11 +310,14 @@ async def get_task_status(
             logger.info("✅ Result directory exists")
             # 递归查找 Markdown 文件（MinerU 输出结构：task_id/filename/auto/*.md）
             md_files = list(result_dir.rglob("*.md"))
-            # 递归查找 JSON 文件 (排除调试用的 page_*.json)
+            # 递归查找 JSON 文件
+            # MinerU 输出格式: {filename}_content_list.json (主要的结构化内容)
+            # 也支持其他引擎的: content.json, result.json
             json_files = [
                 f
                 for f in result_dir.rglob("*.json")
-                if not f.parent.name.startswith("page_") and f.name in ["content.json", "result.json"]
+                if not f.parent.name.startswith("page_")
+                and (f.name in ["content.json", "result.json"] or "_content_list.json" in f.name)
             ]
             logger.info(f"📄 Found {len(md_files)} markdown files and {len(json_files)} json files")
 
@@ -364,14 +397,21 @@ async def get_task_status(
 
 
 @app.delete("/api/v1/tasks/{task_id}")
-async def cancel_task(task_id: str):
+async def cancel_task(task_id: str, current_user: User = Depends(get_current_active_user)):
     """
     取消任务（仅限 pending 状态）
+
+    需要认证。用户只能取消自己的任务，管理员可以取消任何任务。
     """
     task = db.get_task(task_id)
 
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
+
+    # 权限检查: 用户只能取消自己的任务，管理员可以取消任何任务
+    if not current_user.has_permission(Permission.TASK_DELETE_ALL):
+        if task.get("user_id") != current_user.user_id:
+            raise HTTPException(status_code=403, detail="Permission denied: You can only cancel your own tasks")
 
     if task["status"] == "pending":
         db.update_task_status(task_id, "cancelled")
@@ -381,73 +421,218 @@ async def cancel_task(task_id: str):
         if file_path.exists():
             file_path.unlink()
 
-        logger.info(f"⏹️  Task cancelled: {task_id}")
+        logger.info(f"⏹️  Task cancelled: {task_id} by user {current_user.username}")
         return {"success": True, "message": "Task cancelled successfully"}
     else:
         raise HTTPException(status_code=400, detail=f"Cannot cancel task in {task['status']} status")
 
 
 @app.get("/api/v1/queue/stats")
-async def get_queue_stats():
+async def get_queue_stats(current_user: User = Depends(require_permission(Permission.QUEUE_VIEW))):
     """
     获取队列统计信息
+
+    需要认证和 QUEUE_VIEW 权限。
     """
     stats = db.get_queue_stats()
 
-    return {"success": True, "stats": stats, "total": sum(stats.values()), "timestamp": datetime.now().isoformat()}
+    return {
+        "success": True,
+        "stats": stats,
+        "total": sum(stats.values()),
+        "timestamp": datetime.now().isoformat(),
+        "user": current_user.username,
+    }
 
 
 @app.get("/api/v1/queue/tasks")
 async def list_tasks(
     status: Optional[str] = Query(None, description="筛选状态: pending/processing/completed/failed"),
     limit: int = Query(100, description="返回数量限制", le=1000),
+    current_user: User = Depends(get_current_active_user),
 ):
     """
     获取任务列表
+
+    需要认证。普通用户只能看到自己的任务，管理员/经理可以看到所有任务。
     """
-    if status:
-        tasks = db.get_tasks_by_status(status, limit)
+    # 检查用户权限
+    can_view_all = current_user.has_permission(Permission.TASK_VIEW_ALL)
+
+    if can_view_all:
+        # 管理员/经理查看所有任务
+        if status:
+            tasks = db.get_tasks_by_status(status, limit)
+        else:
+            with db.get_cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT * FROM tasks
+                    ORDER BY created_at DESC
+                    LIMIT ?
+                """,
+                    (limit,),
+                )
+                tasks = [dict(row) for row in cursor.fetchall()]
     else:
-        # 返回所有任务（需要修改 TaskDB 添加这个方法）
+        # 普通用户只能看到自己的任务
         with db.get_cursor() as cursor:
-            cursor.execute(
-                """
-                SELECT * FROM tasks
-                ORDER BY created_at DESC
-                LIMIT ?
-            """,
-                (limit,),
-            )
+            if status:
+                cursor.execute(
+                    """
+                    SELECT * FROM tasks
+                    WHERE user_id = ? AND status = ?
+                    ORDER BY created_at DESC
+                    LIMIT ?
+                """,
+                    (current_user.user_id, status, limit),
+                )
+            else:
+                cursor.execute(
+                    """
+                    SELECT * FROM tasks
+                    WHERE user_id = ?
+                    ORDER BY created_at DESC
+                    LIMIT ?
+                """,
+                    (current_user.user_id, limit),
+                )
             tasks = [dict(row) for row in cursor.fetchall()]
 
-    return {"success": True, "count": len(tasks), "tasks": tasks}
+    return {"success": True, "count": len(tasks), "tasks": tasks, "can_view_all": can_view_all}
 
 
 @app.post("/api/v1/admin/cleanup")
-async def cleanup_old_tasks(days: int = Query(7, description="清理N天前的任务")):
+async def cleanup_old_tasks(
+    days: int = Query(7, description="清理N天前的任务"),
+    current_user: User = Depends(require_permission(Permission.QUEUE_MANAGE)),
+):
     """
     清理旧任务记录（管理接口）
+
+    需要管理员权限。
     """
     deleted_count = db.cleanup_old_tasks(days)
 
-    logger.info(f"🧹 Cleaned up {deleted_count} old tasks")
+    logger.info(f"🧹 Cleaned up {deleted_count} old tasks by {current_user.username}")
 
     return {"success": True, "deleted_count": deleted_count, "message": f"Cleaned up tasks older than {days} days"}
 
 
 @app.post("/api/v1/admin/reset-stale")
-async def reset_stale_tasks(timeout_minutes: int = Query(60, description="超时时间（分钟）")):
+async def reset_stale_tasks(
+    timeout_minutes: int = Query(60, description="超时时间（分钟）"),
+    current_user: User = Depends(require_permission(Permission.QUEUE_MANAGE)),
+):
     """
     重置超时的 processing 任务（管理接口）
+
+    需要管理员权限。
     """
     reset_count = db.reset_stale_tasks(timeout_minutes)
 
-    logger.info(f"🔄 Reset {reset_count} stale tasks")
+    logger.info(f"🔄 Reset {reset_count} stale tasks by {current_user.username}")
 
     return {
         "success": True,
         "reset_count": reset_count,
         "message": f"Reset tasks processing for more than {timeout_minutes} minutes",
+    }
+
+
+@app.get("/api/v1/engines")
+async def list_engines():
+    """
+    列出所有可用的处理引擎
+
+    无需认证。返回系统中所有可用的处理引擎信息。
+    """
+    engines = {
+        "document": [
+            {
+                "name": "pipeline",
+                "display_name": "MinerU Pipeline",
+                "description": "默认的 PDF/图片解析引擎，支持公式、表格等复杂结构",
+                "supported_formats": [".pdf", ".png", ".jpg", ".jpeg"],
+            },
+        ],
+        "ocr": [],
+        "audio": [],
+        "video": [],
+        "format": [],
+        "office": [
+            {
+                "name": "markitdown",
+                "display_name": "MarkItDown",
+                "description": "Office 文档和文本文件转换引擎",
+                "supported_formats": [".docx", ".xlsx", ".pptx", ".doc", ".xls", ".ppt", ".html", ".txt", ".csv"],
+            },
+        ],
+    }
+
+    # 动态检测可用引擎
+    import importlib.util
+
+    if importlib.util.find_spec("deepseek_ocr") is not None:
+        engines["ocr"].append(
+            {
+                "name": "deepseek_ocr",
+                "display_name": "DeepSeek OCR",
+                "description": "高精度 OCR 引擎，支持多种分辨率和提示词模式",
+                "supported_formats": [".pdf", ".png", ".jpg", ".jpeg"],
+            }
+        )
+
+    if importlib.util.find_spec("paddleocr_vl") is not None:
+        engines["ocr"].append(
+            {
+                "name": "paddleocr_vl",
+                "display_name": "PaddleOCR-VL",
+                "description": "PaddlePaddle 视觉语言 OCR 引擎",
+                "supported_formats": [".pdf", ".png", ".jpg", ".jpeg"],
+            }
+        )
+
+    if importlib.util.find_spec("audio_engines") is not None:
+        engines["audio"].append(
+            {
+                "name": "sensevoice",
+                "display_name": "SenseVoice",
+                "description": "语音识别引擎，支持多语言自动检测",
+                "supported_formats": [".wav", ".mp3", ".flac", ".m4a", ".ogg"],
+            }
+        )
+
+    if importlib.util.find_spec("video_engines") is not None:
+        engines["video"].append(
+            {
+                "name": "video",
+                "display_name": "Video Processing",
+                "description": "视频处理引擎，支持关键帧提取和音频转录",
+                "supported_formats": [".mp4", ".avi", ".mkv", ".mov", ".flv", ".wmv"],
+            }
+        )
+
+    # 专业格式引擎
+    try:
+        from format_engines import FormatEngineRegistry
+
+        for engine_info in FormatEngineRegistry.list_engines():
+            engines["format"].append(
+                {
+                    "name": engine_info["name"],
+                    "display_name": engine_info["name"].upper(),
+                    "description": engine_info["description"],
+                    "supported_formats": engine_info["extensions"],
+                }
+            )
+    except ImportError:
+        pass
+
+    return {
+        "success": True,
+        "engines": engines,
+        "timestamp": datetime.now().isoformat(),
     }
 
 

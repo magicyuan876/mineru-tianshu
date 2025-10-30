@@ -14,7 +14,7 @@
           ref="fileUploader"
           :multiple="true"
           :maxSize="100 * 1024 * 1024"
-          acceptHint="支持 PDF、图片、Word、Excel、PowerPoint、HTML、音频（MP3/WAV/M4A）、视频（MP4/AVI/MKV/MOV）等多种格式"
+          acceptHint="支持 PDF、图片、Word、Excel、PowerPoint、HTML、音频（MP3/WAV/M4A）、视频（MP4/AVI/MKV/MOV）、生物序列（FASTA/GenBank）等多种格式"
           @update:files="onFilesChange"
         />
       </div>
@@ -35,8 +35,9 @@
               @change="onBackendChange"
               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
+              <option value="auto">🎯 自动选择（推荐，根据文件类型自动选择最佳引擎）</option>
               <optgroup label="文档解析">
-                <option value="pipeline">MinerU Pipeline（推荐，完整解析）</option>
+                <option value="pipeline">MinerU Pipeline（完整解析）</option>
                 <option value="deepseek-ocr">DeepSeek OCR（高精度 OCR）</option>
                 <option value="paddleocr-vl">PaddleOCR-VL（多语言 OCR，109+ 语言）</option>
                 <option value="vlm-transformers">VLM Transformers（视觉语言模型）</option>
@@ -46,7 +47,14 @@
                 <option value="sensevoice">SenseVoice（语音识别，说话人识别）</option>
                 <option value="video">Video（视频转文字，提取音频+语音识别）</option>
               </optgroup>
+              <optgroup label="专业格式解析">
+                <option value="fasta">🧬 FASTA（生物序列格式）</option>
+                <option value="genbank">🧬 GenBank（基因序列注释格式）</option>
+              </optgroup>
             </select>
+            <p v-if="config.backend === 'auto'" class="mt-1 text-xs text-gray-500">
+              🎯 自动选择: 系统会根据文件扩展名智能选择最合适的引擎进行处理
+            </p>
             <p v-if="config.backend === 'deepseek-ocr'" class="mt-1 text-xs text-gray-500">
               💡 DeepSeek OCR: 支持 PDF 和图片，提供高精度 OCR 识别
             </p>
@@ -58,6 +66,12 @@
             </p>
             <p v-if="config.backend === 'video'" class="mt-1 text-xs text-gray-500">
               🎬 Video: 从视频中提取音频并转写为文字，支持多种视频格式（MP4/AVI/MKV/MOV/WebM 等）
+            </p>
+            <p v-if="config.backend === 'fasta'" class="mt-1 text-xs text-gray-500">
+              🧬 FASTA: 解析生物序列文件（.fasta/.fa/.fna），支持蛋白质和核酸序列，生成语义化描述
+            </p>
+            <p v-if="config.backend === 'genbank'" class="mt-1 text-xs text-gray-500">
+              🧬 GenBank: 解析基因序列注释文件（.gb/.gbk），提取特征、注释和元数据
             </p>
           </div>
 
@@ -458,8 +472,8 @@ interface SubmitProgress {
 const submitProgress = ref<SubmitProgress[]>([])
 
 const config = reactive({
-  backend: 'pipeline' as Backend,
-  lang: 'ch' as Language,  // 初始默认中文（MinerU Pipeline）
+  backend: 'auto' as Backend,  // 默认自动选择引擎
+  lang: 'auto' as Language,  // 默认自动检测语言
   method: 'auto' as ParseMethod,
   formula_enable: true,
   table_enable: true,
@@ -483,11 +497,15 @@ function onFilesChange(newFiles: File[]) {
 }
 
 function onBackendChange() {
-  // MinerU Pipeline 不支持 auto，默认使用中文
+  // 根据选择的引擎调整语言设置
   if (config.backend === 'pipeline') {
+    // MinerU Pipeline 不支持 auto，默认使用中文
     config.lang = 'ch'
+  } else if (['fasta', 'genbank'].includes(config.backend)) {
+    // 专业格式引擎不需要语言选择
+    config.lang = 'en'
   } else {
-    // 其他引擎（音频/视频/OCR）默认自动检测
+    // 其他引擎（auto/音频/视频/OCR）默认自动检测
     config.lang = 'auto'
   }
 }

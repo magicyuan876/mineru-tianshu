@@ -1,0 +1,210 @@
+# Tianshu (天枢) - Production Docker Compose
+# 企业级 AI 数据预处理平台完整编排
+#
+# 使用方式:
+#   1. 复制 .env.example 为 .env 并配置
+#   2. 启动: docker-compose up -d
+#   3. 查看日志: docker-compose logs -f
+#   4. 停止: docker-compose down
+#
+# 前置要求:
+#   - Docker 20.10+
+#   - Docker Compose 2.0+
+#   - NVIDIA Container Toolkit (GPU 支持)
+
+services:
+  # ============================================================================
+  # Backend API Server
+  # ============================================================================
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    image: tianshu-backend:latest
+    container_name: tianshu-backend
+    restart: unless-stopped
+    ports:
+      - "${API_PORT:-8000}:8000"
+    volumes:
+      # 模型存储（持久化）
+      - ./models:/app/models:rw
+      # 上传文件
+      - ./data/uploads:/app/uploads:rw
+      # 输出结果
+      - ./data/output:/app/output:rw
+      # 日志
+      - ./logs/backend:/app/logs:rw
+      # 数据库
+      - ./data/db:/app/backend:rw
+    environment:
+      # 应用配置
+      - HOST=0.0.0.0
+      - PORT=8000
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+
+      # JWT 认证
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
+      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+
+      # CORS 配置
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:80}
+
+      # GPU 配置
+      - CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0}
+
+      # Worker 配置
+      - WORKER_URL=${WORKER_URL:-http://worker:8001}
+
+      # 文件限制
+      - MAX_FILE_SIZE=${MAX_FILE_SIZE:-524288000}  # 500MB
+
+      # 模型路径
+      - MODEL_PATH=/app/models
+      - OUTPUT_PATH=/app/output
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: ${GPU_COUNT:-1}
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - tianshu-network
+    depends_on:
+      - worker
+
+  # ============================================================================
+  # LitServe GPU Worker
+  # ============================================================================
+  worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    image: tianshu-backend:latest
+    container_name: tianshu-worker
+    restart: unless-stopped
+    command: ["python", "litserve_worker.py"]
+    ports:
+      - "${WORKER_PORT:-8001}:8001"
+    volumes:
+      # 模型存储（只读）
+      - ./models:/app/models:ro
+      # 上传文件（只读）
+      - ./data/uploads:/app/uploads:ro
+      # 输出结果
+      - ./data/output:/app/output:rw
+      # 日志
+      - ./logs/worker:/app/logs:rw
+    environment:
+      # 应用配置
+      - HOST=0.0.0.0
+      - PORT=8001
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+
+      # GPU 配置
+      - CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0}
+      - WORKER_GPUS=${WORKER_GPUS:-1}
+
+      # 模型路径
+      - MODEL_PATH=/app/models
+      - OUTPUT_PATH=/app/output
+
+      # Worker 配置
+      - MAX_BATCH_SIZE=${MAX_BATCH_SIZE:-4}
+      - TIMEOUT=${WORKER_TIMEOUT:-300}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: ${GPU_COUNT:-1}
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    networks:
+      - tianshu-network
+
+  # ============================================================================
+  # MCP Server (Model Context Protocol)
+  # ============================================================================
+  mcp-server:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    image: tianshu-backend:latest
+    container_name: tianshu-mcp
+    restart: unless-stopped
+    command: ["python", "mcp_server.py"]
+    ports:
+      - "${MCP_PORT:-8002}:8002"
+    volumes:
+      # 配置文件
+      - ./mcp_config.example.json:/app/backend/mcp_config.json:ro
+      # 日志
+      - ./logs/mcp:/app/logs:rw
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8002
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - API_URL=${API_URL:-http://backend:8000}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - tianshu-network
+    depends_on:
+      - backend
+
+  # ============================================================================
+  # Frontend (Vue 3 + Nginx)
+  # ============================================================================
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    image: tianshu-frontend:latest
+    container_name: tianshu-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    environment:
+      - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:8000}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    networks:
+      - tianshu-network
+    depends_on:
+      - backend
+
+networks:
+  tianshu-network:
+    driver: bridge
+    name: tianshu-network
+
+volumes:
+  models:
+    driver: local
+  uploads:
+    driver: local
+  output:
+    driver: local
+  logs:
+    driver: local

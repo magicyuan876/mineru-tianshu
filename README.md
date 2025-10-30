@@ -46,6 +46,51 @@
 
 ## 📝 最新更新
 
+### 2025-10-30 🐳 Docker 部署 + 企业级认证系统
+
+- ✅ **Docker 容器化部署支持**
+  - **一键部署**：`make setup` 或运行部署脚本即可完成全栈部署
+  - **多阶段构建**：优化镜像体积，分离依赖层和应用层
+  - **GPU 支持**：NVIDIA CUDA 12.6 + Container Toolkit 集成
+  - **服务编排**：前端、后端、Worker、MCP 完整编排（docker-compose）
+  - **开发友好**：支持热重载、远程调试（debugpy）、实时日志
+  - **生产就绪**：健康检查、数据持久化、零停机部署、资源限制
+  - **跨平台脚本**：
+    - Linux/Mac: `scripts/docker-setup.sh` 或 `Makefile`
+    - Windows: `scripts/docker-setup.bat`
+  - **完整文档**：`scripts/DOCKER_QUICK_START.txt`、`scripts/docker-commands.sh`
+  - 详见：Docker 配置文件（`docker-compose.yml`、`backend/Dockerfile`、`frontend/Dockerfile`）
+
+- ✅ **企业级用户认证与授权系统**
+  - **JWT 认证**：安全的 Token 认证机制，支持 Access Token 和 Refresh Token
+  - **用户数据隔离**：每个用户只能访问和管理自己的任务数据
+  - **角色权限**：管理员（admin）和普通用户（user）角色
+  - **API Key 管理**：用户可自助生成和管理 API 密钥，用于第三方集成
+  - **用户管理**：管理员可管理所有用户、重置密码、启用/禁用账户
+  - **SSO 预留接口**：支持 OIDC 和 SAML 2.0 单点登录（可选配置）
+  - **前端集成**：登录/注册页面、用户中心、权限路由守卫
+  - **数据库迁移**：自动为现有数据创建默认用户
+  - 详见：`backend/auth/` 目录
+
+### 2025-10-29 🧬 生物信息学格式支持
+
+- ✅ **新增插件化格式引擎系统**
+  - 支持专业领域文档格式的解析和结构化
+  - 统一的引擎接口，易于扩展新格式
+  - 为 RAG 应用提供 Markdown 和 JSON 双格式输出
+
+- ✅ **生物信息学格式引擎**
+  - **FASTA 格式**：DNA/RNA/蛋白质序列解析
+    - 序列统计（数量、长度、平均值）
+    - 碱基组成分析（A/T/G/C 比例）
+    - 序列类型自动检测（DNA/RNA/蛋白质）
+  - **GenBank 格式**：NCBI 基因序列注释格式
+    - 完整的注释信息提取
+    - 特征类型统计（gene/CDS/mRNA 等）
+    - GC 含量计算和生物物种信息
+  - 支持 BioPython 或内置解析器（可选依赖）
+  - 详见：`backend/format_engines/README.md`
+
 ### 2025-10-27 🎨 水印去除支持（🧪 实验性）
 
 - ✅ **智能水印检测与去除**
@@ -127,6 +172,11 @@ MinerU Tianshu（天枢）是一个**企业级 AI 数据预处理平台**，将�
   - 多种 OCR 引擎可选，GPU 加速
   - **🧪 水印去除预处理（实验性）**：智能检测水印并自动去除
 
+- **🧬 生物信息学格式**: FASTA、GenBank → Markdown/JSON
+  - 插件化格式引擎架构，易于扩展新格式
+  - 序列统计、碱基组成分析、特征注释提取
+  - 专为 RAG 应用设计的结构化输出
+
 - **🏗️ 企业级特性**:
   - GPU 负载均衡、任务队列、优先级管理、自动重试
   - MCP 协议支持，可被 AI 助手（Claude Desktop 等）直接调用
@@ -189,13 +239,15 @@ MinerU Tianshu（天枢）是一个**企业级 AI 数据预处理平台**，将�
 
 ### 主要功能
 
+- ✅ **用户认证**: 基于 JWT 的安全认证，角色权限控制
 - ✅ **仪表盘**: 实时监控队列统计和最近任务
 - ✅ **任务提交**: 文件拖拽上传,支持批量处理和高级配置
 - ✅ **任务详情**: 实时状态追踪,Markdown/JSON 预览,自动轮询更新
 - ✅ **任务列表**: 筛选、搜索、分页、批量操作
 - ✅ **队列管理**: 系统监控,重置超时任务,清理旧文件
+- ✅ **用户管理**: 管理员控制台，用户管理，API 密钥生成
 - ✅ **MCP 协议支持**: 通过 Model Context Protocol 支持 AI 助手调用
-- ✅ **音频识别**: SenseVoice 引擎支持多语言、说话人识别、情感识别
+- ✅ **Docker 支持**: 一键部署，完整容器化方案
 
 ### 支持的文件格式
 
@@ -210,6 +262,12 @@ MinerU Tianshu（天枢）是一个**企业级 AI 数据预处理平台**，将�
   - 说话人识别和分离
   - 情感识别（中性/开心/生气/悲伤）
   - 输出 JSON 和 Markdown 格式
+- 🧬 **生物信息学格式** - FASTA、GenBank（使用插件化格式引擎）
+  - **FASTA**: DNA/RNA/蛋白质序列解析
+  - **GenBank**: NCBI 基因序列注释格式
+  - 序列统计、碱基组成分析、GC 含量计算
+  - 支持 BioPython 或内置解析器
+  - 输出 Markdown 和 JSON 格式
 
 ## 🏗️ 项目结构
 
@@ -231,25 +289,109 @@ mineru-server/
 ├── backend/                # Python 后端项目
 │   ├── api_server.py      # FastAPI 服务器
 │   ├── task_db.py         # 数据库管理
+│   ├── auth/              # 认证授权模块
+│   │   ├── jwt_handler.py       # JWT Token 处理
+│   │   ├── models.py            # 用户数据模型
+│   │   ├── routes.py            # 认证路由
+│   │   ├── dependencies.py      # 依赖注入
+│   │   └── sso.py               # SSO 支持（可选）
 │   ├── audio_engines/     # 音频处理引擎
 │   │   ├── sensevoice_engine.py  # SenseVoice 引擎
-│   │   ├── check_environment.py  # 环境检查
 │   │   └── README.md      # 音频引擎文档
+│   ├── format_engines/    # 格式引擎（专业领域文档）
+│   │   ├── base.py        # 格式引擎基类
+│   │   ├── fasta_engine.py      # FASTA 格式引擎
+│   │   ├── genbank_engine.py    # GenBank 格式引擎
+│   │   └── README.md      # 格式引擎文档
+│   ├── video_engines/     # 视频处理引擎
+│   │   ├── video_engine.py      # 视频处理引擎
+│   │   ├── keyframe_extractor.py # 关键帧提取
+│   │   └── README.md      # 视频引擎文档
+│   ├── remove_watermark/  # 水印去除模块
+│   │   ├── watermark_remover.py     # 水印去除器
+│   │   ├── pdf_watermark_handler.py # PDF 水印处理
+│   │   └── README.md      # 水印去除文档
 │   ├── litserve_worker.py # Worker Pool
 │   ├── task_scheduler.py  # 任务调度器
 │   ├── mcp_server.py      # MCP 协议服务器（可选）
 │   ├── start_all.py       # 启动脚本
+│   ├── Dockerfile         # Docker 镜像构建文件
 │   ├── requirements.txt
 │   ├── README.md          # 后端文档
 │   └── MCP_GUIDE.md       # MCP 详细指南
 │
+├── scripts/               # 部署和工具脚本
+│   ├── docker-setup.sh          # Linux/Mac Docker 部署脚本
+│   ├── docker-setup.bat         # Windows Docker 部署脚本
+│   ├── docker-entrypoint.sh     # Docker 容器入口脚本
+│   ├── docker-commands.sh       # Docker 常用命令参考
+│   └── DOCKER_QUICK_START.txt   # Docker 快速入门指南
+│
+├── docker-compose.yml     # Docker Compose 生产环境配置
+├── docker-compose.dev.yml # Docker Compose 开发环境配置
+├── Makefile               # Docker 快捷命令（make setup/start/stop）
+├── .dockerignore          # Docker 构建忽略文件
+├── .env.example           # 环境变量配置模板
 ├── mcp_config.example.json # MCP 配置示例
 └── README.md              # 本文件
 ```
 
 ## 🚀 快速开始
 
-### 前置要求
+Tianshu (天枢) 提供**两种部署方式**：
+
+### 方式一：Docker 部署（⭐ 推荐，企业级生产环境）
+
+**适用场景**：生产部署、团队协作、需要容器化和服务编排
+
+#### 前置要求
+
+- **Docker** 20.10+
+- **Docker Compose** 2.0+
+- **NVIDIA Container Toolkit**（GPU 支持，可选）
+- 16GB+ RAM
+- 50GB+ 可用磁盘空间
+
+#### 一键部署
+
+```bash
+# 使用 Makefile（推荐）
+make setup
+
+# 或使用部署脚本
+# Linux/Mac
+./scripts/docker-setup.sh
+
+# Windows
+scripts\docker-setup.bat
+```
+
+#### 常用命令
+
+```bash
+make start      # 启动服务
+make stop       # 停止服务
+make logs       # 查看日志
+make status     # 查看状态
+make dev        # 启动开发环境
+```
+
+#### 服务访问
+
+- 前端界面: <http://localhost:80>
+- API 文档: <http://localhost:8000/docs>
+- Worker: <http://localhost:8001>
+- MCP: <http://localhost:8002>
+
+**详细文档**：参见 `scripts/DOCKER_QUICK_START.txt`
+
+---
+
+### 方式二：本地开发部署
+
+**适用场景**：快速测试、本地开发、学习研究
+
+#### 前置要求
 
 - **Node.js** 18+ (前端)
 - **Python** 3.8+ (后端)
@@ -380,6 +522,7 @@ npm run dev
   - **DeepSeek OCR**: 高精度 OCR 识别，支持多种分辨率和提示词类型
   - **PaddleOCR-VL**: 多语言 OCR（109+ 语言），文档增强处理
   - **MarkItDown**: Office 文档和网页解析
+  - **格式引擎**: 插件化专业格式支持（FASTA、GenBank 等）
 - **MCP 协议**: 支持 AI 助手通过标准协议调用文档解析服务
 
 ## ⚙️ 配置说明

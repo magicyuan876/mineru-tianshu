@@ -1,0 +1,83 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.nuxt/
+frontend/.output/
+
+# Models (too large, should be mounted or downloaded)
+models/
+!models/.gitkeep
+
+# Data & Uploads (should be mounted)
+data/
+uploads/
+output/
+temp/
+*.db
+*.db-journal
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Docker
+.dockerignore
+Dockerfile*
+docker-compose*.yml
+.env.local
+.env.*.local
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# Logs
+logs/
+*.log
+
+# Testing
+tests/
+test/
+*.test.js
+*.spec.js
+
+# Backup files
+*.bak
+*.swp
+*.tmp
