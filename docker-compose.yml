@@ -12,6 +12,9 @@
 #   - Docker Compose 2.0+
 #   - NVIDIA Container Toolkit (GPU 支持)
 
+# 项目名称（避免使用目录名）
+name: tianshu
+
 services:
   # ============================================================================
   # Backend API Server
