@@ -463,20 +463,44 @@ class MinerUWorkerAPI(ls.LitAPI):
             raise
 
     def _process_with_mineru(self, file_path: str, options: dict) -> dict:
-        """使用 MinerU 处理文档"""
+        """
+        使用 MinerU 处理文档
+
+        注意：MinerU 的 do_parse 只接受 PDF 格式，图片需要先转换为 PDF
+        """
+        import img2pdf
+
         file_stem = Path(file_path).stem
+        file_ext = Path(file_path).suffix.lower()
         output_dir = Path(self.output_dir) / file_stem
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # 读取 PDF 文件为字节
+        # 读取文件为字节
         with open(file_path, "rb") as f:
-            pdf_bytes = f.read()
+            file_bytes = f.read()
 
-        # 获取文件名
-        file_name = Path(file_path).name
+        # MinerU 的 do_parse 只支持 PDF 格式
+        # 图片文件需要先转换为 PDF
+        if file_ext in [".png", ".jpg", ".jpeg"]:
+            logger.info("🖼️  Converting image to PDF for MinerU processing...")
+            try:
+                pdf_bytes = img2pdf.convert(file_bytes)
+                file_name = f"{file_stem}.pdf"  # 使用 .pdf 扩展名
+                logger.info(f"✅ Image converted: {file_name} ({len(pdf_bytes)} bytes)")
+            except Exception as e:
+                logger.error(f"❌ Image conversion failed: {e}")
+                raise ValueError(f"Failed to convert image to PDF: {e}")
+        else:
+            # PDF 文件直接使用
+            pdf_bytes = file_bytes
+            file_name = Path(file_path).name
 
         # 获取语言设置
+        # MinerU 不支持 "auto"，默认使用中文
         lang = options.get("lang", "auto")
+        if lang == "auto":
+            lang = "ch"
+            logger.info("🌐 Language set to 'ch' (MinerU doesn't support 'auto')")
 
         # 调用 MinerU 新版 API（批量处理接口）
         # 新版 API 接受列表参数，即使只有一个文件也要用列表
