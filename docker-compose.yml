@@ -194,6 +194,9 @@ services:
       - "${FRONTEND_PORT:-80}:80"
     environment:
       - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:8000}
+      # Nginx 文件上传大小限制（从 MAX_FILE_SIZE 字节转换为 MB）
+      # 500MB = 524288000 bytes
+      - NGINX_CLIENT_MAX_BODY_SIZE=${NGINX_CLIENT_MAX_BODY_SIZE:-500m}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost/"]
       interval: 30s

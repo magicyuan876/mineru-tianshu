@@ -45,6 +45,10 @@ server {
     root /usr/share/nginx/html;
     index index.html;
 
+    # 文件上传大小限制（与环境变量 MAX_FILE_SIZE 保持一致）
+    # 默认 500MB，可通过 docker-compose.yml 的环境变量调整
+    client_max_body_size ${NGINX_CLIENT_MAX_BODY_SIZE:-500m};
+
     # Gzip 压缩
     gzip on;
     gzip_vary on;
@@ -105,6 +109,21 @@ EOF
 # 复制构建产物
 COPY --from=builder /app/dist /usr/share/nginx/html
 
+# 创建启动脚本（替换 Nginx 配置中的环境变量）
+RUN cat > /docker-entrypoint.sh <<'SCRIPT'
+#!/bin/sh
+set -e
+
+# 替换 Nginx 配置中的环境变量
+envsubst '${NGINX_CLIENT_MAX_BODY_SIZE}' < /etc/nginx/conf.d/default.conf > /tmp/default.conf
+mv /tmp/default.conf /etc/nginx/conf.d/default.conf
+
+# 启动 Nginx
+exec nginx -g 'daemon off;'
+SCRIPT
+
+RUN chmod +x /docker-entrypoint.sh
+
 # 暴露端口
 EXPOSE 80
 
@@ -112,5 +131,5 @@ EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
     CMD curl -f http://localhost/ || exit 1
 
-# 启动 Nginx
-CMD ["nginx", "-g", "daemon off;"]
+# 使用启动脚本
+CMD ["/docker-entrypoint.sh"]

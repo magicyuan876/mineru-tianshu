@@ -622,8 +622,9 @@ Claude will automatically:
 MCP Server provides 4 tools:
 
 1. **parse_document** - Parse documents to Markdown format
-   - Input methods: Base64 encoding (< 100MB) or URL
+   - Input methods: Base64 encoding or URL
    - Supported formats: PDF, images, Office documents, web pages and text
+   - File size: Configurable via MAX_FILE_SIZE in .env (default 500MB)
 
 2. **get_task_status** - Query task status and results
 
@@ -661,7 +662,7 @@ MinerU / MarkItDown
 **Q: File transfer failed?**
 
 - Small files automatically use Base64 encoding
-- Large files (> 100MB) will return error
+- Files exceeding the limit (default 500MB) will return error, adjustable via MAX_FILE_SIZE in .env
 - URL files need to be publicly accessible
 
 **Detailed documentation:** [backend/MCP_GUIDE.md](backend/MCP_GUIDE.md)

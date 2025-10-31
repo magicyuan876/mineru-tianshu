@@ -630,8 +630,9 @@ Claude 会自动：
 MCP Server 提供 4 个工具：
 
 1. **parse_document** - 解析文档为 Markdown 格式
-   - 输入方式：Base64 编码（< 100MB）或 URL
+   - 输入方式：Base64 编码或 URL
    - 支持格式：PDF、图片、Office 文档、网页和文本
+   - 文件大小：可在 .env 配置 MAX_FILE_SIZE（默认 500MB）
 
 2. **get_task_status** - 查询任务状态和结果
 
@@ -670,7 +671,7 @@ MinerU / MarkItDown
 **Q: 文件传输失败？**
 
 - 小文件自动使用 Base64 编码
-- 大文件（> 100MB）会返回错误
+- 超过限制（默认 500MB）会返回错误，可通过 .env 中的 MAX_FILE_SIZE 调整
 - URL 文件需要公开可访问
 
 **详细文档：** [backend/MCP_GUIDE.md](backend/MCP_GUIDE.md)

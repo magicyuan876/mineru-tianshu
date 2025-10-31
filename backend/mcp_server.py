@@ -28,6 +28,10 @@ from starlette.applications import Starlette
 from starlette.routing import Route
 import aiohttp
 from loguru import logger
+
+# 文件大小限制（从环境变量读取，默认 500MB）
+MAX_FILE_SIZE_BYTES = int(os.getenv("MAX_FILE_SIZE", "524288000"))  # 500MB
+MAX_FILE_SIZE_MB = MAX_FILE_SIZE_BYTES / (1024 * 1024)
 import uvicorn
 
 # API 配置（从环境变量读取）
@@ -47,7 +51,7 @@ async def list_tools() -> list[Tool]:
 解析文档（PDF、图片、Office文档等）为 Markdown 格式。
 
 📁 支持 2 种文件输入方式：
-1. file_base64: Base64 编码的文件内容（推荐用于小文件 < 100MB）
+1. file_base64: Base64 编码的文件内容（推荐用于小文件）
 2. file_url: 公网可访问的文件 URL（服务器会自动下载）
 
 支持的文件格式：
@@ -65,7 +69,10 @@ async def list_tools() -> list[Tool]:
                 "type": "object",
                 "properties": {
                     # 方式 1: Base64 编码（小文件推荐）
-                    "file_base64": {"type": "string", "description": "Base64 编码的文件内容（适用于 < 100MB 的文件）"},
+                    "file_base64": {
+                        "type": "string",
+                        "description": f"Base64 编码的文件内容（最大 {MAX_FILE_SIZE_MB:.0f}MB）",
+                    },
                     "file_name": {"type": "string", "description": "文件名（使用 file_base64 时必需）"},
                     # 方式 2: URL 下载
                     "file_url": {"type": "string", "description": "文件的公网 URL（服务器会自动下载）"},
@@ -228,12 +235,15 @@ async def parse_document(args: dict) -> list[TextContent]:
 
                 # 检查文件大小
                 size_mb = len(file_content) / (1024 * 1024)
-                if size_mb > 100:
+                if size_mb > MAX_FILE_SIZE_MB:
                     return [
                         TextContent(
                             type="text",
                             text=json.dumps(
-                                {"error": f"File too large ({size_mb:.1f}MB). Maximum size is 100MB."}, indent=2
+                                {
+                                    "error": f"File too large ({size_mb:.1f}MB). Maximum size is {MAX_FILE_SIZE_MB:.0f}MB."
+                                },
+                                indent=2,
                             ),
                         )
                     ]
@@ -283,13 +293,13 @@ async def parse_document(args: dict) -> list[TextContent]:
                         file_content = await resp.read()
                         size_mb = len(file_content) / (1024 * 1024)
 
-                        if size_mb > 100:
+                        if size_mb > MAX_FILE_SIZE_MB:
                             return [
                                 TextContent(
                                     type="text",
                                     text=json.dumps(
                                         {
-                                            "error": f"Downloaded file too large ({size_mb:.1f}MB). Maximum size is 100MB."
+                                            "error": f"Downloaded file too large ({size_mb:.1f}MB). Maximum size is {MAX_FILE_SIZE_MB:.0f}MB."
                                         },
                                         indent=2,
                                     ),
