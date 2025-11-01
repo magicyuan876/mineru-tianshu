@@ -1,37 +1,37 @@
 @echo off
-REM Tianshu (天枢) - Docker Quick Setup for Windows
-REM Windows 用户快速部署脚本
+REM Tianshu - Docker Quick Setup for Windows
+REM Quick deployment script for Windows users
 
 setlocal enabledelayedexpansion
 
 echo ========================================
-echo    Tianshu (天枢) Docker 部署脚本
+echo    Tianshu Docker Setup Script
 echo ========================================
 echo.
 
-REM 切换到项目根目录
+REM Switch to project root directory
 cd /d "%~dp0\.."
 
 REM ============================================================================
-REM 检查 Docker
+REM Check Docker
 REM ============================================================================
 :check_docker
-echo [INFO] 检查 Docker...
+echo [INFO] Checking Docker...
 docker --version >nul 2>&1
 if errorlevel 1 (
-    echo [ERROR] Docker 未安装或未启动
-    echo [INFO] 请先安装 Docker Desktop: https://www.docker.com/products/docker-desktop
+    echo [ERROR] Docker is not installed or not running
+    echo [INFO] Please install Docker Desktop first: https://www.docker.com/products/docker-desktop
     pause
     exit /b 1
 )
-echo [OK] Docker 已安装
+echo [OK] Docker is installed
 
-REM 检查 Docker Compose
+REM Check Docker Compose
 docker-compose --version >nul 2>&1
 if errorlevel 1 (
     docker compose version >nul 2>&1
     if errorlevel 1 (
-        echo [ERROR] Docker Compose 未安装
+        echo [ERROR] Docker Compose is not installed
         pause
         exit /b 1
     )
@@ -39,43 +39,43 @@ if errorlevel 1 (
 ) else (
     set COMPOSE_CMD=docker-compose
 )
-echo [OK] Docker Compose 已安装
+echo [OK] Docker Compose is installed
 echo.
 
 REM ============================================================================
-REM 检查 NVIDIA GPU
+REM Check NVIDIA GPU
 REM ============================================================================
 :check_gpu
-echo [INFO] 检查 GPU 支持...
+echo [INFO] Checking GPU support...
 nvidia-smi >nul 2>&1
 if errorlevel 1 (
-    echo [WARNING] 未检测到 NVIDIA GPU，将以 CPU 模式运行
+    echo [WARNING] NVIDIA GPU not detected, will run in CPU mode
 ) else (
-    echo [OK] 检测到 NVIDIA GPU
+    echo [OK] NVIDIA GPU detected
     nvidia-smi
 )
 echo.
 
 REM ============================================================================
-REM 主菜单
+REM Main Menu
 REM ============================================================================
 :menu
 echo.
-echo ╔════════════════════════════════════════╗
-echo ║         选择部署选项                   ║
-echo ╚════════════════════════════════════════╝
+echo ========================================
+echo    Select Deployment Option
+echo ========================================
 echo.
-echo   1. 全新部署（配置 + 构建 + 启动）
-echo   2. 启动服务（生产环境）
-echo   3. 启动服务（开发环境）
-echo   4. 停止所有服务
-echo   5. 重启服务
-echo   6. 查看服务状态
-echo   7. 查看日志
-echo   8. 清理所有数据
-echo   0. 退出
+echo   1. Full Deployment (Setup + Build + Start)
+echo   2. Start Services (Production)
+echo   3. Start Services (Development)
+echo   4. Stop All Services
+echo   5. Restart Services
+echo   6. View Service Status
+echo   7. View Logs
+echo   8. Clean All Data
+echo   0. Exit
 echo.
-set /p choice="请输入选项 [0-8]: "
+set /p choice="Please enter option [0-8]: "
 
 if "%choice%"=="1" goto full_setup
 if "%choice%"=="2" goto start_prod
@@ -86,36 +86,36 @@ if "%choice%"=="6" goto status
 if "%choice%"=="7" goto logs
 if "%choice%"=="8" goto clean
 if "%choice%"=="0" goto end
-echo [ERROR] 无效选项
+echo [ERROR] Invalid option
 goto menu
 
 REM ============================================================================
-REM 全新部署
+REM Full Deployment
 REM ============================================================================
 :full_setup
 echo.
-echo [INFO] 开始全新部署...
+echo [INFO] Starting full deployment...
 echo.
 
-REM 配置环境变量
+REM Configure environment variables
 if not exist .env (
     if exist .env.example (
-        echo [INFO] 创建 .env 文件...
+        echo [INFO] Creating .env file...
         copy .env.example .env >nul
-        echo [OK] .env 文件已创建
-        echo [WARNING] 请编辑 .env 文件，特别是 JWT_SECRET_KEY
+        echo [OK] .env file created
+        echo [WARNING] Please edit .env file, especially JWT_SECRET_KEY
         pause
     ) else (
-        echo [ERROR] .env.example 文件不存在
+        echo [ERROR] .env.example file does not exist
         pause
         goto end
     )
 ) else (
-    echo [OK] .env 文件已存在
+    echo [OK] .env file already exists
 )
 
-REM 创建必要目录
-echo [INFO] 创建目录结构...
+REM Create necessary directories
+echo [INFO] Creating directory structure...
 if not exist models mkdir models
 if not exist data\uploads mkdir data\uploads
 if not exist data\output mkdir data\output
@@ -123,87 +123,87 @@ if not exist data\db mkdir data\db
 if not exist logs\backend mkdir logs\backend
 if not exist logs\worker mkdir logs\worker
 if not exist logs\mcp mkdir logs\mcp
-echo [OK] 目录结构创建完成
+echo [OK] Directory structure created
 
-REM 构建镜像
+REM Build images
 echo.
-echo [INFO] 构建 Docker 镜像（首次运行可能需要 10-30 分钟）...
-echo [INFO] 请耐心等待...
+echo [INFO] Building Docker images (first run may take 10-30 minutes)...
+echo [INFO] Please wait patiently...
 %COMPOSE_CMD% build --parallel
 if errorlevel 1 (
-    echo [ERROR] 镜像构建失败
+    echo [ERROR] Image build failed
     pause
     goto end
 )
-echo [OK] 镜像构建完成
+echo [OK] Image build completed
 
-REM 启动服务
+REM Start services
 echo.
-echo [INFO] 启动服务...
+echo [INFO] Starting services...
 %COMPOSE_CMD% up -d
 if errorlevel 1 (
-    echo [ERROR] 服务启动失败
+    echo [ERROR] Service startup failed
     pause
     goto end
 )
 
 echo.
-echo [OK] 等待服务就绪...
+echo [OK] Waiting for services to be ready...
 timeout /t 10 /nobreak >nul
 
 goto show_info
 
 REM ============================================================================
-REM 启动生产环境
+REM Start Production Environment
 REM ============================================================================
 :start_prod
-echo [INFO] 启动生产环境...
+echo [INFO] Starting production environment...
 %COMPOSE_CMD% up -d
 if errorlevel 1 (
-    echo [ERROR] 服务启动失败
+    echo [ERROR] Service startup failed
     pause
     goto menu
 )
 goto show_info
 
 REM ============================================================================
-REM 启动开发环境
+REM Start Development Environment
 REM ============================================================================
 :start_dev
-echo [INFO] 启动开发环境...
+echo [INFO] Starting development environment...
 %COMPOSE_CMD% -f docker-compose.dev.yml up -d
 if errorlevel 1 (
-    echo [ERROR] 服务启动失败
+    echo [ERROR] Service startup failed
     pause
     goto menu
 )
 goto show_info
 
 REM ============================================================================
-REM 停止服务
+REM Stop Services
 REM ============================================================================
 :stop
-echo [INFO] 停止服务...
+echo [INFO] Stopping services...
 %COMPOSE_CMD% down
-echo [OK] 服务已停止
+echo [OK] Services stopped
 pause
 goto menu
 
 REM ============================================================================
-REM 重启服务
+REM Restart Services
 REM ============================================================================
 :restart
-echo [INFO] 重启服务...
+echo [INFO] Restarting services...
 %COMPOSE_CMD% restart
-echo [OK] 服务已重启
+echo [OK] Services restarted
 pause
 goto menu
 
 REM ============================================================================
-REM 查看状态
+REM View Status
 REM ============================================================================
 :status
-echo [INFO] 服务状态:
+echo [INFO] Service status:
 echo.
 %COMPOSE_CMD% ps
 echo.
@@ -211,65 +211,65 @@ pause
 goto menu
 
 REM ============================================================================
-REM 查看日志
+REM View Logs
 REM ============================================================================
 :logs
-echo [INFO] 查看日志（按 Ctrl+C 退出）...
+echo [INFO] Viewing logs (Press Ctrl+C to exit)...
 %COMPOSE_CMD% logs -f
 goto menu
 
 REM ============================================================================
-REM 清理数据
+REM Clean Data
 REM ============================================================================
 :clean
 echo.
-echo [WARNING] 此操作将删除所有数据（包括数据库、上传文件、模型）
-set /p confirm="确认删除? (yes/no): "
+echo [WARNING] This operation will delete all data (including database, uploaded files, models)
+set /p confirm="Confirm deletion? (yes/no): "
 if /i not "%confirm%"=="yes" (
-    echo [INFO] 操作已取消
+    echo [INFO] Operation cancelled
     pause
     goto menu
 )
 
-echo [INFO] 清理数据...
+echo [INFO] Cleaning data...
 %COMPOSE_CMD% down -v
 rmdir /s /q data 2>nul
 rmdir /s /q logs 2>nul
 rmdir /s /q models 2>nul
-echo [OK] 数据已清理
+echo [OK] Data cleaned
 pause
 goto menu
 
 REM ============================================================================
-REM 显示访问信息
+REM Show Access Information
 REM ============================================================================
 :show_info
 echo.
 echo ==========================================
-echo      Tianshu (天枢) 部署完成！
+echo      Tianshu Deployment Complete!
 echo ==========================================
 echo.
-echo [INFO] 服务访问地址:
-echo   - 前端界面: http://localhost:80
-echo   - API 文档: http://localhost:8000/docs
-echo   - Worker:   http://localhost:8001
-echo   - MCP:      http://localhost:8002
+echo [INFO] Service access addresses:
+echo   - Frontend:      http://localhost:80
+echo   - API Docs:      http://localhost:8000/docs
+echo   - Worker:        http://localhost:8001
+echo   - MCP:           http://localhost:8002
 echo.
-echo [INFO] 常用命令:
-echo   - 查看日志: docker-compose logs -f
-echo   - 停止服务: docker-compose down
-echo   - 重启服务: docker-compose restart
-echo   - 查看状态: docker-compose ps
+echo [INFO] Common commands:
+echo   - View logs:      docker-compose logs -f
+echo   - Stop services: docker-compose down
+echo   - Restart:       docker-compose restart
+echo   - View status:   docker-compose ps
 echo.
-echo [WARNING] 首次运行时，模型会自动下载，这可能需要一些时间
-echo [WARNING] 默认管理员账号需要通过注册页面创建
+echo [WARNING] On first run, models will be automatically downloaded, this may take some time
+echo [WARNING] Default admin account needs to be created via registration page
 echo.
 pause
 goto menu
 
 REM ============================================================================
-REM 退出
+REM Exit
 REM ============================================================================
 :end
-echo [INFO] 退出
+echo [INFO] Exiting
 exit /b 0

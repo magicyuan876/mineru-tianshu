@@ -1,266 +1,266 @@
 #!/bin/bash
-# Tianshu (天枢) - Docker 常用命令参�?
-# 这个文件包含了常用的 Docker 操作命令，不是可执行脚本
+# Tianshu - Docker Common Commands Reference
+# This file contains common Docker operation commands, not an executable script
 
 # ============================================================================
-# 构建镜像
+# Build images
 # ============================================================================
 
-# 构建所有镜像（并行构建�?
+# Build all images (parallel build)
 docker-compose build --parallel
 
-# 仅构建后端镜�?
+# Build backend image only
 docker-compose build backend
 
-# 仅构建前端镜�?
+# Build frontend image only
 docker-compose build frontend
 
-# 强制重新构建（不使用缓存�?
+# Force rebuild (no cache)
 docker-compose build --no-cache
 
 # ============================================================================
-# 启动服务
+# Start services
 # ============================================================================
 
-# 启动所有服务（后台运行�?
+# Start all services (background)
 docker-compose up -d
 
-# 启动所有服务（前台运行，查看日志）
+# Start all services (foreground, view logs)
 docker-compose up
 
-# 启动特定服务
+# Start specific services
 docker-compose up -d backend worker
 
-# 启动开发环�?
+# Start development environment
 docker-compose -f docker-compose.dev.yml up -d
 
 # ============================================================================
-# 停止服务
+# Stop services
 # ============================================================================
 
-# 停止所有服务（保留容器�?
+# Stop all services (keep containers)
 docker-compose stop
 
-# 停止并删除容�?
+# Stop and remove containers
 docker-compose down
 
-# 停止并删除容器、卷、网�?
+# Stop and remove containers, volumes, networks
 docker-compose down -v
 
-# 停止特定服务
+# Stop specific service
 docker-compose stop backend
 
 # ============================================================================
-# 重启服务
+# Restart services
 # ============================================================================
 
-# 重启所有服�?
+# Restart all services
 docker-compose restart
 
-# 重启特定服务
+# Restart specific service
 docker-compose restart backend
 
-# 重新加载配置（不停机�?
+# Reload configuration (zero downtime)
 docker-compose up -d --force-recreate --no-deps backend
 
 # ============================================================================
-# 查看状态和日志
+# View status and logs
 # ============================================================================
 
-# 查看所有服务状�?
+# View all service status
 docker-compose ps
 
-# 查看所有服务日�?
+# View all service logs
 docker-compose logs -f
 
-# 查看特定服务日志
+# View specific service logs
 docker-compose logs -f backend
 
-# 查看最�?100 行日�?
+# View last 100 lines of logs
 docker-compose logs --tail=100 backend
 
-# 查看实时日志（带时间戳）
+# View real-time logs (with timestamps)
 docker-compose logs -f --timestamps backend
 
 # ============================================================================
-# 进入容器
+# Enter container
 # ============================================================================
 
-# 进入后端容器
+# Enter backend container
 docker-compose exec backend bash
 
-# 进入 Worker 容器
+# Enter Worker container
 docker-compose exec worker bash
 
-# �?root 身份进入
+# Enter as root user
 docker-compose exec -u root backend bash
 
-# 执行单个命令
+# Execute single command
 docker-compose exec backend python --version
 
 # ============================================================================
-# 调试和测�?
+# Debug and test
 # ============================================================================
 
-# 检�?GPU 是否可用
+# Check if GPU is available
 docker-compose exec worker nvidia-smi
 
-# 测试 PyTorch CUDA
+# Test PyTorch CUDA
 docker-compose exec worker python -c "import torch; print('CUDA:', torch.cuda.is_available())"
 
-# 测试 PaddlePaddle CUDA
+# Test PaddlePaddle CUDA
 docker-compose exec worker python -c "import paddle; print('CUDA:', paddle.device.is_compiled_with_cuda())"
 
-# 查看环境变量
+# View environment variables
 docker-compose exec backend env
 
-# 查看磁盘使用
+# View disk usage
 docker-compose exec backend df -h
 
 # ============================================================================
-# 数据管理
+# Data management
 # ============================================================================
 
-# 备份数据�?
+# Backup database
 docker-compose exec backend cp mineru_tianshu.db mineru_tianshu.db.backup
 
-# 从宿主机复制文件到容�?
+# Copy file from host to container
 docker cp local_file.txt mineru-backend:/app/
 
-# 从容器复制文件到宿主�?
+# Copy file from container to host
 docker cp mineru-backend:/app/logs/backend.log ./
 
-# 清理未使用的 Docker 资源
+# Clean unused Docker resources
 docker system prune -a
 
 # ============================================================================
-# 性能监控
+# Performance monitoring
 # ============================================================================
 
-# 查看容器资源使用
+# View container resource usage
 docker stats
 
-# 查看特定容器资源使用
+# View specific container resource usage
 docker stats mineru-backend mineru-worker
 
-# 查看容器内存限制
+# View container memory limit
 docker-compose exec backend cat /sys/fs/cgroup/memory/memory.limit_in_bytes
 
 # ============================================================================
-# 网络调试
+# Network debugging
 # ============================================================================
 
-# 查看网络
+# View networks
 docker network ls
 
-# 查看网络详情
+# View network details
 docker network inspect mineru-network
 
-# 测试容器间连�?
+# Test inter-container connection
 docker-compose exec backend ping worker
 
-# 测试外部连接
+# Test external connection
 docker-compose exec backend curl -I https://www.google.com
 
 # ============================================================================
-# 镜像管理
+# Image management
 # ============================================================================
 
-# 查看本地镜像
+# View local images
 docker images | grep tianshu
 
-# 删除镜像
+# Delete image
 docker rmi tianshu-backend:latest
 
-# 导出镜像
+# Export image
 docker save -o tianshu-backend.tar tianshu-backend:latest
 
-# 导入镜像
+# Import image
 docker load -i tianshu-backend.tar
 
-# 推送到私有仓库
+# Push to private registry
 docker tag tianshu-backend:latest registry.company.com/tianshu-backend:latest
 docker push registry.company.com/tianshu-backend:latest
 
 # ============================================================================
-# 故障排查
+# Troubleshooting
 # ============================================================================
 
-# 查看容器详细信息
+# View container detailed information
 docker inspect tianshu-backend
 
-# 查看容器启动命令
+# View container startup command
 docker inspect tianshu-backend | grep -A 10 "Cmd"
 
-# 查看容器环境变量
+# View container environment variables
 docker inspect tianshu-backend | grep -A 20 "Env"
 
-# 查看容器挂载�?
+# View container mounts
 docker inspect tianshu-backend | grep -A 10 "Mounts"
 
-# 强制删除异常容器
+# Force delete abnormal container
 docker rm -f tianshu-backend
 
-# 清理所有停止的容器
+# Clean all stopped containers
 docker container prune
 
-# 清理所有未使用的卷
+# Clean all unused volumes
 docker volume prune
 
 # ============================================================================
-# 生产环境部署
+# Production deployment
 # ============================================================================
 
-# 拉取最新镜�?
+# Pull latest images
 docker-compose pull
 
-# 滚动更新（零停机�?
+# Rolling update (zero downtime)
 docker-compose up -d --no-deps --build backend
 
-# 查看服务健康状�?
+# View service health status
 docker-compose ps | grep "healthy"
 
-# 设置服务副本数量（需�?Swarm 模式�?
+# Set service replica count (requires Swarm mode)
 docker service scale tianshu_backend=3
 
 # ============================================================================
-# 开发环境快捷操�?
+# Development environment quick operations
 # ============================================================================
 
-# 重新构建并启动特定服�?
+# Rebuild and start specific service
 docker-compose up -d --build backend
 
-# 查看构建过程
+# View build process
 docker-compose build --progress=plain backend
 
-# 使用特定配置文件
+# Use specific config file
 docker-compose -f docker-compose.yml -f docker-compose.override.yml up -d
 
-# 验证配置文件
+# Validate configuration file
 docker-compose config
 
 # ============================================================================
-# Kubernetes 部署（进阶）
+# Kubernetes deployment (advanced)
 # ============================================================================
 
-# 生成 Kubernetes 配置
+# Generate Kubernetes configuration
 # kompose convert -f docker-compose.yml
 
-# 部署�?Kubernetes
+# Deploy to Kubernetes
 # kubectl apply -f .
 
-# 查看 Pod 状�?
+# View Pod status
 # kubectl get pods
 
-# 查看服务
+# View services
 # kubectl get services
 
 # ============================================================================
-# 注意事项
+# Notes
 # ============================================================================
-# 1. 确保 .env 文件已正确配�?
-# 2. GPU 支持需要安�?NVIDIA Container Toolkit
-# 3. 生产环境建议使用 docker-compose.yml
-# 4. 开发环境使�?docker-compose.dev.yml
-# 5. 定期备份 data/ �?models/ 目录
-# 6. 监控磁盘空间，定期清理日志和临时文件
+# 1. Ensure .env file is properly configured
+# 2. GPU support requires NVIDIA Container Toolkit installation
+# 3. Production environment recommends using docker-compose.yml
+# 4. Development environment uses docker-compose.dev.yml
+# 5. Regularly backup data/ and models/ directories
+# 6. Monitor disk space, regularly clean logs and temporary files

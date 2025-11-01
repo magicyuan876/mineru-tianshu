@@ -1,10 +1,10 @@
 #!/bin/bash
-# Tianshu (天枢) - Docker 快速部署脚本
-# 一键检查依赖、配置环境、启动服务
+# Tianshu - Docker Quick Setup Script
+# One-click dependency check, environment setup, and service startup
 
 set -e
 
-# 颜色输出
+# Color output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -17,90 +17,90 @@ log_warning() { echo -e "${YELLOW}[⚠]${NC} $1"; }
 log_error() { echo -e "${RED}[✗]${NC} $1"; }
 
 # ============================================================================
-# 初始化 Docker Compose 命令
+# Initialize Docker Compose command
 # ============================================================================
 if command -v docker-compose &> /dev/null; then
     COMPOSE_CMD="docker-compose"
 elif docker compose version &> /dev/null 2>&1; then
     COMPOSE_CMD="docker compose"
 else
-    log_error "Docker Compose 未安装或无法使用"
+    log_error "Docker Compose is not installed or unavailable"
     exit 1
 fi
 
 # ============================================================================
-# 检查依赖
+# Check dependencies
 # ============================================================================
 check_dependencies() {
-    log_info "检查系统依赖..."
+    log_info "Checking system dependencies..."
 
-    # 检查 Docker
+    # Check Docker
     if ! command -v docker &> /dev/null; then
-        log_error "Docker 未安装，请先安装 Docker"
-        log_info "安装指南: https://docs.docker.com/get-docker/"
+        log_error "Docker is not installed, please install Docker first"
+        log_info "Installation guide: https://docs.docker.com/get-docker/"
         exit 1
     fi
-    log_success "Docker 已安装: $(docker --version)"
+    log_success "Docker is installed: $(docker --version)"
 
-    # 检查 Docker Compose
+    # Check Docker Compose
     if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
-        log_error "Docker Compose 未安装"
-        log_info "安装指南: https://docs.docker.com/compose/install/"
+        log_error "Docker Compose is not installed"
+        log_info "Installation guide: https://docs.docker.com/compose/install/"
         exit 1
     fi
 
-    log_success "Docker Compose 已安装: $($COMPOSE_CMD version 2>&1 | head -n1)"
+    log_success "Docker Compose is installed: $($COMPOSE_CMD version 2>&1 | head -n1)"
 
-    # 检查 NVIDIA Container Toolkit（GPU 支持）
+    # Check NVIDIA Container Toolkit (GPU support)
     if command -v nvidia-smi &> /dev/null; then
-        log_success "检测到 NVIDIA GPU"
+        log_success "NVIDIA GPU detected"
 
         if docker run --rm --gpus all nvidia/cuda:12.6.2-base-ubuntu22.04 nvidia-smi &> /dev/null; then
-            log_success "NVIDIA Container Toolkit 已正确配置"
+            log_success "NVIDIA Container Toolkit is properly configured"
         else
-            log_warning "NVIDIA Container Toolkit 未配置或配置不正确"
-            log_info "安装指南: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html"
-            log_warning "将以 CPU 模式运行"
+            log_warning "NVIDIA Container Toolkit is not configured or incorrectly configured"
+            log_info "Installation guide: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html"
+            log_warning "Will run in CPU mode"
         fi
     else
-        log_warning "未检测到 NVIDIA GPU，将以 CPU 模式运行"
+        log_warning "NVIDIA GPU not detected, will run in CPU mode"
     fi
 }
 
 # ============================================================================
-# 配置环境
+# Setup environment
 # ============================================================================
 setup_environment() {
-    log_info "配置环境变量..."
+    log_info "Setting up environment variables..."
 
     if [ ! -f .env ]; then
         if [ -f .env.example ]; then
             cp .env.example .env
-            log_success "已创建 .env 文件"
-            log_warning "请编辑 .env 文件，特别是 JWT_SECRET_KEY"
+            log_success ".env file created"
+            log_warning "Please edit .env file, especially JWT_SECRET_KEY"
 
-            # 生成随机 JWT 密钥
+            # Generate random JWT secret
             if command -v openssl &> /dev/null; then
                 JWT_SECRET=$(openssl rand -hex 32)
                 sed -i "s/CHANGE_THIS_TO_A_SECURE_RANDOM_STRING_IN_PRODUCTION/$JWT_SECRET/" .env
-                log_success "已自动生成 JWT_SECRET_KEY"
+                log_success "JWT_SECRET_KEY automatically generated"
             else
-                log_warning "请手动修改 .env 中的 JWT_SECRET_KEY"
+                log_warning "Please manually modify JWT_SECRET_KEY in .env"
             fi
         else
-            log_error ".env.example 文件不存在"
+            log_error ".env.example file does not exist"
             exit 1
         fi
     else
-        log_success ".env 文件已存在"
+        log_success ".env file already exists"
     fi
 }
 
 # ============================================================================
-# 创建必要目录
+# Create necessary directories
 # ============================================================================
 create_directories() {
-    log_info "创建必要的目录..."
+    log_info "Creating necessary directories..."
 
     mkdir -p models
     mkdir -p data/uploads
@@ -110,91 +110,91 @@ create_directories() {
     mkdir -p logs/worker
     mkdir -p logs/mcp
 
-    log_success "目录结构创建完成"
+    log_success "Directory structure created"
 }
 
 # ============================================================================
-# 构建镜像
+# Build images
 # ============================================================================
 build_images() {
-    log_info "构建 Docker 镜像（首次运行可能需要 10-30 分钟）..."
-    log_warning "首次构建需下载大型 AI 包：PaddlePaddle ~1.8GB, PyTorch ~2GB"
+    log_info "Building Docker images (first run may take 10-30 minutes)..."
+    log_warning "First build requires downloading large AI packages: PaddlePaddle ~1.8GB, PyTorch ~2GB"
     echo ""
 
     $COMPOSE_CMD build --parallel
 
-    log_success "镜像构建完成"
+    log_success "Image build completed"
 }
 
 # ============================================================================
-# 启动服务
+# Start services
 # ============================================================================
 start_services() {
     local mode=${1:-prod}
 
     if [ "$mode" = "dev" ]; then
-        log_info "启动开发环境..."
+        log_info "Starting development environment..."
         $COMPOSE_CMD -f docker-compose.dev.yml up -d
     else
-        log_info "启动生产环境..."
+        log_info "Starting production environment..."
         $COMPOSE_CMD up -d
     fi
 
-    log_success "服务启动中..."
+    log_success "Services starting..."
 
-    # 等待服务就绪
-    log_info "等待服务就绪..."
+    # Wait for services to be ready
+    log_info "Waiting for services to be ready..."
     sleep 10
 
-    # 检查服务状态
+    # Check service status
     $COMPOSE_CMD ps
 }
 
 # ============================================================================
-# 显示访问信息
+# Show access information
 # ============================================================================
 show_info() {
     log_success "=========================================="
-    log_success "Tianshu (天枢) 部署完成！"
+    log_success "Tianshu Deployment Complete!"
     log_success "=========================================="
     echo ""
-    log_info "服务访问地址:"
-    echo "  - 前端界面: http://localhost:$(grep FRONTEND_PORT .env | cut -d'=' -f2 || echo 80)"
-    echo "  - API 文档: http://localhost:$(grep API_PORT .env | cut -d'=' -f2 || echo 8000)/docs"
-    echo "  - Worker:   http://localhost:$(grep WORKER_PORT .env | cut -d'=' -f2 || echo 8001)"
-    echo "  - MCP:      http://localhost:$(grep MCP_PORT .env | cut -d'=' -f2 || echo 8002)"
+    log_info "Service access addresses:"
+    echo "  - Frontend:      http://localhost:$(grep FRONTEND_PORT .env | cut -d'=' -f2 || echo 80)"
+    echo "  - API Docs:      http://localhost:$(grep API_PORT .env | cut -d'=' -f2 || echo 8000)/docs"
+    echo "  - Worker:        http://localhost:$(grep WORKER_PORT .env | cut -d'=' -f2 || echo 8001)"
+    echo "  - MCP:           http://localhost:$(grep MCP_PORT .env | cut -d'=' -f2 || echo 8002)"
     echo ""
-    log_info "常用命令:"
-    echo "  - 查看日志: $COMPOSE_CMD logs -f"
-    echo "  - 停止服务: $COMPOSE_CMD down"
-    echo "  - 重启服务: $COMPOSE_CMD restart"
-    echo "  - 查看状态: $COMPOSE_CMD ps"
+    log_info "Common commands:"
+    echo "  - View logs:     $COMPOSE_CMD logs -f"
+    echo "  - Stop services: $COMPOSE_CMD down"
+    echo "  - Restart:       $COMPOSE_CMD restart"
+    echo "  - View status:   $COMPOSE_CMD ps"
     echo ""
-    log_warning "首次运行时，模型会自动下载，这可能需要一些时间"
-    log_warning "默认管理员账号需要通过注册页面创建"
+    log_warning "On first run, models will be automatically downloaded, this may take some time"
+    log_warning "Default admin account needs to be created via registration page"
 }
 
 # ============================================================================
-# 主菜单
+# Main menu
 # ============================================================================
 show_menu() {
     echo ""
     echo "╔════════════════════════════════════════╗"
-    echo "║   Tianshu (天枢) Docker 部署脚本       ║"
+    echo "║   Tianshu Docker Setup Script           ║"
     echo "╚════════════════════════════════════════╝"
     echo ""
-    echo "请选择操作:"
-    echo "  1) 全新部署（检查依赖 + 构建 + 启动）"
-    echo "  2) 仅启动服务（生产环境）"
-    echo "  3) 启动开发环境"
-    echo "  4) 停止所有服务"
-    echo "  5) 重启服务"
-    echo "  6) 查看服务状态"
-    echo "  7) 查看日志"
-    echo "  8) 清理所有数据（危险操作）"
-    echo "  0) 退出"
+    echo "Please select an option:"
+    echo "  1) Full deployment (Check dependencies + Build + Start)"
+    echo "  2) Start services only (Production)"
+    echo "  3) Start development environment"
+    echo "  4) Stop all services"
+    echo "  5) Restart services"
+    echo "  6) View service status"
+    echo "  7) View logs"
+    echo "  8) Clean all data (Dangerous operation)"
+    echo "  0) Exit"
     echo ""
-    read -p "请输入选项 [0-8]: " choice
+    read -p "Please enter option [0-8]: " choice
 
     case $choice in
         1)
@@ -216,14 +216,14 @@ show_menu() {
             show_info
             ;;
         4)
-            log_info "停止服务..."
+            log_info "Stopping services..."
             $COMPOSE_CMD down
-            log_success "服务已停止"
+            log_success "Services stopped"
             ;;
         5)
-            log_info "重启服务..."
+            log_info "Restarting services..."
             $COMPOSE_CMD restart
-            log_success "服务已重启"
+            log_success "Services restarted"
             ;;
         6)
             $COMPOSE_CMD ps
@@ -232,35 +232,35 @@ show_menu() {
             $COMPOSE_CMD logs -f
             ;;
         8)
-            log_warning "此操作将删除所有数据（包括数据库、上传文件、模型）"
-            read -p "确认删除? (yes/no): " confirm
+            log_warning "This operation will delete all data (including database, uploaded files, models)"
+            read -p "Confirm deletion? (yes/no): " confirm
             if [ "$confirm" = "yes" ]; then
                 $COMPOSE_CMD down -v
                 rm -rf data/ logs/ models/
-                log_success "数据已清理"
+                log_success "Data cleaned"
             else
-                log_info "操作已取消"
+                log_info "Operation cancelled"
             fi
             ;;
         0)
-            log_info "退出"
+            log_info "Exiting"
             exit 0
             ;;
         *)
-            log_error "无效选项"
+            log_error "Invalid option"
             show_menu
             ;;
     esac
 }
 
 # ============================================================================
-# 入口
+# Entry point
 # ============================================================================
 main() {
-    # 切换到项目根目录
+    # Switch to project root directory
     cd "$(dirname "$0")/.."
 
-    # 如果有参数，直接执行
+    # If arguments provided, execute directly
     if [ $# -gt 0 ]; then
         case $1 in
             setup)
@@ -281,13 +281,13 @@ main() {
                 $COMPOSE_CMD down
                 ;;
             *)
-                log_error "未知命令: $1"
-                echo "用法: $0 [setup|start|dev|stop]"
+                log_error "Unknown command: $1"
+                echo "Usage: $0 [setup|start|dev|stop]"
                 exit 1
                 ;;
         esac
     else
-        # 显示菜单
+        # Show menu
         show_menu
     fi
 }

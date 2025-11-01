@@ -17,12 +17,21 @@ class TaskDB:
     """任务数据库管理类"""
 
     def __init__(self, db_path=None):
+        # 导入所需模块
+        import os
+        from pathlib import Path
+        
         # 优先使用传入的路径，其次使用环境变量，最后使用默认路径
         if db_path is None:
-            import os
-
-            db_path = os.getenv("DATABASE_PATH", "mineru_tianshu.db")
-        self.db_path = db_path
+            db_path = os.getenv("DATABASE_PATH", "/app/data/db/mineru_tianshu.db")
+            # 确保使用绝对路径
+            db_path = str(Path(db_path).resolve())
+        else:
+            # 确保使用绝对路径
+            db_path = str(Path(db_path).resolve())
+        
+        # 确保 db_path 是绝对路径字符串
+        self.db_path = str(Path(db_path).resolve())
         self._init_db()
 
     def _get_conn(self):
@@ -132,45 +141,72 @@ class TaskDB:
             3. 检查 rowcount 确保更新成功
             4. 如果任务被抢走，立即重试而不是返回 None（避免不必要的等待）
         """
+        from loguru import logger
+        
         for attempt in range(max_retries):
-            with self.get_cursor() as cursor:
-                # 使用事务确保原子性
-                cursor.execute("BEGIN IMMEDIATE")
+            try:
+                with self.get_cursor() as cursor:
+                    # 使用事务确保原子性
+                    cursor.execute("BEGIN IMMEDIATE")
 
-                # 按优先级和创建时间获取任务
-                cursor.execute("""
-                    SELECT * FROM tasks
-                    WHERE status = 'pending'
-                    ORDER BY priority DESC, created_at ASC
-                    LIMIT 1
-                """)
+                    # 按优先级和创建时间获取任务
+                    cursor.execute("""
+                        SELECT * FROM tasks
+                        WHERE status = 'pending'
+                        ORDER BY priority DESC, created_at ASC
+                        LIMIT 1
+                    """)
 
-                task = cursor.fetchone()
-                if task:
-                    # 立即标记为 processing，并确保状态仍是 pending
-                    cursor.execute(
-                        """
-                        UPDATE tasks
-                        SET status = 'processing',
-                            started_at = CURRENT_TIMESTAMP,
-                            worker_id = ?
-                        WHERE task_id = ? AND status = 'pending'
-                    """,
-                        (worker_id, task["task_id"]),
-                    )
+                    task = cursor.fetchone()
+                    if task:
+                        task_id = task["task_id"]
+                        # 立即标记为 processing，并确保状态仍是 pending
+                        cursor.execute(
+                            """
+                            UPDATE tasks
+                            SET status = 'processing',
+                                started_at = CURRENT_TIMESTAMP,
+                                worker_id = ?
+                            WHERE task_id = ? AND status = 'pending'
+                        """,
+                            (worker_id, task_id),
+                        )
 
-                    # 检查是否更新成功（防止被其他 worker 抢走）
-                    if cursor.rowcount == 0:
-                        # 任务被其他进程抢走了，立即重试
-                        # 因为队列中可能还有其他待处理任务
-                        continue
+                        # 检查是否更新成功（防止被其他 worker 抢走）
+                        if cursor.rowcount == 0:
+                            # 任务被其他进程抢走了，立即重试
+                            # 因为队列中可能还有其他待处理任务
+                            if attempt == 0:  # 只在第一次尝试时记录日志
+                                logger.debug(f"Task {task_id} was grabbed by another worker, retrying...")
+                            continue
 
-                    return dict(task)
-                else:
-                    # 队列中没有待处理任务，返回 None
+                        return dict(task)
+                    else:
+                        # 队列中没有待处理任务，返回 None
+                        # 只在第一次尝试时记录调试信息（避免日志过多）
+                        if attempt == 0:
+                            # 检查是否有 pending 任务（用于诊断）
+                            cursor.execute("SELECT COUNT(*) as count FROM tasks WHERE status = 'pending'")
+                            pending_count = cursor.fetchone()["count"]
+                            if pending_count > 0:
+                                logger.warning(
+                                    f"⚠️  Found {pending_count} pending tasks but failed to grab one "
+                                    f"(attempt {attempt + 1}/{max_retries})"
+                                )
+                        return None
+
+            except Exception as e:
+                logger.error(f"❌ Error in get_next_task (attempt {attempt + 1}/{max_retries}): {e}")
+                logger.exception(e)
+                if attempt == max_retries - 1:
+                    # 最后一次尝试失败，返回 None
                     return None
+                # 等待一小段时间后重试
+                import time
+                time.sleep(0.1)
 
         # 重试次数用尽，仍未获取到任务（高并发场景）
+        logger.warning(f"⚠️  Failed to get task after {max_retries} attempts")
         return None
 
     def update_task_status(

@@ -200,11 +200,31 @@ class MinerUWorkerAPI(ls.LitAPI):
         # 初始化任务数据库（从环境变量读取，兼容 Docker 和本地）
         db_path_env = os.getenv("DATABASE_PATH")
         if db_path_env:
-            db_path = Path(db_path_env)
+            db_path = Path(db_path_env).resolve()  # 使用 resolve() 转换为绝对路径
+            logger.info(f"📊 Using DATABASE_PATH from environment: {db_path_env} -> {db_path}")
         else:
-            # 默认路径（本地开发）
-            db_path = Path(__file__).parent / "mineru_tianshu.db"
-        self.task_db = TaskDB(str(db_path))
+            # 默认路径（与 TaskDB 和 AuthDB 保持一致）
+            db_path = Path("/app/data/db/mineru_tianshu.db").resolve()
+            logger.warning(f"⚠️  DATABASE_PATH not set, using default: {db_path}")
+        
+        # 确保数据库目录存在
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # 使用绝对路径字符串传递给 TaskDB
+        db_path_str = str(db_path.absolute())
+        logger.info(f"📊 Database path (absolute): {db_path_str}")
+        
+        self.task_db = TaskDB(db_path_str)
+        
+        # 验证数据库连接并输出初始统计
+        try:
+            stats = self.task_db.get_queue_stats()
+            logger.info(f"📊 Database initialized: {db_path} (exists: {db_path.exists()})")
+            logger.info(f"📊 TaskDB.db_path: {self.task_db.db_path}")
+            logger.info(f"📊 Initial queue stats: {stats}")
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize database or get stats: {e}")
+            logger.exception(e)
 
         # Worker 状态
         self.running = True
@@ -284,16 +304,30 @@ class MinerUWorkerAPI(ls.LitAPI):
         一旦有任务，立即处理，处理完成后继续循环
         """
         logger.info(f"🔁 {self.worker_id} started task polling loop")
+        
+        # 记录初始诊断信息
+        try:
+            stats = self.task_db.get_queue_stats()
+            logger.info(f"📊 Initial queue stats: {stats}")
+            logger.info(f"🗃️  Database path: {self.task_db.db_path}")
+        except Exception as e:
+            logger.error(f"❌ Failed to get initial queue stats: {e}")
+
+        loop_count = 0
+        last_stats_log = 0
+        stats_log_interval = 20  # 每20次循环输出一次统计信息（约10秒）
 
         while self.running:
             try:
+                loop_count += 1
+                
                 # 拉取任务（原子操作，防止重复处理）
                 task = self.task_db.get_next_task(worker_id=self.worker_id)
 
                 if task:
                     task_id = task["task_id"]
                     self.current_task_id = task_id
-                    logger.info(f"📥 {self.worker_id} pulled task: {task_id}")
+                    logger.info(f"📥 {self.worker_id} pulled task: {task_id} (file: {task.get('file_name', 'unknown')})")
 
                     try:
                         # 处理任务
@@ -305,11 +339,35 @@ class MinerUWorkerAPI(ls.LitAPI):
                     finally:
                         self.current_task_id = None
                 else:
-                    # 没有任务，空闲等待（降低日志噪音，不输出 debug 日志）
+                    # 没有任务，空闲等待
+                    # 定期输出统计信息以便诊断
+                    if loop_count - last_stats_log >= stats_log_interval:
+                        try:
+                            stats = self.task_db.get_queue_stats()
+                            pending = stats.get("pending", 0)
+                            processing = stats.get("processing", 0)
+                            
+                            if pending > 0:
+                                logger.warning(
+                                    f"⚠️  {self.worker_id} polling (loop #{loop_count}): "
+                                    f"{pending} pending tasks found but not pulled! "
+                                    f"Processing: {processing}, Completed: {stats.get('completed', 0)}, "
+                                    f"Failed: {stats.get('failed', 0)}"
+                                )
+                            elif loop_count % 100 == 0:  # 每50秒（100次循环）输出一次
+                                logger.info(
+                                    f"💤 {self.worker_id} idle (loop #{loop_count}): "
+                                    f"No pending tasks. Queue stats: {stats}"
+                                )
+                        except Exception as e:
+                            logger.error(f"❌ Failed to get queue stats: {e}")
+                        
+                        last_stats_log = loop_count
+                    
                     time.sleep(self.poll_interval)
 
             except Exception as e:
-                logger.error(f"❌ Worker loop error: {e}")
+                logger.error(f"❌ Worker loop error (loop #{loop_count}): {e}")
                 logger.exception(e)
                 time.sleep(self.poll_interval)
 

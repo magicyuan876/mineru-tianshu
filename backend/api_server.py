@@ -50,7 +50,17 @@ app.add_middleware(
 )
 
 # 初始化数据库
-db = TaskDB()
+# 确保使用环境变量中的数据库路径（与 Worker 保持一致）
+db_path_env = os.getenv("DATABASE_PATH")
+if db_path_env:
+    db_path = str(Path(db_path_env).resolve())
+    logger.info(f"📊 API Server using DATABASE_PATH: {db_path_env} -> {db_path}")
+    db = TaskDB(db_path)
+else:
+    logger.warning("⚠️  DATABASE_PATH not set in API Server, using default")
+    # 使用与 Worker 一致的默认路径
+    db_path = "/app/data/db/mineru_tianshu.db"
+    db = TaskDB(db_path)
 auth_db = AuthDB()
 
 # 注册认证路由

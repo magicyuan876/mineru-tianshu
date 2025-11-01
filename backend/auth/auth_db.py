@@ -27,11 +27,18 @@ class AuthDB:
         Args:
             db_path: 数据库文件路径 (复用主数据库)，默认从环境变量读取
         """
+        # 导入所需模块
+        import os
+        from pathlib import Path
+        
         # 优先使用传入的路径，其次使用环境变量，最后使用默认路径
         if db_path is None:
-            import os
-
-            db_path = os.getenv("DATABASE_PATH", "mineru_tianshu.db")
+            db_path = os.getenv("DATABASE_PATH", "/app/data/db/mineru_tianshu.db")
+            # 确保使用绝对路径
+            db_path = str(Path(db_path).resolve())
+        else:
+            # 确保使用绝对路径
+            db_path = str(Path(db_path).resolve())
         self.db_path = db_path
         self._init_db()
 
