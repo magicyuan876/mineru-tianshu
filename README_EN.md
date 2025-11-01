@@ -142,10 +142,6 @@ English | [简体中文](./README.md)
 - Native PDF multi-page support with automatic model download
 - Documentation: [backend/paddleocr_vl/README.md](backend/paddleocr_vl/README.md)
 
-### 2025-10-22
-
-```
-
 ---
 
 ## 🌟 Introduction
@@ -242,7 +238,7 @@ MinerU Tianshu is an **Enterprise-grade AI Data Preprocessing Platform** that co
 
 ### Supported File Formats
 
-- 📄 **PDF and Images** - Multiple GPU-accelerated engines available
+- 📄 **PDF and Images** - Two GPU-accelerated engines available
   - **MinerU**: Complete document parsing with table and formula recognition
   - **PaddleOCR-VL**: Multi-language OCR (109+ languages), auto orientation and layout analysis
 - 📊 **Office Documents** - Word, Excel, PowerPoint (using MarkItDown)
@@ -304,215 +300,573 @@ mineru-server/
 │   │   └── README.md      # Watermark removal documentation
 │   ├── litserve_worker.py # Worker Pool
 │   ├── task_scheduler.py  # Task scheduler
-│   └── start_all.py       # Main entry point
+│   ├── mcp_server.py      # MCP Protocol server (optional)
+│   ├── start_all.py       # Startup script
+│   ├── Dockerfile         # Docker image build file
+│   ├── requirements.txt
+│   ├── README.md          # Backend documentation
+│   └── MCP_GUIDE.md       # MCP integration guide
 │
-├── scripts/                # Deployment scripts
-│   ├── docker-setup.sh    # Docker setup script
-│   ├── docker-setup.bat   # Windows Docker setup script
-│   └── docker-commands.sh # Docker management commands
+├── scripts/               # Deployment and utility scripts
+│   ├── docker-setup.sh          # Linux/Mac Docker deployment script
+│   ├── docker-setup.bat         # Windows Docker deployment script
+│   ├── docker-entrypoint.sh     # Docker container entrypoint
+│   ├── docker-commands.sh       # Docker command reference
+│   └── DOCKER_QUICK_START.txt   # Docker quick start guide
 │
-├── docker-compose.yml     # Production Docker Compose
-├── docker-compose.dev.yml # Development Docker Compose
-├── Makefile               # Build and deployment commands
+├── docker-compose.yml     # Docker Compose production config
+├── docker-compose.dev.yml # Docker Compose development config
+├── Makefile               # Docker shortcuts (make setup/start/stop)
+├── .dockerignore          # Docker build ignore file
 ├── .env.example           # Environment variables template
-└── pyproject.toml         # Project metadata
+├── mcp_config.example.json # MCP configuration example
+└── README.md              # This file
 ```
 
 ## 🚀 Quick Start
 
-### Prerequisites
+Tianshu offers **two deployment options**:
 
-- **Docker** and **Docker Compose** (Recommended)
-- **NVIDIA GPU** with **CUDA 12.6+** (for GPU acceleration)
-- **8GB+ RAM** (16GB+ recommended)
-- **50GB+ Disk Space** (for model downloads and processing)
+### Option 1: Docker Deployment (⭐ Recommended for Enterprise Production)
 
-### One-Click Setup (Recommended)
+**Use Case**: Production deployment, team collaboration, containerization and service orchestration
+
+#### Prerequisites
+
+- **Docker** 20.10+
+- **Docker Compose** 2.0+
+- **NVIDIA Container Toolkit** (for GPU support, optional)
+- 16GB+ RAM
+- 50GB+ available disk space
+
+#### One-Click Deployment
 
 ```bash
-# Clone the repository
-git clone https://github.com/your-username/mineru-tianshu.git
-cd mineru-tianshu
-
-# One-click setup (builds images and starts services)
+# Using Makefile (recommended)
 make setup
 
-# Or on Windows:
-.\scripts\docker-setup.bat
+# Or using deployment scripts
+# Linux/Mac
+./scripts/docker-setup.sh
+
+# Windows
+scripts\docker-setup.bat
 ```
 
-This will:
-1. Build all Docker images
-2. Start all services (API, Workers, Scheduler, Frontend)
-3. Initialize the database
-4. Download required models
+#### Common Commands
 
-### Manual Setup
+```bash
+make start      # Start services
+make stop       # Stop services
+make logs       # View logs
+make status     # Check status
+make dev        # Start development environment
+```
 
-1. **Install Dependencies**:
-   ```bash
-   cd backend
-   pip install -r requirements.txt
-   ```
+#### Service Access
 
-2. **Start Services**:
-   ```bash
-   # Terminal 1: Start API Server
-   cd backend
-   python api_server.py
+- Frontend: <http://localhost:80>
+- API Docs: <http://localhost:8000/docs>
+- Worker: <http://localhost:8001>
+- MCP: <http://localhost:8002>
 
-   # Terminal 2: Start Worker Pool
-   cd backend
-   python litserve_worker.py
+**Detailed Documentation**: See `scripts/DOCKER_QUICK_START.txt`
 
-   # Terminal 3: Start Task Scheduler
-   cd backend
-   python task_scheduler.py
+---
 
-   # Terminal 4: Start Frontend
-   cd frontend
-   npm install
-   npm run dev
-   ```
+### Option 2: Local Development Deployment
 
-3. **Access the Platform**:
-   - **Frontend**: http://localhost:3000
-   - **API Docs**: http://localhost:8000/docs
-   - **Admin Panel**: http://localhost:3000/admin
+**Use Case**: Quick testing, local development, learning and research
+
+#### Prerequisites
+
+- **Node.js** 18+ (frontend)
+- **Python** 3.8+ (backend)
+- **CUDA** (optional, for GPU acceleration)
+
+### Environment Setup (Recommended)
+
+**It is recommended to use the automated installation script**, which will automatically detect your system environment and install all dependencies:
+
+```bash
+# Navigate to backend directory
+cd backend
+
+# Linux/macOS
+bash install.sh
+
+# Windows
+powershell -ExecutionPolicy Bypass -File install.ps1
+```
+
+The installation script will automatically:
+
+- ✅ Check Python version
+- ✅ Install system dependencies (libgomp1, ffmpeg, etc.)
+- ✅ Install Python dependencies (MinerU, FunASR, OCR engines, etc.)
+- ✅ Verify environment configuration
+
+If automatic installation fails, you can manually install dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+### 1. Start Backend Services
+
+```bash
+# Navigate to backend directory (skip if already there)
+cd backend
+
+# Start all services with one command
+python start_all.py
+
+# Enable MCP protocol support (for AI assistant integration)
+python start_all.py --enable-mcp
+```
+
+Backend services will start on the following ports:
+
+- API Server: <http://localhost:8000>
+- API Documentation: <http://localhost:8000/docs>
+- Worker Pool: <http://localhost:9000>
+- MCP Server: <http://localhost:8001> (if enabled)
+
+### 2. Start Frontend Service
+
+```bash
+# Navigate to frontend directory
+cd frontend
+
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+```
+
+Frontend service will start at <http://localhost:3000>
+
+### 3. Access the Application
+
+Open your browser and visit <http://localhost:3000>
 
 ## 📖 Usage Guide
 
-### 1. Authentication
+### Submit a Task
 
-All API endpoints require authentication. Get your JWT token:
+1. Click "Submit Task" in the top navigation bar
+2. Drag and drop or click to upload files (supports batch upload)
+3. Configure parsing options:
+   - Select processing backend (pipeline/vlm-transformers/vlm-vllm-engine/deepseek-ocr)
+     - **pipeline**: MinerU standard pipeline, suitable for general document parsing
+     - **vlm-transformers**: MinerU VLM mode (Transformers)
+     - **vlm-vllm-engine**: MinerU VLM mode (vLLM engine)
+     - **deepseek-ocr**: DeepSeek OCR engine, suitable for high-precision OCR needs
+   - Set document language
+   - Enable formula/table recognition
+   - Set task priority
+4. Click "Submit Task"
 
-```bash
-curl -X POST http://localhost:8000/api/v1/auth/login \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "username=admin&password=admin123"
-```
+### View Task Status
 
-### 2. Submit a Task
+1. Find your task in the dashboard or task list
+2. Click "View" to enter the task details page
+3. Page automatically polls for status updates
+4. When task is completed, you can:
+   - Preview Markdown results
+   - Download Markdown file
+   - View processing time and error messages (if failed)
 
-```bash
-curl -X POST http://localhost:8000/api/v1/tasks/submit \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  -F "file=@document.pdf" \
-  -F "backend=pipeline" \
-  -F "lang=ch"
-```
+### Manage Queue
 
-### 3. Check Task Status
+1. Click "Queue Management" in the top navigation bar
+2. View real-time queue statistics
+3. Perform management operations:
+   - Reset timeout tasks
+   - Clean up old task files
+   - System health check
 
-```bash
-curl -X GET http://localhost:8000/api/v1/tasks/YOUR_TASK_ID \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN"
-```
+## 🎯 Core Features
 
-### 4. View Results
+### Frontend Features
 
-Once completed, the task will return the path to the processed files:
+- **Modern UI**: Beautiful interface based on TailwindCSS
+- **Responsive Design**: Perfect adaptation for desktop and mobile
+- **Real-time Updates**: Automatic refresh of queue statistics and task status
+- **Batch Operations**: Support for batch file upload and task management
+- **Markdown Preview**: Real-time rendering of parsing results with code highlighting
 
-- **Markdown**: `output/task_id/filename.md`
-- **Images**: `output/task_id/images/`
+### Backend Features
 
-## 🛠️ Configuration
+- **Worker Active Pull**: 0.5s response time, no scheduler trigger needed
+- **Concurrency Safe**: Atomic operations prevent task duplication, supports multi-worker concurrency
+- **GPU Load Balancing**: LitServe automatic scheduling, avoiding VRAM conflicts
+- **Multi-GPU Isolation**: Each process only uses allocated GPUs
+- **Automatic Cleanup**: Periodically clean old result files, retain database records
+- **Multiple Parsing Engines**:
+  - **MinerU**: Complete document parsing with table and formula recognition
+  - **PaddleOCR-VL**: Multi-language OCR (109+ languages), document enhancement processing
+  - **MarkItDown**: Office document and web page parsing
+- **MCP Protocol**: AI assistants can call document parsing service via standard protocol
 
-### Environment Variables
+## ⚙️ Configuration
 
-Create a `.env` file based on `.env.example`:
-
-```bash
-# Copy the template
-cp .env.example .env
-
-# Edit the file
-nano .env
-```
-
-Key variables:
-- `JWT_SECRET_KEY`: Secret key for JWT tokens
-- `MINIO_ENDPOINT`: MinIO endpoint for image storage
-- `MINIO_ACCESS_KEY`: MinIO access key
-- `MINIO_SECRET_KEY`: MinIO secret key
-
-### Model Download Sources
-
-To speed up model downloads in China:
-
-```bash
-# Set environment variable
-export MODEL_DOWNLOAD_SOURCE=modelscope
-
-# Or in .env file
-MODEL_DOWNLOAD_SOURCE=modelscope
-```
-
-## 🧪 Experimental Features
-
-### Watermark Removal
-
-Remove watermarks from PDFs and images:
+### Backend Configuration
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/tasks/submit \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  -F "file=@document_with_watermark.pdf" \
-  -F "backend=pipeline" \
-  -F "remove_watermark=true"
+# Custom startup configuration
+python backend/start_all.py \
+  --output-dir /data/output \
+  --api-port 8000 \
+  --worker-port 9000 \
+  --accelerator cuda \
+  --devices 0,1 \
+  --workers-per-device 2
+
+# Enable MCP protocol support
+python backend/start_all.py --enable-mcp --mcp-port 8001
 ```
 
-### Keyframe OCR
+See [backend/README.md](backend/README.md) for details.
 
-Extract keyframes from videos and perform OCR:
+### MCP Protocol Integration
+
+MinerU Tianshu supports **Model Context Protocol (MCP)**, allowing AI assistants (like Claude Desktop) to directly call the document parsing service.
+
+#### What is MCP?
+
+MCP is an open protocol introduced by Anthropic that allows AI assistants to directly call external tools and services without manual API integration.
+
+#### Quick Configuration
+
+**1. Start service with MCP enabled**
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/tasks/submit \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  -F "file=@video.mp4" \
-  -F "backend=video" \
-  -F "enable_keyframe_ocr=true" \
-  -F "ocr_backend=paddleocr-vl"
+cd backend
+python start_all.py --enable-mcp
 ```
+
+After startup, MCP Server will run at `http://localhost:8001/mcp`.
+
+**2. Configure Claude Desktop**
+
+Edit the configuration file (based on your OS):
+
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Linux**: `~/.config/Claude/claude_desktop_config.json`
+
+Add the following content:
+
+```json
+{
+  "mcpServers": {
+    "mineru-tianshu": {
+      "url": "http://localhost:8001/mcp/sse",
+      "transport": "sse"
+    }
+  }
+}
+```
+
+**Remote server deployment:** Replace `localhost` with your server IP:
+
+```json
+{
+  "mcpServers": {
+    "mineru-tianshu": {
+      "url": "http://your-server-ip:8001/mcp/sse",
+      "transport": "sse"
+    }
+  }
+}
+```
+
+**3. Restart Claude Desktop**
+
+After configuration, restart Claude Desktop to apply changes.
+
+**4. Start Using**
+
+In Claude conversation, use natural language directly:
+
+```
+Please help me parse this PDF file: C:/Users/user/document.pdf
+```
+
+or:
+
+```
+Parse this online paper: https://arxiv.org/pdf/2301.12345.pdf
+```
+
+Claude will automatically:
+
+1. Read the file or download URL
+2. Call MinerU Tianshu parsing service
+3. Wait for processing to complete
+4. Return results in Markdown format
+
+#### Supported Features
+
+MCP Server provides 4 tools:
+
+1. **parse_document** - Parse documents to Markdown format
+   - Input methods: Base64 encoding or URL
+   - Supported formats: PDF, images, Office documents, web pages and text
+   - File size: Configurable via MAX_FILE_SIZE in .env (default 500MB)
+
+2. **get_task_status** - Query task status and results
+
+3. **list_tasks** - List recent tasks
+
+4. **get_queue_stats** - Get queue statistics
+
+#### Technical Architecture
+
+```
+Claude Desktop (Client)
+    ↓ MCP Protocol (SSE)
+MCP Server (Port 8001)
+    ↓ HTTP REST API
+API Server (Port 8000)
+    ↓ Task Queue
+LitServe Worker Pool (Port 9000)
+    ↓ GPU Processing
+MinerU / MarkItDown
+```
+
+#### FAQ
+
+**Q: MCP Server won't start?**
+
+- Check if port 8001 is occupied
+- Use `--mcp-port` to specify another port
+
+**Q: Claude Desktop cannot connect?**
+
+1. Confirm MCP Server is running: `curl http://localhost:8001/mcp/sse`
+2. Check if configuration file JSON format is correct
+3. Restart Claude Desktop
+
+**Q: File transfer failed?**
+
+- Small files automatically use Base64 encoding
+- Files exceeding the limit (default 500MB) will return error, adjustable via MAX_FILE_SIZE in .env
+- URL files need to be publicly accessible
+
+**Detailed documentation:** [backend/MCP_GUIDE.md](backend/MCP_GUIDE.md)
+
+### Frontend Configuration
+
+Modify `frontend/.env.development` for development:
+
+```
+VITE_API_BASE_URL=http://localhost:8000
+```
+
+Modify `frontend/.env.production` for production:
+
+```
+VITE_API_BASE_URL=/api
+```
+
+See [frontend/README.md](frontend/README.md) for details.
+
+## 🚢 Production Deployment
+
+### Frontend Build
+
+```bash
+cd frontend
+npm run build
+```
+
+Build artifacts will be in the `frontend/dist/` directory.
+
+### Nginx Configuration Example
+
+```nginx
+server {
+    listen 80;
+    server_name your-domain.com;
+
+    # Frontend static files
+    root /path/to/frontend/dist;
+    index index.html;
+
+    # Frontend routing
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # API proxy to backend
+    location /api/ {
+        proxy_pass http://localhost:8000/api/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+}
+```
+
+### Backend Deployment
+
+Use systemd or supervisor to manage backend services:
+
+```bash
+# Start backend
+cd backend
+python start_all.py --api-port 8000 --worker-port 9000
+```
+
+## 📚 Tech Stack
+
+### Frontend
+
+- Vue 3 (Composition API)
+- TypeScript
+- Vite
+- TailwindCSS
+- Vue Router
+- Pinia
+- Axios
+- Marked (Markdown rendering)
+- Highlight.js (code highlighting)
+- Lucide Vue (icons)
+
+### Backend
+
+- FastAPI
+- LitServe
+- MinerU
+- DeepSeek OCR
+- MarkItDown
+- SQLite
+- Loguru
+- MinIO (optional)
+
+## 🔧 Troubleshooting
+
+### Frontend Cannot Connect to Backend
+
+Check if backend is running normally:
+
+```bash
+curl http://localhost:8000/api/v1/health
+```
+
+Check frontend proxy configuration:
+
+```typescript
+// frontend/vite.config.ts
+server: {
+  proxy: {
+    '/api': {
+      target: 'http://localhost:8000',
+      changeOrigin: true,
+    }
+  }
+}
+```
+
+### Worker Cannot Start
+
+Check GPU availability:
+
+```bash
+nvidia-smi
+```
+
+Check Python dependencies:
+
+```bash
+pip list | grep -E "(mineru|litserve|torch)"
+```
+
+For more troubleshooting:
+
+- [Frontend Troubleshooting](frontend/README.md)
+- [Backend Troubleshooting](backend/README.md)
+
+## 📄 API Documentation
+
+After starting the backend, visit <http://localhost:8000/docs> to view complete API documentation.
+
+Main API endpoints:
+
+- `POST /api/v1/tasks/submit` - Submit task
+- `GET /api/v1/tasks/{task_id}` - Query task status
+- `DELETE /api/v1/tasks/{task_id}` - Cancel task
+- `GET /api/v1/queue/stats` - Get queue statistics
+- `GET /api/v1/queue/tasks` - Get task list
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-## 📄 License
-
-This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENSE) file for details.
+Issues and Pull Requests are welcome!
 
 ## 🙏 Acknowledgments
 
-- [MinerU](https://github.com/opendatalab/MinerU) - Core document parsing engine
+This project is built upon the following excellent open-source projects:
+
+**Core Engines**
+
+- [MinerU](https://github.com/opendatalab/MinerU) - PDF/Image document parsing
 - [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR) - Multi-language OCR engine
-- [SenseVoice](https://github.com/FunAudioLLM/SenseVoice) - Audio processing engine
-- [YOLO11](https://github.com/ultralytics/ultralytics) - Object detection for watermark removal
-- [LaMa](https://github.com/saic-mdal/lama) - Image inpainting for watermark removal
-- [FastAPI](https://fastapi.tiangolo.com/) - Backend framework
-- [Vue 3](https://vuejs.org/) - Frontend framework
-- [LitServe](https://github.com/Lightning-AI/litserve) - GPU load balancing
+- [SenseVoice](https://github.com/FunAudioLLM/SenseVoice) - Speech recognition & speaker diarization
+- [FunASR](https://github.com/modelscope/FunASR) - Speech recognition framework
+- [MarkItDown](https://github.com/microsoft/markitdown) - Document conversion tool
 
-## 📞 Support
+**Frameworks & Tools**
 
-For issues, questions, or contributions, please:
-- Open an issue on GitHub
-- Join our Discord community
-- Contact us at support@mineru-tianshu.com
+- [LitServe](https://github.com/Lightning-AI/LitServe) - GPU load balancing
+- [FastAPI](https://fastapi.tiangolo.com/) - Backend web framework
+- [Vue.js](https://vuejs.org/) - Frontend framework
+- [TailwindCSS](https://tailwindcss.com/) - CSS framework
+- [PyTorch](https://pytorch.org/) - Deep learning framework
+
+Thanks to all open-source contributors!
+
+## 📜 License
+
+This project is licensed under the [Apache License 2.0](LICENSE).
+
+```
+Copyright 2024 MinerU Tianshu Contributors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+```
 
 ---
 
 <div align="center">
 
-**Made with ❤️ by the MinerU Tianshu Team**
+**Tianshu** - Enterprise-grade Multi-GPU Document Parsing Service ⚡️
 
-[Documentation](docs/) • [API Reference](backend/README.md) • [Frontend Guide](frontend/README.md)
+*Named after the first star of the Big Dipper, symbolizing core scheduling capabilities*
+
+<br/>
+
+### Like this project?
+
+<a href="https://github.com/magicyuan876/mineru-tianshu/stargazers">
+  <img src="https://img.shields.io/github/stars/magicyuan876/mineru-tianshu?style=social" alt="Stars"/>
+</a>
+<a href="https://github.com/magicyuan876/mineru-tianshu/network/members">
+  <img src="https://img.shields.io/github/forks/magicyuan876/mineru-tianshu?style=social" alt="Forks"/>
+</a>
+
+**Click ⭐ Star to support this project. Thank you!**
 
 </div>
