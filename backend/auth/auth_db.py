@@ -30,7 +30,7 @@ class AuthDB:
         # 导入所需模块
         import os
         from pathlib import Path
-        
+
         # 优先使用传入的路径，其次使用环境变量，最后使用默认路径
         if db_path is None:
             db_path = os.getenv("DATABASE_PATH", "/app/data/db/mineru_tianshu.db")

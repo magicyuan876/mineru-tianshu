@@ -20,7 +20,7 @@ class TaskDB:
         # 导入所需模块
         import os
         from pathlib import Path
-        
+
         # 优先使用传入的路径，其次使用环境变量，最后使用默认路径
         if db_path is None:
             db_path = os.getenv("DATABASE_PATH", "/app/data/db/mineru_tianshu.db")
@@ -29,7 +29,7 @@ class TaskDB:
         else:
             # 确保使用绝对路径
             db_path = str(Path(db_path).resolve())
-        
+
         # 确保 db_path 是绝对路径字符串
         self.db_path = str(Path(db_path).resolve())
         self._init_db()
@@ -142,7 +142,7 @@ class TaskDB:
             4. 如果任务被抢走，立即重试而不是返回 None（避免不必要的等待）
         """
         from loguru import logger
-        
+
         for attempt in range(max_retries):
             try:
                 with self.get_cursor() as cursor:
@@ -203,6 +203,7 @@ class TaskDB:
                     return None
                 # 等待一小段时间后重试
                 import time
+
                 time.sleep(0.1)
 
         # 重试次数用尽，仍未获取到任务（高并发场景）
