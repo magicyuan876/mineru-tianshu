@@ -1,9 +1,14 @@
+#!/usr/bin/env python3
 """
-MinerU Tianshu - Unified Startup Script
-天枢统一启动脚本
+MinerU Tianshu - 启动所有服务
 
-一键启动所有服务：API Server + LitServe Workers + Task Scheduler
-自动检查并下载 OCR 模型（DeepSeek OCR、PaddleOCR-VL）
+1. API Server (FastAPI) - 端口 8000
+2. LitServe Worker Pool - 端口 9000
+3. Task Scheduler (可选) - 后台任务调度
+4. MCP Server (可选) - 端口 8001
+
+自动检查并下载 OCR 模型（PaddleOCR-VL）
+支持 GPU 加速、任务队列、优先级管理
 """
 
 import subprocess
@@ -44,55 +49,7 @@ class TianshuLauncher:
         """检查并下载所有 OCR 模型（异步，不阻塞启动）"""
         import threading
 
-        # 1. 检查 DeepSeek OCR 模型
-        def check_deepseek():
-            try:
-                from deepseek_ocr import DeepSeekOCREngine
-
-                logger.info("🔍 Checking DeepSeek OCR model...")
-
-                # 获取项目根目录
-                project_root = Path(__file__).parent.parent
-                cache_dir = project_root / "models" / "deepseek_ocr"
-
-                # 检查模型是否已存在
-                model_exists = False
-                local_model_path = cache_dir / "deepseek-ai" / "DeepSeek-OCR"
-
-                if local_model_path.exists():
-                    required_files = [
-                        "config.json",
-                        "tokenizer.json",
-                        "modeling_deepseekocr.py",
-                        "model-00001-of-000001.safetensors",
-                    ]
-                    model_exists = all((local_model_path / f).exists() for f in required_files)
-
-                    if model_exists:
-                        logger.info(f"✅ DeepSeek OCR model found at: {local_model_path}")
-                    else:
-                        missing = [f for f in required_files if not (local_model_path / f).exists()]
-                        logger.warning(f"⚠️  DeepSeek OCR model incomplete, missing: {missing}")
-
-                if not model_exists:
-                    logger.info("📥 DeepSeek OCR model not found, starting download...")
-                    logger.info(f"📁 Download location: {cache_dir}")
-                    logger.info("⏳ This may take a few minutes (5-10GB)...")
-                    logger.info("💡 Tip: Model downloads in background")
-
-                    try:
-                        DeepSeekOCREngine(cache_dir=str(cache_dir), auto_download=True)
-                        logger.info("✅ DeepSeek OCR model download completed!")
-                    except Exception as e:
-                        logger.warning(f"⚠️  DeepSeek OCR model download failed: {e}")
-                        logger.info("   Model will be downloaded on first use")
-
-            except ImportError:
-                logger.debug("DeepSeek OCR not installed, skipping model check")
-            except Exception as e:
-                logger.debug(f"DeepSeek model check skipped: {e}")
-
-        # 2. 检查 PaddleOCR-VL 模型
+        # 1. 检查 PaddleOCR-VL 模型
         def check_paddleocr_vl():
             try:
                 from paddleocr_vl import PaddleOCRVLEngine
@@ -124,12 +81,9 @@ class TianshuLauncher:
             except Exception as e:
                 logger.debug(f"PaddleOCR-VL check skipped: {e}")
 
-        # 在后台线程中并行下载两个模型
-        thread1 = threading.Thread(target=check_deepseek, daemon=True)
-        thread2 = threading.Thread(target=check_paddleocr_vl, daemon=True)
-
-        thread1.start()
-        thread2.start()
+        # 在后台线程中下载模型
+        thread_paddleocr = threading.Thread(target=check_paddleocr_vl, daemon=True)
+        thread_paddleocr.start()
 
     def start_services(self):
         """启动所有服务"""

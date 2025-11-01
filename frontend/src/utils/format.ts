@@ -83,7 +83,6 @@ export function formatDuration(startTime: string | null, endTime: string | null)
 export function formatBackendName(backend: string): string {
   const backendNames: Record<string, string> = {
     'pipeline': 'MinerU Pipeline',
-    'deepseek-ocr': 'DeepSeek OCR',
     'paddleocr-vl': 'PaddleOCR-VL',
     'vlm-transformers': 'VLM Transformers',
     'vlm-vllm-engine': 'VLM vLLM Engine',

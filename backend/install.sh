@@ -1,19 +1,14 @@
 #!/bin/bash
-# MinerU-Server Backend Installation Script
-# This script handles the complex dependency installation for all OCR engines
 
-set -e  # Exit on error
-
-echo "============================================================"
-echo "MinerU-Server Backend Installation"
-echo "============================================================"
+echo "📦 Installing MinerU Tianshu Backend Dependencies..."
 echo ""
-echo "This will install dependencies for:"
-echo "  - MinerU Pipeline"
-echo "  - DeepSeek OCR"
+echo "📋 Installation Options:"
+echo "  - Core Dependencies (Required)"
 echo "  - PaddleOCR-VL"
-echo "  - MarkItDown"
-echo "  - SenseVoice Audio Processing"
+echo "  - Audio Processing (SenseVoice)"
+echo "  - Video Processing"
+echo "  - Watermark Removal"
+echo "  - Format Engines (FASTA/GenBank)"
 echo ""
 echo "Installation Strategy:"
 echo "  1. Install PaddlePaddle first (CUDA 12.6)"
@@ -67,7 +62,7 @@ echo "✓ PyTorch installed"
 # Step 5: Install core packages separately (avoid complex resolution)
 echo ""
 echo "[Step 5/8] Installing OCR engines..."
-cd "$(dirname "$0")"
+cd "$(dirname "$0")" || exit
 pip install "mineru[core]" -i https://pypi.tuna.tsinghua.edu.cn/simple --no-deps || echo "⚠ MinerU install warning (non-critical)"
 pip install "paddleocr[doc-parser]" -i https://pypi.tuna.tsinghua.edu.cn/simple --no-deps || echo "⚠ PaddleOCR install warning (non-critical)"
 pip install transformers==4.46.3 tokenizers==0.20.3 -i https://pypi.tuna.tsinghua.edu.cn/simple --no-deps

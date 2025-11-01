@@ -100,16 +100,6 @@ except ImportError:
     MARKITDOWN_AVAILABLE = False
     logger.warning("⚠️  markitdown not available, Office format parsing will be disabled")
 
-# 尝试导入 DeepSeek OCR
-try:
-    from deepseek_ocr import DeepSeekOCREngine  # noqa: F401
-
-    DEEPSEEK_OCR_AVAILABLE = True
-    logger.info("✅ DeepSeek OCR engine available")
-except ImportError:
-    DEEPSEEK_OCR_AVAILABLE = False
-    logger.info("ℹ️  DeepSeek OCR not available (optional)")
-
 # 尝试导入 PaddleOCR-VL
 try:
     from paddleocr_vl import PaddleOCRVLEngine  # noqa: F401
@@ -190,18 +180,22 @@ class MinerUWorkerAPI(ls.LitAPI):
         # 从环境变量 MODEL_DOWNLOAD_SOURCE 读取配置
         # 支持: modescope, huggingface, auto (默认)
         model_source = os.getenv("MODEL_DOWNLOAD_SOURCE", "auto").lower()
-        
+
         if model_source in ["modescope", "auto"]:
             # 尝试使用 ModelScope（优先）
             try:
-                import modelscope
-                logger.info("📦 Model download source: ModelScope (国内推荐)")
-                logger.info("   Note: ModelScope automatically uses China mirror for faster downloads")
+                import importlib.util
+
+                if importlib.util.find_spec("modelscope") is not None:
+                    logger.info("📦 Model download source: ModelScope (国内推荐)")
+                    logger.info("   Note: ModelScope automatically uses China mirror for faster downloads")
+                else:
+                    raise ImportError("modelscope not found")
             except ImportError:
                 if model_source == "modescope":
                     logger.warning("⚠️  ModelScope not available, falling back to HuggingFace")
                 model_source = "huggingface"
-        
+
         if model_source == "huggingface":
             # 配置 HuggingFace 镜像（从环境变量读取，默认使用国内镜像）
             hf_endpoint = os.getenv("HF_ENDPOINT", "https://hf-mirror.com")
@@ -234,16 +228,16 @@ class MinerUWorkerAPI(ls.LitAPI):
             # 默认路径（与 TaskDB 和 AuthDB 保持一致）
             db_path = Path("/app/data/db/mineru_tianshu.db").resolve()
             logger.warning(f"⚠️  DATABASE_PATH not set, using default: {db_path}")
-        
+
         # 确保数据库目录存在
         db_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         # 使用绝对路径字符串传递给 TaskDB
         db_path_str = str(db_path.absolute())
         logger.info(f"📊 Database path (absolute): {db_path_str}")
-        
+
         self.task_db = TaskDB(db_path_str)
-        
+
         # 验证数据库连接并输出初始统计
         try:
             stats = self.task_db.get_queue_stats()
@@ -265,7 +259,6 @@ class MinerUWorkerAPI(ls.LitAPI):
 
         # 初始化可选的处理引擎
         self.markitdown = MarkItDown() if MARKITDOWN_AVAILABLE else None
-        self.deepseek_ocr_engine = None  # 延迟加载
         self.paddleocr_vl_engine = None  # 延迟加载
         self.sensevoice_engine = None  # 延迟加载
         self.video_engine = None  # 延迟加载
@@ -285,7 +278,6 @@ class MinerUWorkerAPI(ls.LitAPI):
         # 打印可用的引擎
         logger.info("📦 Available Engines:")
         logger.info(f"   • MarkItDown: {'✅' if MARKITDOWN_AVAILABLE else '❌'}")
-        logger.info(f"   • DeepSeek OCR: {'✅' if DEEPSEEK_OCR_AVAILABLE else '❌'}")
         logger.info(f"   • PaddleOCR-VL: {'✅' if PADDLEOCR_VL_AVAILABLE else '❌'}")
         logger.info(f"   • SenseVoice: {'✅' if SENSEVOICE_AVAILABLE else '❌'}")
         logger.info(f"   • Video Engine: {'✅' if VIDEO_ENGINE_AVAILABLE else '❌'}")
@@ -332,7 +324,7 @@ class MinerUWorkerAPI(ls.LitAPI):
         一旦有任务，立即处理，处理完成后继续循环
         """
         logger.info(f"🔁 {self.worker_id} started task polling loop")
-        
+
         # 记录初始诊断信息
         try:
             stats = self.task_db.get_queue_stats()
@@ -348,14 +340,16 @@ class MinerUWorkerAPI(ls.LitAPI):
         while self.running:
             try:
                 loop_count += 1
-                
+
                 # 拉取任务（原子操作，防止重复处理）
                 task = self.task_db.get_next_task(worker_id=self.worker_id)
 
                 if task:
                     task_id = task["task_id"]
                     self.current_task_id = task_id
-                    logger.info(f"📥 {self.worker_id} pulled task: {task_id} (file: {task.get('file_name', 'unknown')})")
+                    logger.info(
+                        f"📥 {self.worker_id} pulled task: {task_id} (file: {task.get('file_name', 'unknown')})"
+                    )
 
                     try:
                         # 处理任务
@@ -374,7 +368,7 @@ class MinerUWorkerAPI(ls.LitAPI):
                             stats = self.task_db.get_queue_stats()
                             pending = stats.get("pending", 0)
                             processing = stats.get("processing", 0)
-                            
+
                             if pending > 0:
                                 logger.warning(
                                     f"⚠️  {self.worker_id} polling (loop #{loop_count}): "
@@ -389,9 +383,9 @@ class MinerUWorkerAPI(ls.LitAPI):
                                 )
                         except Exception as e:
                             logger.error(f"❌ Failed to get queue stats: {e}")
-                        
+
                         last_stats_log = loop_count
-                    
+
                     time.sleep(self.poll_interval)
 
             except Exception as e:
@@ -445,14 +439,7 @@ class MinerUWorkerAPI(ls.LitAPI):
                 logger.info(f"🎬 Processing with video engine: {file_path}")
                 result = self._process_video(file_path, options)
 
-            # 4. 用户指定了 DeepSeek OCR
-            elif backend == "deepseek-ocr":
-                if not DEEPSEEK_OCR_AVAILABLE:
-                    raise ValueError("DeepSeek OCR engine is not available")
-                logger.info(f"🔍 Processing with DeepSeek OCR: {file_path}")
-                result = self._process_with_deepseek_ocr(file_path, options)
-
-            # 5. 用户指定了 PaddleOCR-VL
+            # 4. 用户指定了 PaddleOCR-VL
             elif backend == "paddleocr-vl":
                 if not PADDLEOCR_VL_AVAILABLE:
                     raise ValueError("PaddleOCR-VL engine is not available")
@@ -496,9 +483,7 @@ class MinerUWorkerAPI(ls.LitAPI):
 
                 else:
                     # 没有合适的处理器
-                    supported_formats = (
-                        "PDF, PNG, JPG (MinerU/DeepSeek/PaddleOCR), Audio (SenseVoice), Video, FASTA, GenBank"
-                    )
+                    supported_formats = "PDF, PNG, JPG (MinerU/PaddleOCR), Audio (SenseVoice), Video, FASTA, GenBank"
                     if self.markitdown:
                         supported_formats += ", Office/Text (MarkItDown)"
                     raise ValueError(
@@ -517,13 +502,13 @@ class MinerUWorkerAPI(ls.LitAPI):
                         # 未知的 backend
                         raise ValueError(
                             f"Unknown backend: {backend}. "
-                            f"Supported backends: auto, pipeline, deepseek-ocr, paddleocr-vl, sensevoice, video, fasta, genbank"
+                            f"Supported backends: auto, pipeline, paddleocr-vl, sensevoice, video, fasta, genbank"
                         )
                 else:
                     # 格式引擎不可用
                     raise ValueError(
                         f"Unknown backend: {backend}. "
-                        f"Supported backends: auto, pipeline, deepseek-ocr, paddleocr-vl, sensevoice, video"
+                        f"Supported backends: auto, pipeline, paddleocr-vl, sensevoice, video"
                     )
 
             # 检查 result 是否被正确赋值
@@ -653,33 +638,18 @@ class MinerUWorkerAPI(ls.LitAPI):
             raise FileNotFoundError(f"MinerU output not found in: {output_dir}")
 
     def _process_with_markitdown(self, file_path: str) -> dict:
-        """使用 MarkItDown 处理文档"""
+        """使用 MarkItDown 处理 Office 文档"""
+        if not self.markitdown:
+            raise RuntimeError("MarkItDown is not available")
+
+        # 处理文件
         result = self.markitdown.convert(file_path)
-        content = result.text_content
 
         # 保存结果
         output_file = Path(self.output_dir) / f"{Path(file_path).stem}_markitdown.md"
-        output_file.write_text(content, encoding="utf-8")
+        output_file.write_text(result.text_content, encoding="utf-8")
 
-        return {"result_path": str(output_file), "content": content}
-
-    def _process_with_deepseek_ocr(self, file_path: str, options: dict) -> dict:
-        """使用 DeepSeek OCR 处理图片"""
-        # 延迟加载 DeepSeek OCR（单例模式）
-        if self.deepseek_ocr_engine is None:
-            from deepseek_ocr import DeepSeekOCREngine
-
-            self.deepseek_ocr_engine = DeepSeekOCREngine(device=self.device)
-            logger.info("✅ DeepSeek OCR engine loaded (singleton)")
-
-        # 处理图片
-        result = self.deepseek_ocr_engine.process_image(file_path, output_format="markdown")
-
-        # 保存结果
-        output_file = Path(self.output_dir) / f"{Path(file_path).stem}_deepseek_ocr.md"
-        output_file.write_text(result["markdown"], encoding="utf-8")
-
-        return {"result_path": str(output_file), "content": result["markdown"]}
+        return {"result_path": str(output_file), "content": result.text_content}
 
     def _process_with_paddleocr_vl(self, file_path: str, options: dict) -> dict:
         """使用 PaddleOCR-VL 处理图片或 PDF"""
@@ -866,7 +836,7 @@ class MinerUWorkerAPI(ls.LitAPI):
 
         return {
             "result_path": str(output_dir),  # 返回任务专属目录
-            "content": result["markdown"],
+            "content": result["content"],
             "json_path": str(json_file),
             "json_content": result["json_content"],
         }

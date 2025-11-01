@@ -24,17 +24,6 @@ export async function submitTask(request: SubmitTaskRequest): Promise<SubmitTask
   formData.append('table_enable', String(request.table_enable ?? true))
   formData.append('priority', String(request.priority || 0))
 
-  // DeepSeek OCR 专用参数
-  if (request.deepseek_resolution) {
-    formData.append('deepseek_resolution', request.deepseek_resolution)
-  }
-  if (request.deepseek_prompt_type) {
-    formData.append('deepseek_prompt_type', request.deepseek_prompt_type)
-  }
-  if (request.deepseek_cache_dir) {
-    formData.append('deepseek_cache_dir', request.deepseek_cache_dir)
-  }
-
   // Video 专用参数
   if (request.keep_audio !== undefined) {
     formData.append('keep_audio', String(request.keep_audio))

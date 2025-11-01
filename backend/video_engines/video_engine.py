@@ -246,7 +246,7 @@ class VideoProcessingEngine:
             use_itn: 是否使用逆文本归一化
             keep_audio: 是否保留提取的音频文件
             enable_keyframe_ocr: 是否启用关键帧OCR（默认False，仅音频转写）
-            ocr_backend: OCR引擎（paddleocr-vl/deepseek-ocr）
+            ocr_backend: OCR引擎（paddleocr-vl）
             keep_keyframes: 是否保留关键帧图像
             **kwargs: 其他参数
 

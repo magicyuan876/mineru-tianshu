@@ -48,6 +48,9 @@ node_modules/
 *.log
 logs/
 
+# Data directory
+data/
+
 # Temporary files
 *.tmp
 *.bak

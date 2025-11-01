@@ -104,7 +104,7 @@ curl -X POST http://localhost:8000/api/v1/tasks/submit \
 
 | 参数 | 说明 | 可选值 | 默认值 |
 |------|------|--------|--------|
-| `backend` | 解析引擎 | `pipeline` / `deepseek-ocr` / `paddleocr-vl` | `pipeline` |
+| `backend` | 解析引擎 | `pipeline` / `paddleocr-vl` | `pipeline` |
 
 **注意**: PaddleOCR-VL 新版本会自动识别语言，无需指定 `paddleocr_lang` 参数。模型由 PaddleOCR 自动管理，缓存在 `~/.paddleocr/models/` 目录。
 
@@ -176,7 +176,6 @@ output/
 | Backend | 输出文件 | 格式 | 特点 |
 |---------|---------|------|------|
 | MinerU | `filename.md` | 标准 Markdown | 完整文档解析 |
-| DeepSeek OCR | `filename.md` | 标准 Markdown | 高精度 OCR |
 | PaddleOCR-VL | `filename.md` | 标准 Markdown | 多语言支持 |
 
 ## 🆚 Backend 对比
@@ -184,13 +183,11 @@ output/
 | Backend | 引擎 | 特点 | 适用场景 | GPU 需求 |
 |---------|------|------|----------|----------|
 | `pipeline` | MinerU | 完整文档解析，支持表格、公式 | 通用文档 | 建议使用 |
-| `deepseek-ocr` | DeepSeek OCR | 高精度 OCR，文档理解 | 复杂文档 | 必须使用 |
 | `paddleocr-vl` | PaddleOCR-VL | 100+ 语言，视觉-语言大模型 | 多语言文档 | **必须使用** |
 
 ### 选择建议
 
 - **多语言文档识别** → 选择 `paddleocr-vl`（需要 GPU）
-- **中文/英文高精度** → 选择 `deepseek-ocr`（需要 GPU）
 - **完整文档解析** → 选择 `pipeline`（MinerU，需要 GPU）
 
 ## 🎯 性能对比
@@ -198,14 +195,13 @@ output/
 | Backend | CPU 支持 | GPU 加速 | 多语言 | 表格识别 | 公式识别 |
 |---------|---------|---------|--------|---------|---------|
 | MinerU | ❌ | ✅ | ✅ | ✅ | ✅ |
-| DeepSeek OCR | ❌ | ✅ | ✅ | ✅ | ✅ |
 | PaddleOCR-VL | ❌ | ✅ (必需) | ✅✅ (109+) | ✅ | ✅ |
 
 ## 💡 示例
 
 ### Python 客户端
 
-```python
+```
 import aiohttp
 
 async with aiohttp.ClientSession() as session:
@@ -224,7 +220,7 @@ async with aiohttp.ClientSession() as session:
 
 ### cURL
 
-```bash
+```
 # 中文文档
 curl -X POST http://localhost:8000/api/v1/tasks/submit \
   -F "file=@chinese_doc.pdf" \
@@ -271,7 +267,7 @@ PaddleOCR-VL 会自动管理模型缓存：
 2. **模型管理**: 模型由 PaddleOCR 自动管理，缓存在 `~/.paddleocr/models/`，不支持手动指定路径
 3. **GPU 需求**: PaddleOCR-VL 仅支持 GPU 推理，不支持 CPU 模式
 4. **显存占用**: GPU 模式需要足够的显存
-5. **识别精度**: 对于复杂版面，建议使用 `deepseek-ocr` 或 `pipeline`
+5. **识别精度**: 对于复杂版面，建议使用 `pipeline`
 
 ## 🐛 故障排查
 
@@ -301,21 +297,43 @@ python -c "import paddle; print(paddle.device.is_compiled_with_cuda())"
 
 **解决方案:**
 
-- 确认安装了 GPU 版本的 PaddlePaddle: `pip install paddlepaddle-gpu==3.2.0`
-- 检查 CUDA 驱动是否正确安装（需要 CUDA 12.6）
-- **注意**: PaddleOCR-VL 仅支持 GPU 模式，不支持 CPU 推理
+1. 确保安装了 NVIDIA 驱动和 CUDA
+2. 安装 GPU 版本的 PaddlePaddle：
 
-### 问题 3: 识别效果不佳
+```bash
+pip uninstall paddlepaddle paddlepaddle-gpu
+pip install paddlepaddle-gpu==3.2.0 -i https://www.paddlepaddle.org.cn/packages/stable/cu126/
+```
 
-**建议:**
+3. 验证安装：
 
-1. 确保图片清晰度足够（DPI ≥ 200）
-2. 尝试不同的语言参数
-3. 对于复杂文档，考虑使用 DeepSeek OCR
+```bash
+python -c "import paddle; print(paddle.device.is_compiled_with_cuda())"
+```
+
+### 问题 3: 显存不足
+
+**现象**: 处理大图像时出现 CUDA out of memory 错误
+
+**解决方案:**
+
+1. 降低输入图像的分辨率
+2. 关闭其他占用 GPU 的程序
+3. 使用更小的 batch size（如果支持）
+
+### 问题 4: OCR 结果不准确
+
+**现象**: 识别的文字与图像内容不符
+
+**解决方案:**
+
+1. 检查图像质量，确保清晰度足够
+2. 对于倾斜的文本，可以先进行图像矫正
+3. 对于复杂版面，考虑使用其他 OCR 引擎
 
 ## 📚 参考资料
 
 - [PaddleOCR 官方文档](https://github.com/PaddlePaddle/PaddleOCR)
-- [PaddleOCR 语言支持列表](https://github.com/PaddlePaddle/PaddleOCR/blob/main/doc/doc_ch/multi_languages.md)
-- [PaddlePaddle 安装指南](https://www.paddlepaddle.org.cn/install/quick)
-- [ModelScope 平台](https://www.modelscope.cn/)
+- [PaddlePaddle 官网](https://www.paddlepaddle.org.cn/)
+- [Hugging Face 模型页面](https://huggingface.co/paddlepaddle)
+- [ModelScope 模型页面](https://modelscope.cn/models/paddlepaddle)

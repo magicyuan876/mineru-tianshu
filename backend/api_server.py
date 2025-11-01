@@ -169,20 +169,17 @@ async def submit_task(
     file: UploadFile = File(..., description="文件: PDF/图片/Office/HTML/音频/视频等多种格式"),
     backend: str = Form(
         "auto",
-        description="处理后端: auto (自动选择) | pipeline/deepseek-ocr/paddleocr-vl (文档) | sensevoice (音频) | video (视频) | fasta/genbank (专业格式)",
+        description="处理后端: auto (自动选择) | pipeline/paddleocr-vl (文档) | sensevoice (音频) | video (视频) | fasta/genbank (专业格式)",
     ),
     lang: str = Form("auto", description="语言: auto/ch/en/korean/japan等"),
     method: str = Form("auto", description="解析方法: auto/txt/ocr"),
     formula_enable: bool = Form(True, description="是否启用公式识别"),
     table_enable: bool = Form(True, description="是否启用表格识别"),
     priority: int = Form(0, description="优先级，数字越大越优先"),
-    # DeepSeek OCR 专用参数
-    deepseek_resolution: str = Form("base", description="DeepSeek OCR 分辨率: tiny/small/base/large/dynamic"),
-    deepseek_prompt_type: str = Form("document", description="DeepSeek OCR 提示词类型: document/image/free/figure"),
     # 视频处理专用参数
     keep_audio: bool = Form(False, description="视频处理时是否保留提取的音频文件"),
     enable_keyframe_ocr: bool = Form(False, description="是否启用视频关键帧OCR识别（实验性功能）"),
-    ocr_backend: str = Form("paddleocr-vl", description="关键帧OCR引擎: paddleocr-vl/deepseek-ocr"),
+    ocr_backend: str = Form("paddleocr-vl", description="关键帧OCR引擎: paddleocr-vl"),
     keep_keyframes: bool = Form(False, description="是否保留提取的关键帧图像"),
     # 水印去除专用参数
     remove_watermark: bool = Form(False, description="是否启用水印去除（支持 PDF/图片）"),
@@ -224,9 +221,6 @@ async def submit_task(
                 "method": method,
                 "formula_enable": formula_enable,
                 "table_enable": table_enable,
-                # DeepSeek OCR 参数
-                "deepseek_resolution": deepseek_resolution,
-                "deepseek_prompt_type": deepseek_prompt_type,
                 # 视频处理参数
                 "keep_audio": keep_audio,
                 "enable_keyframe_ocr": enable_keyframe_ocr,
@@ -245,9 +239,6 @@ async def submit_task(
         logger.info(f"   User: {current_user.username} ({current_user.role.value})")
         logger.info(f"   Backend: {backend}")
         logger.info(f"   Priority: {priority}")
-        if backend == "deepseek-ocr":
-            logger.info(f"   DeepSeek Resolution: {deepseek_resolution}")
-            logger.info(f"   DeepSeek Prompt Type: {deepseek_prompt_type}")
 
         return {
             "success": True,
@@ -585,16 +576,6 @@ async def list_engines():
 
     # 动态检测可用引擎
     import importlib.util
-
-    if importlib.util.find_spec("deepseek_ocr") is not None:
-        engines["ocr"].append(
-            {
-                "name": "deepseek_ocr",
-                "display_name": "DeepSeek OCR",
-                "description": "高精度 OCR 引擎，支持多种分辨率和提示词模式",
-                "supported_formats": [".pdf", ".png", ".jpg", ".jpeg"],
-            }
-        )
 
     if importlib.util.find_spec("paddleocr_vl") is not None:
         engines["ocr"].append(

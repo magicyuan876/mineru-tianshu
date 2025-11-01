@@ -258,10 +258,6 @@ class VideoOCREngine:
             from paddleocr_vl import PaddleOCRVLEngine
 
             self._ocr_engine = PaddleOCRVLEngine()
-        elif self.ocr_backend == "deepseek-ocr":
-            from deepseek_ocr import DeepSeekOCREngine
-
-            self._ocr_engine = DeepSeekOCREngine()
         else:
             raise ValueError(f"不支持的 OCR 引擎: {self.ocr_backend}")
 

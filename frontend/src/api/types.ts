@@ -88,7 +88,6 @@ export type Backend =
   | 'pipeline'
   | 'vlm-transformers'
   | 'vlm-vllm-engine'
-  | 'deepseek-ocr'
   | 'paddleocr-vl'
   | 'sensevoice'
   | 'video'
@@ -118,10 +117,6 @@ export interface SubmitTaskRequest {
   formula_enable?: boolean
   table_enable?: boolean
   priority?: number
-  // DeepSeek OCR 专属参数
-  deepseek_resolution?: string
-  deepseek_prompt_type?: string
-  deepseek_cache_dir?: string
   // Video 专属参数
   keep_audio?: boolean
   enable_keyframe_ocr?: boolean

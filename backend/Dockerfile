@@ -1,4 +1,3 @@
-# Tianshu (天枢) Backend - Multi-stage Docker Build
 # 企业级 AI 数据预处理平台 - 支持 GPU 加速的多模态文档处理服务
 #
 # 构建方式:
@@ -80,6 +79,10 @@ RUN pip install -r /tmp/requirements.txt \
     --no-deps \
     -i https://pypi.tuna.tsinghua.edu.cn/simple \
     --break-system-packages || true
+
+RUN pip install --break-system-packages \
+    https://paddle-whl.bj.bcebos.com/nightly/cu126/safetensors/safetensors-0.6.2.dev0-cp38-abi3-linux_x86_64.whl
+
 
 # Step 5: 补充安装缺失的依赖
 RUN pip install -r /tmp/requirements.txt \

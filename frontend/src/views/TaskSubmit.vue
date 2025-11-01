@@ -38,7 +38,6 @@
               <option value="auto">🎯 自动选择（推荐，根据文件类型自动选择最佳引擎）</option>
               <optgroup label="文档解析">
                 <option value="pipeline">MinerU Pipeline（完整解析）</option>
-                <option value="deepseek-ocr">DeepSeek OCR（高精度 OCR）</option>
                 <option value="paddleocr-vl">PaddleOCR-VL（多语言 OCR，109+ 语言）</option>
                 <option value="vlm-transformers">VLM Transformers（视觉语言模型）</option>
                 <option value="vlm-vllm-engine">VLM vLLM Engine（高性能 VLM）</option>
@@ -55,9 +54,7 @@
             <p v-if="config.backend === 'auto'" class="mt-1 text-xs text-gray-500">
               🎯 自动选择: 系统会根据文件扩展名智能选择最合适的引擎进行处理
             </p>
-            <p v-if="config.backend === 'deepseek-ocr'" class="mt-1 text-xs text-gray-500">
-              💡 DeepSeek OCR: 支持 PDF 和图片，提供高精度 OCR 识别
-            </p>
+
             <p v-if="config.backend === 'paddleocr-vl'" class="mt-1 text-xs text-gray-500">
               🌏 PaddleOCR-VL: 自动多语言识别，支持文档方向校正、文本矫正、版面检测
             </p>
@@ -133,41 +130,6 @@
           </p>
         </div>
 
-        <!-- DeepSeek OCR 专属配置 -->
-        <div v-if="config.backend === 'deepseek-ocr'" class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-gray-200">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">
-              分辨率
-              <span class="text-gray-500 font-normal">（影响识别精度）</span>
-            </label>
-            <select
-              v-model="config.deepseek_resolution"
-              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-            >
-              <option value="tiny">Tiny（512×512, 快速预览）</option>
-              <option value="small">Small（640×640, 简单文档）</option>
-              <option value="base">Base（1024×1024, 推荐）</option>
-              <option value="large">Large（1280×1280, 复杂文档）</option>
-              <option value="dynamic">Dynamic（自适应长文档）</option>
-            </select>
-          </div>
-
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">
-              提示词类型
-            </label>
-            <select
-              v-model="config.deepseek_prompt_type"
-              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-            >
-              <option value="document">Document（文档转 Markdown）</option>
-              <option value="image">Image（图片 OCR）</option>
-              <option value="free">Free（自由 OCR）</option>
-              <option value="figure">Figure（图表解析）</option>
-            </select>
-          </div>
-        </div>
-
         <!-- Video 专属配置 -->
         <div v-if="config.backend === 'video'" class="mt-6 pt-6 border-t border-gray-200">
           <h3 class="text-base font-semibold text-gray-900 mb-4">🎬 视频处理选项</h3>
@@ -216,7 +178,6 @@
                     class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                   >
                     <option value="paddleocr-vl">PaddleOCR-VL（推荐，支持多语言）</option>
-                    <option value="deepseek-ocr">DeepSeek OCR（高精度）</option>
                   </select>
                 </div>
 
@@ -278,7 +239,7 @@
         </div>
 
         <!-- 水印去除配置（PDF/图片） -->
-        <div v-if="['pipeline', 'deepseek-ocr', 'paddleocr-vl'].includes(config.backend)" class="mt-6 pt-6 border-t border-gray-200">
+        <div v-if="['pipeline', 'paddleocr-vl'].includes(config.backend)" class="mt-6 pt-6 border-t border-gray-200">
           <h3 class="text-base font-semibold text-gray-900 mb-4">🎨 水印去除选项</h3>
 
           <div class="space-y-4">
@@ -478,9 +439,6 @@ const config = reactive({
   formula_enable: true,
   table_enable: true,
   priority: 0,
-  // DeepSeek OCR 专属配置
-  deepseek_resolution: 'base',
-  deepseek_prompt_type: 'document',
   // Video 专属配置
   keep_audio: false,
   enable_keyframe_ocr: false,

@@ -36,7 +36,6 @@
           >
             <option value="">全部</option>
             <option value="pipeline">MinerU Pipeline</option>
-            <option value="deepseek-ocr">DeepSeek OCR</option>
             <option value="paddleocr-vl">PaddleOCR-VL</option>
             <option value="vlm-transformers">VLM Transformers</option>
             <option value="vlm-vllm-engine">VLM vLLM Engine</option>

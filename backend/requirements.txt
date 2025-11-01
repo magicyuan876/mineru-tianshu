@@ -2,7 +2,6 @@
 # ============================================================================
 # This file contains all dependencies for:
 # - MinerU Pipeline (backend=pipeline)
-# - DeepSeek OCR (backend=deepseek-ocr)
 # - PaddleOCR-VL (backend=paddleocr-vl)
 # - MarkItDown (backend=markitdown)
 # ============================================================================
@@ -40,7 +39,7 @@
 # You MUST install them separately before installing other dependencies.
 # See installation instructions at the top of this file.
 
-# PyTorch (for DeepSeek OCR)
+# PyTorch (已移除 - DeepSeek OCR 已不再使用)
 # Install separately: pip install torch==2.6.0+cu126 --index-url https://download.pytorch.org/whl/cu126
 # torch>=2.6.0
 
@@ -57,9 +56,9 @@ mineru[core]==2.6.2
 # PaddleOCR-VL - Document Parser (Auto language detection for 109+ languages)
 paddleocr[doc-parser]
 
-# Transformers - For DeepSeek OCR
-transformers==4.51.1
-tokenizers==0.21
+# Transformers - For DeepSeek OCR (已移除)
+# transformers==4.51.1
+# tokenizers==0.21
 
 # ============================================================================
 # Image Processing (Shared) - Python 3.12 兼容
@@ -76,11 +75,11 @@ matplotlib>=3.9.0  # Python 3.12 兼容
 contourpy>=1.3.0   # matplotlib 依赖,Python 3.12 兼容
 
 # ============================================================================
-# DeepSeek OCR Specific
+# DeepSeek OCR Specific (已移除)
 # ============================================================================
-einops
-easydict
-addict
+# einops
+# easydict
+# addict
 
 # Flash Attention (optional, skip if NVCC not available)
 # flash-attn>=2.7.3; platform_system=="Linux"

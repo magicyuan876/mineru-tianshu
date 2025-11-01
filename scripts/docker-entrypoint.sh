@@ -89,12 +89,6 @@ check_models() {
     fi
 
     # Check key models
-    if [ -d "$MODEL_PATH/deepseek_ocr" ]; then
-        log_success "DeepSeek OCR model found"
-    else
-        log_warning "DeepSeek OCR model not found, will be automatically downloaded on first run"
-    fi
-
     if [ -d "$MODEL_PATH/paddleocr_vl" ]; then
         log_success "PaddleOCR-VL model found"
     else
