@@ -186,6 +186,34 @@ class MinerUWorkerAPI(ls.LitAPI):
         """
         import socket
 
+        # 配置模型下载源（必须在 MinerU 初始化之前）
+        # 从环境变量 MODEL_DOWNLOAD_SOURCE 读取配置
+        # 支持: modescope, huggingface, auto (默认)
+        model_source = os.getenv("MODEL_DOWNLOAD_SOURCE", "auto").lower()
+        
+        if model_source in ["modescope", "auto"]:
+            # 尝试使用 ModelScope（优先）
+            try:
+                import modelscope
+                logger.info("📦 Model download source: ModelScope (国内推荐)")
+                logger.info("   Note: ModelScope automatically uses China mirror for faster downloads")
+            except ImportError:
+                if model_source == "modescope":
+                    logger.warning("⚠️  ModelScope not available, falling back to HuggingFace")
+                model_source = "huggingface"
+        
+        if model_source == "huggingface":
+            # 配置 HuggingFace 镜像（从环境变量读取，默认使用国内镜像）
+            hf_endpoint = os.getenv("HF_ENDPOINT", "https://hf-mirror.com")
+            os.environ.setdefault("HF_ENDPOINT", hf_endpoint)
+            logger.info(f"📦 Model download source: HuggingFace (via: {hf_endpoint})")
+        elif model_source == "modescope":
+            # 即使使用 ModelScope，也为 MinerU 设置 HuggingFace 镜像（作为备用）
+            # 因为 MinerU 内部部分模型可能仍需要从 HuggingFace 下载
+            hf_endpoint = os.getenv("HF_ENDPOINT", "https://hf-mirror.com")
+            os.environ.setdefault("HF_ENDPOINT", hf_endpoint)
+            logger.info(f"   Also configured HF_ENDPOINT={hf_endpoint} for MinerU compatibility")
+
         self.device = device
         # 从类属性获取配置（由 start_litserve_workers 设置）
         # 默认使用共享输出目录（Docker 环境）

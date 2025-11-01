@@ -68,6 +68,10 @@ services:
 
       # 数据库路径
       - DATABASE_PATH=${DATABASE_PATH:-/app/data/db/mineru_tianshu.db}
+
+      # 模型下载配置
+      - MODEL_DOWNLOAD_SOURCE=${MODEL_DOWNLOAD_SOURCE:-auto}
+      - HF_ENDPOINT=${HF_ENDPOINT:-https://hf-mirror.com}
     deploy:
       resources:
         reservations:
@@ -130,6 +134,10 @@ services:
       # Worker 配置
       - MAX_BATCH_SIZE=${MAX_BATCH_SIZE:-4}
       - TIMEOUT=${WORKER_TIMEOUT:-300}
+
+      # 模型下载配置
+      - MODEL_DOWNLOAD_SOURCE=${MODEL_DOWNLOAD_SOURCE:-auto}
+      - HF_ENDPOINT=${HF_ENDPOINT:-https://hf-mirror.com}
     deploy:
       resources:
         reservations:
