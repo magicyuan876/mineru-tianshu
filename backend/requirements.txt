@@ -1,210 +1,93 @@
-# MinerU-Server Backend Unified Requirements
 # ============================================================================
-# This file contains all dependencies for:
-# - MinerU Pipeline (backend=pipeline)
-# - PaddleOCR-VL (backend=paddleocr-vl)
-# - MarkItDown (backend=markitdown)
+# MinerU-Server Backend Requirements (Final Production Version)
 # ============================================================================
 
-# ============================================================================
-# Installation Instructions for Python 3.12 (IMPORTANT!)
-# ============================================================================
-# 此 requirements.txt 已针对 Python 3.12 优化
-# PyTorch 和 PaddlePaddle 有 CUDA 库冲突,必须分步安装
-#
-# Step 1: 安装系统库 (WSL/Linux)
-#   sudo apt-get update && sudo apt-get install -y libgomp1
-#
-# Step 2: 先安装 PaddlePaddle (官方源)
-#   pip install paddlepaddle-gpu==3.2.0 -i https://www.paddlepaddle.org.cn/packages/stable/cu126/
-#
-# Step 3: 安装 PyTorch (指定 CUDA 版本, 包含 torchaudio for SenseVoice)
-#   pip install torch==2.6.0+cu126 torchvision==0.21.0+cu126 torchaudio==2.6.0+cu126 --index-url https://download.pytorch.org/whl/cu126
-#
-# Step 4: 预先安装 Python 3.12 关键依赖 (避免构建错误)
-#   pip install "kiwisolver>=1.4.5" "Pillow>=11.0.0" "numpy>=1.26.0,<2.0.0" "setuptools>=75.0.0" "lxml>=5.3.0" -i https://pypi.tuna.tsinghua.edu.cn/simple
-#
-# Step 5: 安装其他依赖 (跳过冲突包)
-#   pip install -r requirements.txt --no-deps -i https://pypi.tuna.tsinghua.edu.cn/simple
-#
-# Step 6: 补充安装缺失的依赖
-#   pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
-#
-# ============================================================================
+# 1. 基础科学计算与底层支撑
+numpy==1.26.4
+pandas>=1.3.0
+opencv-python-headless>=4.11.0.86
+shapely>=2.0.0
+pyclipper>=1.3.0
+# [关键修复] 日志提示 paddlex 3.4.1 强依赖 PyYAML 6.0.2
+PyYAML==6.0.2
+psutil
+py-cpuinfo
+seaborn>=0.11.0
+thop>=0.1.1
+# [新增] 修复 FASTA 格式解析报错
+biopython>=1.80
 
-# ============================================================================
-# Core Deep Learning Frameworks
-# ============================================================================
-# IMPORTANT: PyTorch and PaddlePaddle have CUDA library conflicts!
-# You MUST install them separately before installing other dependencies.
-# See installation instructions at the top of this file.
+# 2. MinerU 2.7.6 & 1.2B VLM 必需依赖
+# [关键修复] 补全日志缺失的 botocore, reportlab, pdfminer
+boto3>=1.34.0
+botocore>=1.34.0
+pypdf>=5.1.0
+json-repair>=0.46.2
+# [关键修复] 日志提示 mineru 2.7.6 强依赖 fast-langdetect < 0.3.0
+fast-langdetect>=0.2.3,<0.3.0
+magika>=0.6.2
+pdftext>=0.6.3
+beautifulsoup4>=4.14.0
+scikit-image>=0.25.0
+albumentations>=1.4.11
+reportlab
+pdfminer.six>=20251230
+mineru-vl-utils>=0.1.19.1
+qwen-vl-utils<1,>=0.0.14
 
-# PyTorch (已移除 - DeepSeek OCR 已不再使用)
-# Install separately: pip install torch==2.6.0+cu126 torchvision==0.21.0+cu126 torchaudio==2.6.0+cu126 --index-url https://download.pytorch.org/whl/cu126
-# torch>=2.6.0
-# torchvision>=0.21.0
-# torchaudio>=2.6.0  # Required by FunASR (SenseVoice)
+# 3. Web 服务与 API 架构
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart>=0.0.20
+litserve==0.2.16
+aiohttp==3.11.11
 
-# PaddlePaddle GPU (for PaddleOCR-VL)
-# Install separately: pip install paddlepaddle-gpu==3.2.0 -i https://www.paddlepaddle.org.cn/packages/stable/cu126/
-# paddlepaddle-gpu==3.2.0
-
-# ============================================================================
-# OCR Engines
-# ============================================================================
-# MinerU - Core OCR Pipeline
-mineru[core]==2.6.2
-
-# DocLayout YOLO - Layout detection model (MinerU dependency)
-doclayout-yolo>=0.0.2
-
-# Text cleaning (MinerU Unimernet dependency)
-ftfy>=6.1.0
-
-# PaddleOCR-VL - Document Parser (Auto language detection for 109+ languages)
-paddleocr[doc-parser]
-
-# Transformers - For DeepSeek OCR (已移除)
-# transformers==4.51.1
-# tokenizers==0.21
-
-# ============================================================================
-# Image Processing (Shared) - Python 3.12 兼容
-# ============================================================================
-PyMuPDF>=1.24.0  # PDF processing
-Pillow>=11.0.0   # Image processing (Python 3.12 需要 11.0+)
-img2pdf>=0.5.0   # Image to PDF conversion
-pikepdf>=9.0.0   # Fast PDF manipulation (for PDF splitting, 6-8x faster than pypdf)
-
-# Image Augmentation (MinerU 2.6.2 兼容版本)
-# 注意: albumentations 1.4.x 有 API 变更，MinerU 2.6.2 需要 1.3.x 版本
-albumentations>=1.3.1,<1.4.0
-albucore>=0.0.13,<0.0.17
-kiwisolver>=1.4.5  # Python 3.12 必需
-matplotlib>=3.9.0  # Python 3.12 兼容
-contourpy>=1.3.0   # matplotlib 依赖,Python 3.12 兼容
-
-# ============================================================================
-# DeepSeek OCR Specific (已移除)
-# ============================================================================
-# einops
-# easydict
-# addict
-
-# Flash Attention (optional, skip if NVCC not available)
-# flash-attn>=2.7.3; platform_system=="Linux"
-
-# ============================================================================
-# Audio Processing (SenseVoice with FunASR 1.2.7 Speaker Diarization)
-# ============================================================================
-funasr>=1.2.7  # FunASR framework for SenseVoice with built-in speaker diarization
-ffmpeg-python  # Audio processing (also used by video processing)
-soundfile>=0.12.0  # Audio file I/O (required for audio segment extraction)
-
-# FunASR 1.2.7 自带说话人分离功能（无需额外依赖）
-
-# ============================================================================
-# Video Processing (Keyframe Extraction) - Python 3.12 兼容
-# ============================================================================
-opencv-python>=4.10.0  # Video processing (Python 3.12 需要 4.10+)
-imagehash>=4.3.0       # Perceptual hashing for image deduplication
-numpy>=1.26.0,<2.0.0   # Python 3.12 推荐 1.26.x (避免 2.0 breaking changes)
-
-# ============================================================================
-# Bioinformatics Format Engines (FASTA, GenBank, etc.)
-# ============================================================================
-biopython>=1.80  # Biological sequence parsing (optional but recommended)
-
-# ============================================================================
-# Watermark Removal (YOLO11x + LaMa)
-# ============================================================================
-ultralytics>=8.3.0            # YOLO11 framework for watermark detection
-simple-lama-inpainting>=0.1.0 # LaMa model for high-quality image inpainting
-huggingface-hub>=0.20.0       # Model download from HuggingFace
-
-# ============================================================================
-# Model Download & Management
-# ============================================================================
-modelscope>=1.18.0  # Faster model downloads in China
-
-# ============================================================================
-# Web Framework & API Server (固定版本避免冲突)
-# ============================================================================
-fastapi==0.115.6          # 固定版本
-uvicorn[standard]==0.34.0 # 固定版本
-python-multipart>=0.0.9   # FastAPI 文件上传必需
-
-# LitServe for GPU Load Balancing
-litserve==0.2.16          # 固定版本
-
-# Async HTTP Client
-aiohttp==3.11.11          # 固定版本
-
-# ============================================================================
-# Authentication & Authorization - Python 3.12 兼容
-# ============================================================================
-# JWT Token handling
-pyjwt>=2.9.0
-
-# Password hashing (using standard hashlib)
-# secrets (built-in Python module)
-
-# SSO Integration (Optional)
-authlib>=1.3.0        # OIDC (OpenID Connect) support
-python3-saml>=1.16.0  # SAML 2.0 support
-
-# Pydantic for data validation (Python 3.12 兼容,固定版本)
-pydantic[email]==2.10.5  # Python 3.12 兼容,固定避免冲突
-pydantic-core==2.27.2    # Pydantic 核心依赖
-email-validator>=2.2.0   # Pydantic email 验证依赖
-
-# ============================================================================
-# Utilities - Python 3.12 兼容
-# ============================================================================
-# Logging
-loguru>=0.7.0
-
-# Environment Variable Management
-python-dotenv>=1.0.0
-
-# Office Document Parsing (MarkItDown backend)
-markitdown[all]>=0.1.3
-
-# MinIO Object Storage (optional)
+# 4. 存储、工具库与系统交互
+click>=8.1.7
+requests>=2.32.5
+loguru>=0.7.3
+python-dotenv>=1.0.1
 minio>=7.2.0
-
-# Redis (高性能任务队列 - 可选, 解决 SQLite 并发瓶颈)
 redis>=5.0.0
+markitdown>=0.1.4
+attrdict>=2.0.1
+prettytable
+ujson
+chardet
+ruamel.yaml
+aistudio-sdk>=0.3.5
+# [新增] 用于 Worker 控制 vLLM 容器启停
+docker>=7.0.0
 
-# MCP Protocol Support (固定版本避免依赖冲突)
+# 5. 模型管理与 OpenAI 兼容
+modelscope>=1.34.0
+huggingface-hub>=0.28.0,<1.0.0
+openai>=1.50.0
+
+# 6. 安全、认证与协议
+pyjwt>=2.10.0
+pydantic==2.10.5
+pydantic-core==2.27.2
+email-validator>=2.2.0
 mcp==1.1.2
 sse-starlette==2.2.1
-jsonschema>=4.20.0         # MCP 依赖,固定下限避免回溯
-jsonschema-specifications>=2023.12.1  # 固定避免回溯
+jsonschema>=4.23.0
+jsonschema-specifications>=2024.10.0
 
-# Python 3.12 额外依赖
-typing-extensions>=4.12.0  # Python 3.12 类型支持
-setuptools>=75.0.0         # Python 3.12 构建工具
-lxml>=5.3.0                # Python 3.12 兼容版本 (有预编译 wheel)
+# 7. Python 兼容性与格式处理
+setuptools>=75.0.0
+packaging>=24.0
+typing-extensions>=4.12.0
+lxml>=6.0.0
+regex>=2026.1.15
+PyMuPDF>=1.25.0
+Pillow>=11.0.0
+img2pdf>=0.6.0
+pikepdf>=10.0.0
+matplotlib>=3.10.0
+ftfy>=6.3.0
 
-# ============================================================================
-# System Requirements
-# ============================================================================
-# For PaddlePaddle:
-#   sudo apt-get install -y libgomp1
-#
-# For WSL users:
-#   - Windows NVIDIA driver >= 520.06
-#   - WSL2 (not WSL1)
-#   - Run: nvidia-smi (should show your GPU)
-# ============================================================================
-
-# ============================================================================
-# Verification
-# ============================================================================
-# Test all frameworks:
-#   python -c "import paddle, torch; from transformers import AutoModel; print('✅ All OK')"
-#
-# Test GPU:
-#   python -c "import paddle, torch; print('Paddle CUDA:', paddle.device.is_compiled_with_cuda()); print('PyTorch CUDA:', torch.cuda.is_available())"
-# ============================================================================
+# 8. 音视频解析
+funasr>=1.3.0
+ffmpeg-python>=0.2.0
+soundfile>=0.13.0

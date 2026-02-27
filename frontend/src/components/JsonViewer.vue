@@ -1,7 +1,6 @@
 <template>
   <div class="json-viewer">
-    <!-- 工具栏 -->
-    <div class="toolbar">
+    <div class="toolbar shrink-0">
       <div class="toolbar-left">
         <button
           @click="expandAll"
@@ -9,7 +8,7 @@
           title="展开所有"
         >
           <ChevronDown class="w-4 h-4" />
-          <span>展开所有</span>
+          <span class="hidden sm:inline">展开所有</span>
         </button>
         <button
           @click="collapseAll"
@@ -17,7 +16,7 @@
           title="收起所有"
         >
           <ChevronRight class="w-4 h-4" />
-          <span>收起所有</span>
+          <span class="hidden sm:inline">收起所有</span>
         </button>
         <button
           @click="expandLevel(2)"
@@ -25,7 +24,7 @@
           title="展开到第2层"
         >
           <Layers class="w-4 h-4" />
-          <span>展开2层</span>
+          <span class="hidden sm:inline">展开2层</span>
         </button>
         <div class="toolbar-divider"></div>
         <button
@@ -36,7 +35,7 @@
         >
           <Check v-if="copied" class="w-4 h-4" />
           <Copy v-else class="w-4 h-4" />
-          <span>{{ copied ? '已复制' : '复制' }}</span>
+          <span class="hidden sm:inline">{{ copied ? '已复制' : '复制' }}</span>
         </button>
         <button
           @click="downloadJson"
@@ -44,7 +43,7 @@
           title="下载JSON文件"
         >
           <Download class="w-4 h-4" />
-          <span>下载</span>
+          <span class="hidden sm:inline">下载</span>
         </button>
         <div class="toolbar-divider"></div>
         <button
@@ -54,7 +53,7 @@
           title="切换原始视图"
         >
           <Code class="w-4 h-4" />
-          <span>{{ showRaw ? '树形' : '原始' }}</span>
+          <span class="hidden sm:inline">{{ showRaw ? '树形' : '原始' }}</span>
         </button>
       </div>
       <div class="toolbar-right">
@@ -64,9 +63,7 @@
       </div>
     </div>
 
-    <!-- JSON内容 -->
-    <div class="json-content">
-      <!-- 树形视图 -->
+    <div class="json-content custom-scrollbar">
       <div v-if="!showRaw" class="json-tree">
         <JsonNode
           :data="jsonData"
@@ -76,7 +73,6 @@
         />
       </div>
 
-      <!-- 原始视图 -->
       <div v-else class="json-raw">
         <pre class="text-sm text-gray-800 whitespace-pre-wrap font-mono">{{ JSON.stringify(jsonData, null, 2) }}</pre>
       </div>
@@ -122,10 +118,8 @@ const objectInfo = computed(() => {
   return typeof data
 })
 
-// 获取所有路径
 function getAllPaths(obj: any, currentPath: string[] = []): string[] {
   const paths: string[] = []
-
   if (Array.isArray(obj)) {
     paths.push(currentPath.join('.'))
     obj.forEach((item, index) => {
@@ -143,28 +137,21 @@ function getAllPaths(obj: any, currentPath: string[] = []): string[] {
       }
     })
   }
-
   return paths
 }
 
-// 展开所有
 function expandAll() {
-  const allPaths = getAllPaths(jsonData.value)
-  expandedPaths.value = new Set(allPaths)
+  expandedPaths.value = new Set(getAllPaths(jsonData.value))
 }
 
-// 收起所有
 function collapseAll() {
   expandedPaths.value = new Set()
 }
 
-// 展开到指定层级
 function expandLevel(level: number) {
   const paths: string[] = []
-
   function collectPaths(obj: any, currentPath: string[] = [], currentLevel: number = 0) {
     if (currentLevel >= level) return
-
     if (Array.isArray(obj)) {
       paths.push(currentPath.join('.'))
       obj.forEach((item, index) => {
@@ -181,12 +168,10 @@ function expandLevel(level: number) {
       })
     }
   }
-
   collectPaths(jsonData.value)
   expandedPaths.value = new Set(paths)
 }
 
-// 切换路径展开状态
 function togglePath(path: string[]) {
   const pathStr = path.join('.')
   if (expandedPaths.value.has(pathStr)) {
@@ -196,27 +181,21 @@ function togglePath(path: string[]) {
   }
 }
 
-// 切换原始视图
 function toggleRawView() {
   showRaw.value = !showRaw.value
 }
 
-// 复制到剪贴板
 async function copyToClipboard() {
   try {
     const jsonString = JSON.stringify(jsonData.value, null, 2)
     await navigator.clipboard.writeText(jsonString)
     copied.value = true
-    setTimeout(() => {
-      copied.value = false
-    }, 2000)
+    setTimeout(() => { copied.value = false }, 2000)
   } catch (err) {
-    console.error('复制失败:', err)
     alert('复制失败，请手动选择文本复制')
   }
 }
 
-// 下载JSON文件
 function downloadJson() {
   const jsonString = JSON.stringify(jsonData.value, null, 2)
   const blob = new Blob([jsonString], { type: 'application/json' })
@@ -228,7 +207,6 @@ function downloadJson() {
   URL.revokeObjectURL(url)
 }
 
-// 初始化时展开第2层
 onMounted(() => {
   if (typeof jsonData.value === 'object' && jsonData.value !== null) {
     expandLevel(2)
@@ -237,12 +215,13 @@ onMounted(() => {
 </script>
 
 <style scoped>
+/* 核心布局修复：使用 flex 铺满父级 */
 .json-viewer {
-  @apply bg-gray-50 rounded-lg border border-gray-200 overflow-hidden;
+  @apply bg-gray-50 flex flex-col h-full w-full;
 }
 
 .toolbar {
-  @apply flex items-center justify-between px-4 py-2 bg-white border-b border-gray-200;
+  @apply flex items-center justify-between px-4 py-2 bg-white border-b border-gray-200 shrink-0;
 }
 
 .toolbar-left {
@@ -262,20 +241,21 @@ onMounted(() => {
 }
 
 .toolbar-divider {
-  @apply w-px h-5 bg-gray-300;
+  @apply w-px h-5 bg-gray-300 hidden sm:block;
 }
 
+/* 核心滚动修复：占据剩余空间，并在内部发生溢出滚动 */
 .json-content {
-  @apply p-4 overflow-x-auto;
-  max-height: 600px;
-  overflow-y: auto;
+  @apply p-4 overflow-auto flex-1 min-h-0;
 }
 
-.json-tree {
+.json-tree, .json-raw {
   @apply font-mono text-sm;
 }
 
-.json-raw {
-  @apply font-mono text-sm;
-}
+/* 添加自定义滚动条 */
+.custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; background-clip: content-box;}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
 </style>

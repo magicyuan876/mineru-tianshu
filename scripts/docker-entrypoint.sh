@@ -76,6 +76,25 @@ initialize_directories() {
 }
 
 # ============================================================================
+# Config initialization (✅ 核心修复：自动分发配置文件)
+# ============================================================================
+setup_magic_pdf_config() {
+    log_info "Setting up MinerU configuration (magic-pdf.json)..."
+    
+    # 该文件由 download_models.py 生成到共享卷 /app/models 中
+    CONFIG_SRC="/app/models/magic-pdf.json"
+    
+    if [ -f "$CONFIG_SRC" ]; then
+        # 分发到系统目录和应用目录，替代 docker-compose 的文件映射
+        cp "$CONFIG_SRC" /root/magic-pdf.json
+        cp "$CONFIG_SRC" /app/magic-pdf.json
+        log_success "magic-pdf.json successfully distributed to /root and /app"
+    else
+        log_warning "$CONFIG_SRC not found. MinerU might use default internal settings."
+    fi
+}
+
+# ============================================================================
 # Model initialization
 # ============================================================================
 initialize_models() {
@@ -205,6 +224,10 @@ main() {
     # Run checks (pass service type)
     check_environment "$SERVICE_TYPE"
     initialize_directories
+    
+    # ✅ 在初始化目录后，执行配置分发
+    setup_magic_pdf_config
+    
     initialize_database
 
     # Initialize models before checking (for worker only)

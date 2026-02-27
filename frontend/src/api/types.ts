@@ -85,37 +85,100 @@ export interface APIKeyListResponse {
 
 // ==================== 任务相关类型 ====================
 
-// 任务状态
-export type TaskStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled'
+// 任务状态 (✅ 修复：添加 'paused' 状态)
+export type TaskStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled' | 'paused'
 
 // 后端类型
 export type Backend =
-  | 'auto'  // 自动选择引擎
-  | 'pipeline'
-  | 'vlm-transformers'
-  | 'vlm-vllm-engine'
-  | 'paddleocr-vl'
-  | 'paddleocr-vl-vllm'
+  | 'auto'              // 自动选择引擎
+  | 'pipeline'          // MinerU Pipeline (传统多模型管道)
+  | 'vlm-auto-engine'   // MinerU VLM 自动 (视觉大模型 - 本地)
+  | 'hybrid-auto-engine'// MinerU 混合高精度 (本地)
+  | 'vlm-http-client'   // [新增] MinerU VLM Client (远程)
+  | 'hybrid-http-client'// [新增] MinerU Hybrid Client (远程)
+  | 'paddleocr-vl'      // PaddleOCR-VL v1.5 (0.9B) - 本地推理
+  | 'paddleocr-vl-vllm' // PaddleOCR-VL v1.5 (0.9B) - vLLM 加速
   | 'sensevoice'
   | 'video'
-  | 'fasta'  // FASTA 生物序列格式
-  | 'genbank'  // GenBank 基因序列注释格式
+  | 'fasta'             // FASTA 生物序列格式
+  | 'genbank'           // GenBank 基因序列注释格式
+  | 'vlm-transformers'  // (已废弃，保留兼容)
+  | 'vlm-vllm-engine'   // (已废弃，保留兼容)
 
-// 语言类型
-export type Language = 'auto' | 'ch' | 'en' | 'korean' | 'japan'
+// 语言类型 (扩充以支持 MinerU 所有语言)
+export type Language = 
+  | 'auto' 
+  | 'ch' | 'en' | 'korean' | 'japan' 
+  | 'chinese_cht' // 繁体中文
+  | 'ch_server' | 'ch_lite' 
+  | 'th' // 泰语
+  | 'vi' // 越南语
+  | 'ru' // 俄语
+  | 'ar' // 阿拉伯语
+  | 'fr' // 法语
+  | 'de' // 德语
+  | 'ta' // 泰米尔语
+  | 'te' // 泰卢固语
+  | 'ka' // 卡纳达语
+  | 'el' // 希腊语
+  | 'latin' // 拉丁语系
+  | 'cyrillic' // 西里尔语系
+  | 'devanagari' // 梵文
 
 // 解析方法
 export type ParseMethod = 'auto' | 'txt' | 'ocr'
 
-// 任务配置选项
+// 任务配置选项 (对应数据库存储的 JSON 结构)
 export interface TaskOptions {
   lang: Language
   method: ParseMethod
   formula_enable: boolean
   table_enable: boolean
+  priority?: number
+  
+  // 分页
+  start_page?: number
+  end_page?: number
+  
+  // 远程配置
+  server_url?: string
+
+  // 调试与输出控制
+  draw_layout_bbox?: boolean
+  draw_span_bbox?: boolean
+  dump_markdown?: boolean
+  dump_middle_json?: boolean
+  dump_model_output?: boolean
+  dump_content_list?: boolean
+  dump_orig_pdf?: boolean
+  
+  // 旧字段兼容
+  force_ocr?: boolean
+  draw_layout?: boolean
+  draw_span?: boolean
+
+  // PaddleOCR 专属参数
+  useDocOrientationClassify?: boolean
+  useDocUnwarping?: boolean
+  useLayoutDetection?: boolean
+  useChartRecognition?: boolean
+  useSealRecognition?: boolean
+  useOcrForImageBlock?: boolean
+  mergeTables?: boolean
+  relevelTitles?: boolean
+  layoutShapeMode?: string
+  promptLabel?: string
+  repetitionPenalty?: number
+  temperature?: number
+  topP?: number
+  minPixels?: number
+  maxPixels?: number
+  layoutNms?: boolean
+  restructurePages?: boolean
+  markdownIgnoreLabels?: string[]
 }
 
-// 任务提交请求
+// 任务提交请求 (前端 Form 表单数据)
 export interface SubmitTaskRequest {
   file: File
   backend?: Backend
@@ -124,17 +187,64 @@ export interface SubmitTaskRequest {
   formula_enable?: boolean
   table_enable?: boolean
   priority?: number
+  
+  // 页码范围
+  start_page?: number
+  end_page?: number
+
+  // 远程服务地址 (Client 模式必填)
+  server_url?: string
+
+  // MinerU 详细调试参数
+  draw_layout_bbox?: boolean // 是否绘制布局边框
+  draw_span_bbox?: boolean   // 是否绘制文本Span边框
+  dump_markdown?: boolean
+  dump_middle_json?: boolean
+  dump_model_output?: boolean
+  dump_content_list?: boolean
+  dump_orig_pdf?: boolean
+
+  // 兼容旧字段 (即将废弃)
+  draw_layout?: boolean 
+  draw_span?: boolean    
+  force_ocr?: boolean    
+
   // Video 专属参数
   keep_audio?: boolean
   enable_keyframe_ocr?: boolean
   ocr_backend?: string
   keep_keyframes?: boolean
+
   // 水印去除参数
   remove_watermark?: boolean
   watermark_conf_threshold?: number
   watermark_dilation?: number
+
   // Audio 专属参数 (SenseVoice)
   enable_speaker_diarization?: boolean
+
+  // Office 转换参数
+  convert_office_to_pdf?: boolean
+
+  // PaddleOCR 专属参数
+  useDocOrientationClassify?: boolean
+  useDocUnwarping?: boolean
+  useLayoutDetection?: boolean
+  useChartRecognition?: boolean
+  useSealRecognition?: boolean
+  useOcrForImageBlock?: boolean
+  mergeTables?: boolean
+  relevelTitles?: boolean
+  layoutShapeMode?: string
+  promptLabel?: string
+  repetitionPenalty?: number
+  temperature?: number
+  topP?: number
+  minPixels?: number
+  maxPixels?: number
+  layoutNms?: boolean
+  restructurePages?: boolean
+  markdownIgnoreLabels?: string // ✅ 修改为 string，对应表单中的逗号分隔字符串
 }
 
 // 任务信息
@@ -150,7 +260,16 @@ export interface Task {
   completed_at: string | null
   worker_id: string | null
   retry_count: number
-  result_path: string | null
+  result_path: string | null | 'CLEARED' // ✅ 修复：支持 'CLEARED' 状态标记
+  source_url?: string | null
+  is_parent?: boolean
+  child_count?: number
+  child_completed?: number
+  subtask_progress?: {
+    total: number
+    completed: number
+    percentage: number
+  }
   data?: {
     markdown_file: string
     content: string
@@ -159,6 +278,7 @@ export interface Task {
     json_file?: string
     json_content?: any
     json_available?: boolean
+    pdf_path?: string
   } | null
 }
 
@@ -173,28 +293,8 @@ export interface SubmitTaskResponse {
 }
 
 // 任务状态响应
-export interface TaskStatusResponse {
+export interface TaskStatusResponse extends Task {
   success: boolean
-  task_id: string
-  status: TaskStatus
-  file_name: string
-  backend: Backend
-  priority: number
-  error_message: string | null
-  created_at: string
-  started_at: string | null
-  completed_at: string | null
-  worker_id: string | null
-  retry_count: number
-  data?: {
-    markdown_file: string
-    content: string
-    images_uploaded: boolean
-    has_images: boolean | null
-    json_file?: string
-    json_content?: any
-    json_available?: boolean
-  } | null
   message?: string
 }
 
@@ -215,11 +315,24 @@ export interface QueueStatsResponse {
   timestamp: string
 }
 
+// 任务列表查询参数
+export interface TaskQueryParams {
+  page?: number
+  page_size?: number
+  status?: string
+  backend?: string
+  search?: string
+}
+
 // 任务列表响应
 export interface TaskListResponse {
   success: boolean
+  total: number
+  page: number
+  page_size: number
   count: number
   tasks: Task[]
+  can_view_all?: boolean
 }
 
 // 通用响应

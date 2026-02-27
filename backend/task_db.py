@@ -9,11 +9,17 @@ MinerU Tianshu - SQLite Task Database Manager
     - Redis (可选): 高性能任务队列、优先级调度
     - 当 Redis 可用时，队列操作由 Redis 处理
     - 当 Redis 不可用时，自动回退到 SQLite
+
+更新日志:
+    - [新增] data 字段支持，用于存储 json_content 和 pdf_path 等扩展元数据
+    - [修复] clear_failed_tasks 增加物理文件删除逻辑
 """
 
 import sqlite3
 import json
 import uuid
+import shutil
+import os
 from contextlib import contextmanager
 from typing import Optional, List, Dict
 from pathlib import Path
@@ -138,6 +144,14 @@ class TaskDB:
                 cursor.execute("ALTER TABLE tasks ADD COLUMN user_id TEXT")
                 logger.info("✅ user_id field added")
 
+            # 迁移：添加 data 字段（如果不存在）- 用于存储 pdf_path, json_content 等
+            try:
+                cursor.execute("SELECT data FROM tasks LIMIT 1")
+            except sqlite3.OperationalError:
+                logger.info("📊 Migrating database schema: adding data field")
+                cursor.execute("ALTER TABLE tasks ADD COLUMN data TEXT")
+                logger.info("✅ data field added")
+
     def create_task(
         self,
         file_name: str,
@@ -149,17 +163,6 @@ class TaskDB:
     ) -> str:
         """
         创建新任务
-
-        Args:
-            file_name: 文件名
-            file_path: 文件路径
-            backend: 处理后端 (pipeline/vlm-transformers/vlm-vllm-engine)
-            options: 处理选项 (dict)
-            priority: 优先级，数字越大越优先
-            user_id: 用户ID (可选,用于权限控制)
-
-        Returns:
-            task_id: 任务ID
         """
         task_id = str(uuid.uuid4())
         with self.get_cursor() as cursor:
@@ -184,17 +187,7 @@ class TaskDB:
         return task_id
 
     def _enqueue_to_redis(self, task_id: str, priority: int, task_data: dict = None) -> bool:
-        """
-        将任务加入 Redis 队列
-
-        Args:
-            task_id: 任务ID
-            priority: 优先级
-            task_data: 可选的任务快照数据
-
-        Returns:
-            bool: 是否成功入队到 Redis
-        """
+        """将任务加入 Redis 队列"""
         if not REDIS_QUEUE_AVAILABLE:
             return False
 
@@ -209,24 +202,6 @@ class TaskDB:
     def get_next_task(self, worker_id: str, max_retries: int = 3) -> Optional[Dict]:
         """
         获取下一个待处理任务（原子操作，防止并发冲突）
-
-        Args:
-            worker_id: Worker ID
-            max_retries: 当任务被其他 worker 抢走时的最大重试次数（默认3次）
-
-        Returns:
-            task: 任务字典，如果没有任务返回 None
-
-        并发安全说明（SQLite 模式）：
-            1. 使用 BEGIN IMMEDIATE 立即获取写锁
-            2. UPDATE 时检查 status = 'pending' 防止重复拉取
-            3. 检查 rowcount 确保更新成功
-            4. 如果任务被抢走，立即重试而不是返回 None（避免不必要的等待）
-
-        Redis 模式：
-            1. 使用 BZPOPMIN 原子获取最高优先级任务
-            2. 任务自动移入 processing set
-            3. 从 SQLite 获取完整任务数据
         """
         from loguru import logger
 
@@ -268,7 +243,6 @@ class TaskDB:
                         # 检查是否更新成功（防止被其他 worker 抢走）
                         if cursor.rowcount == 0:
                             # 任务被其他进程抢走了，立即重试
-                            # 因为队列中可能还有其他待处理任务
                             if attempt == 0:  # 只在第一次尝试时记录日志
                                 logger.debug(f"Task {task_id} was grabbed by another worker, retrying...")
                             continue
@@ -276,7 +250,6 @@ class TaskDB:
                         return dict(task)
                     else:
                         # 队列中没有待处理任务，返回 None
-                        # 只在第一次尝试时记录调试信息（避免日志过多）
                         if attempt == 0:
                             # 检查是否有 pending 任务（用于诊断）
                             cursor.execute("SELECT COUNT(*) as count FROM tasks WHERE status = 'pending'")
@@ -292,7 +265,6 @@ class TaskDB:
                 logger.error(f"❌ Error in get_next_task (attempt {attempt + 1}/{max_retries}): {e}")
                 logger.exception(e)
                 if attempt == max_retries - 1:
-                    # 最后一次尝试失败，返回 None
                     return None
                 # 等待一小段时间后重试
                 import time
@@ -304,15 +276,7 @@ class TaskDB:
         return None
 
     def _get_next_task_redis(self, worker_id: str) -> Optional[Dict]:
-        """
-        从 Redis 队列获取下一个任务
-
-        Args:
-            worker_id: Worker ID
-
-        Returns:
-            task: 任务字典，如果 Redis 不可用或无任务返回 None
-        """
+        """从 Redis 队列获取下一个任务"""
         if not REDIS_QUEUE_AVAILABLE:
             return None
 
@@ -332,7 +296,6 @@ class TaskDB:
                 task = cursor.fetchone()
 
                 if not task:
-                    # 任务在 Redis 中但不在 SQLite 中（异常情况）
                     logger.error(f"❌ Task {task_id} found in Redis but not in SQLite")
                     redis_queue.fail(task_id, worker_id, requeue=False)
                     return None
@@ -350,7 +313,6 @@ class TaskDB:
                 )
 
                 if cursor.rowcount == 0:
-                    # 任务状态已经改变（可能被取消等）
                     logger.warning(f"⚠️  Task {task_id} status changed, skipping")
                     redis_queue.fail(task_id, worker_id, requeue=False)
                     return None
@@ -363,65 +325,51 @@ class TaskDB:
             return None
 
     def update_task_status(
-        self, task_id: str, status: str, result_path: str = None, error_message: str = None, worker_id: str = None
+        self,
+        task_id: str,
+        status: str,
+        result_path: str = None,
+        error_message: str = None,
+        worker_id: str = None,
+        data: str = None,  # 新增：接收扩展数据（JSON字符串）
     ):
         """
-        更新任务状态（使用预定义 SQL 模板，防止 SQL 注入）
-
-        Args:
-            task_id: 任务ID
-            status: 新状态 (pending/processing/completed/failed/cancelled)
-            result_path: 结果路径（可选）
-            error_message: 错误信息（可选）
-            worker_id: Worker ID（可选，用于并发检查）
-
-        Returns:
-            bool: 更新是否成功
-
-        并发安全说明：
-            1. 更新为 completed/failed 时会检查状态是 processing
-            2. 如果提供 worker_id，会检查任务是否属于该 worker
-            3. 返回 False 表示任务被其他进程修改了
-
-        安全说明：
-            使用预定义的 SQL 模板，完全避免 SQL 注入风险
+        更新任务状态
         """
         with self.get_cursor() as cursor:
             success = False
 
             # 根据不同状态使用预定义的 SQL 模板
             if status == "completed":
-                # 完成状态：更新状态、完成时间和结果路径
+                # 修复：写入 data 字段
                 if worker_id:
-                    # 带 worker_id 验证
                     sql = """
                         UPDATE tasks
                         SET status = ?,
                             completed_at = CURRENT_TIMESTAMP,
-                            result_path = ?
+                            result_path = ?,
+                            data = ?
                         WHERE task_id = ?
                         AND status = 'processing'
                         AND worker_id = ?
                     """
-                    cursor.execute(sql, (status, result_path, task_id, worker_id))
+                    cursor.execute(sql, (status, result_path, data, task_id, worker_id))
                 else:
-                    # 不验证 worker_id
                     sql = """
                         UPDATE tasks
                         SET status = ?,
                             completed_at = CURRENT_TIMESTAMP,
-                            result_path = ?
+                            result_path = ?,
+                            data = ?
                         WHERE task_id = ?
                         AND status = 'processing'
                     """
-                    cursor.execute(sql, (status, result_path, task_id))
+                    cursor.execute(sql, (status, result_path, data, task_id))
 
                 success = cursor.rowcount > 0
 
             elif status == "failed":
-                # 失败状态：更新状态、完成时间和错误信息
                 if worker_id:
-                    # 带 worker_id 验证
                     sql = """
                         UPDATE tasks
                         SET status = ?,
@@ -433,7 +381,6 @@ class TaskDB:
                     """
                     cursor.execute(sql, (status, error_message, task_id, worker_id))
                 else:
-                    # 不验证 worker_id
                     sql = """
                         UPDATE tasks
                         SET status = ?,
@@ -447,7 +394,6 @@ class TaskDB:
                 success = cursor.rowcount > 0
 
             elif status == "cancelled":
-                # 取消状态：直接更新状态
                 sql = """
                     UPDATE tasks
                     SET status = ?,
@@ -458,7 +404,6 @@ class TaskDB:
                 success = cursor.rowcount > 0
 
             elif status == "pending":
-                # 重置为待处理状态
                 sql = """
                     UPDATE tasks
                     SET status = ?,
@@ -470,7 +415,6 @@ class TaskDB:
                 success = cursor.rowcount > 0
 
             else:
-                # 其他状态（如 processing）：简单更新状态
                 sql = """
                     UPDATE tasks
                     SET status = ?
@@ -492,16 +436,7 @@ class TaskDB:
             return success
 
     def _notify_redis_task_done(self, task_id: str, worker_id: str, status: str):
-        """
-        通知 Redis 任务已完成/失败
-
-        从 processing set 中移除任务
-
-        Args:
-            task_id: 任务ID
-            worker_id: Worker ID
-            status: 最终状态 (completed/failed)
-        """
+        """通知 Redis 任务已完成/失败"""
         if not REDIS_QUEUE_AVAILABLE:
             return
 
@@ -513,31 +448,17 @@ class TaskDB:
                 else:
                     redis_queue.fail(task_id, worker_id, requeue=False)
             except Exception as e:
-                # Redis 清理失败不影响任务完成
                 logger.warning(f"⚠️  Failed to notify Redis about task {task_id}: {e}")
 
     def get_task(self, task_id: str) -> Optional[Dict]:
-        """
-        查询任务详情
-
-        Args:
-            task_id: 任务ID
-
-        Returns:
-            task: 任务字典，如果不存在返回 None
-        """
+        """查询任务详情"""
         with self.get_cursor() as cursor:
             cursor.execute("SELECT * FROM tasks WHERE task_id = ?", (task_id,))
             task = cursor.fetchone()
             return dict(task) if task else None
 
     def get_queue_stats(self) -> Dict[str, int]:
-        """
-        获取队列统计信息
-
-        Returns:
-            stats: 各状态的任务数量，包含 Redis 队列信息（如果可用）
-        """
+        """获取队列统计信息"""
         with self.get_cursor() as cursor:
             cursor.execute("""
                 SELECT status, COUNT(*) as count
@@ -566,16 +487,7 @@ class TaskDB:
         return stats
 
     def get_tasks_by_status(self, status: str, limit: int = 100) -> List[Dict]:
-        """
-        根据状态获取任务列表
-
-        Args:
-            status: 任务状态
-            limit: 返回数量限制
-
-        Returns:
-            tasks: 任务列表
-        """
+        """根据状态获取任务列表"""
         with self.get_cursor() as cursor:
             cursor.execute(
                 """
@@ -588,86 +500,59 @@ class TaskDB:
             )
             return [dict(row) for row in cursor.fetchall()]
 
+    # -------------------------------------------------------------------------
+    # 核心修复：物理删除文件逻辑
+    # -------------------------------------------------------------------------
+    def _delete_task_files(self, task_row):
+        """辅助方法：安全删除任务的源文件和结果目录"""
+        task_id = task_row["task_id"]
+        
+        # 1. 删除上传的源文件
+        if task_row["file_path"]:
+            try:
+                fp = Path(task_row["file_path"])
+                if fp.exists() and fp.is_file():
+                    fp.unlink()
+                    logger.debug(f"Deleted source file for task {task_id}")
+            except Exception as e:
+                logger.warning(f"Failed to delete source file for task {task_id}: {e}")
+        
+        # 2. 删除结果目录
+        if task_row["result_path"]:
+            try:
+                rp = Path(task_row["result_path"])
+                if rp.exists() and rp.is_dir():
+                    shutil.rmtree(rp)
+                    logger.debug(f"Deleted result dir for task {task_id}")
+            except Exception as e:
+                logger.warning(f"Failed to delete result dir for task {task_id}: {e}")
+
     def cleanup_old_task_records(self, days: int = 30):
-        """
-        清理旧任务（同时删除所有相关文件和数据库记录）
-
-        Args:
-            days: 删除多少天前的任务
-
-        Returns:
-            int: 删除的任务记录数
-
-        清理内容：
-            - 上传的原始文件（file_path）
-            - 结果文件夹及其所有内容（result_path，包括生成的文件和中间文件）
-            - 数据库记录
-
-        注意：
-            - 操作不可恢复
-            - 建议设置合理的保留期（如 7-30 天）
-            - 由定时任务自动执行，也可通过管理接口手动触发
-        """
-        from pathlib import Path
-        import shutil
-
+        """清理旧任务"""
         with self.get_cursor() as cursor:
-            # 先查询要删除的任务及其文件路径（包括上传文件和结果文件）
-            cursor.execute(
-                """
+            # 先查询要删除的任务及其文件路径
+            cursor.execute("""
                 SELECT task_id, file_path, result_path FROM tasks
                 WHERE completed_at < datetime('now', '-' || ? || ' days')
                 AND status IN ('completed', 'failed')
-            """,
-                (days,),
-            )
-
+            """, (days,))
             old_tasks = cursor.fetchall()
-
+            
             # 删除所有相关文件
             for task in old_tasks:
-                task_id = task["task_id"]
-
-                # 1. 删除上传的原始文件
-                if task["file_path"]:
-                    file_path = Path(task["file_path"])
-                    if file_path.exists() and file_path.is_file():
-                        try:
-                            file_path.unlink()
-                            logger.debug(f"Deleted upload file for task {task_id}: {file_path.name}")
-                        except Exception as e:
-                            logger.warning(f"Failed to delete upload file for task {task_id}: {e}")
-
-                # 2. 删除结果文件夹（包含所有生成的文件和中间文件）
-                if task["result_path"]:
-                    result_path = Path(task["result_path"])
-                    if result_path.exists() and result_path.is_dir():
-                        try:
-                            shutil.rmtree(result_path)
-                            logger.debug(f"Deleted result directory for task {task_id}: {result_path.name}")
-                        except Exception as e:
-                            logger.warning(f"Failed to delete result files for task {task_id}: {e}")
-
+                self._delete_task_files(task)
+            
             # 删除数据库记录
-            cursor.execute(
-                """
+            cursor.execute("""
                 DELETE FROM tasks
                 WHERE completed_at < datetime('now', '-' || ? || ' days')
                 AND status IN ('completed', 'failed')
-            """,
-                (days,),
-            )
-
-            deleted_count = cursor.rowcount
-            return deleted_count
+            """, (days,))
+            
+            return cursor.rowcount
 
     def reset_stale_tasks(self, timeout_minutes: int = 60):
-        """
-        重置超时的 processing 任务为 pending
-
-        Args:
-            timeout_minutes: 超时时间（分钟）
-        """
+        """重置超时的 processing 任务为 pending"""
         with self.get_cursor() as cursor:
             cursor.execute(
                 """
@@ -683,6 +568,30 @@ class TaskDB:
             reset_count = cursor.rowcount
             return reset_count
 
+    # -------------------------------------------------------------------------
+    # 新增功能：清理失败任务 (包含物理文件删除)
+    # -------------------------------------------------------------------------
+    def clear_failed_tasks(self) -> int:
+        """
+        一键清理所有失败的任务
+        执行步骤: 1.查询路径 -> 2.删除磁盘文件 -> 3.删除数据库记录
+        """
+        with self.get_cursor() as cursor:
+            # 1. 查询所有 failed 任务
+            cursor.execute("SELECT task_id, file_path, result_path FROM tasks WHERE status = 'failed'")
+            failed_tasks = cursor.fetchall()
+            
+            count = 0
+            # 2. 物理删除
+            for task in failed_tasks:
+                self._delete_task_files(task)
+                count += 1
+            
+            # 3. 数据库删除
+            cursor.execute("DELETE FROM tasks WHERE status = 'failed'")
+            logger.info(f"🧹 Cleared {cursor.rowcount} failed tasks (files deleted for {count} tasks)")
+            return cursor.rowcount
+
     # ============================================================================
     # 主子任务支持 (Parent-Child Task Support)
     # ============================================================================
@@ -696,20 +605,7 @@ class TaskDB:
         priority: int = 0,
         user_id: str = None,
     ) -> str:
-        """
-        创建主任务（用于大文件拆分）
-
-        Args:
-            file_name: 原始文件名
-            file_path: 原始文件路径
-            backend: 处理后端
-            options: 处理选项
-            priority: 优先级
-            user_id: 用户ID
-
-        Returns:
-            task_id: 主任务ID
-        """
+        """创建主任务"""
         task_id = str(uuid.uuid4())
         with self.get_cursor() as cursor:
             cursor.execute(
@@ -725,13 +621,7 @@ class TaskDB:
         return task_id
 
     def convert_to_parent_task(self, task_id: str, child_count: int = 0):
-        """
-        将普通任务转换为父任务
-
-        Args:
-            task_id: 任务ID
-            child_count: 子任务数量
-        """
+        """将普通任务转换为父任务"""
         with self.get_cursor() as cursor:
             cursor.execute(
                 """
@@ -753,21 +643,7 @@ class TaskDB:
         priority: int = 0,
         user_id: str = None,
     ) -> str:
-        """
-        创建子任务
-
-        Args:
-            parent_task_id: 父任务ID
-            file_name: 分片文件名
-            file_path: 分片文件路径
-            backend: 处理后端
-            options: 处理选项（包含 chunk_info）
-            priority: 优先级（继承父任务）
-            user_id: 用户ID（继承父任务）
-
-        Returns:
-            task_id: 子任务ID
-        """
+        """创建子任务"""
         task_id = str(uuid.uuid4())
         with self.get_cursor() as cursor:
             # 创建子任务
@@ -804,18 +680,7 @@ class TaskDB:
         return task_id
 
     def on_child_task_completed(self, child_task_id: str) -> Optional[str]:
-        """
-        子任务完成回调
-
-        当子任务完成时调用，更新父任务的完成计数
-        如果所有子任务都完成，返回父任务ID用于触发合并
-
-        Args:
-            child_task_id: 子任务ID
-
-        Returns:
-            parent_task_id: 如果所有子任务完成，返回父任务ID；否则返回 None
-        """
+        """子任务完成回调"""
         with self.get_cursor() as cursor:
             # 获取父任务ID
             cursor.execute(
@@ -868,15 +733,7 @@ class TaskDB:
         return None
 
     def on_child_task_failed(self, child_task_id: str, error_message: str):
-        """
-        子任务失败回调
-
-        当子任务失败时，标记父任务为失败状态
-
-        Args:
-            child_task_id: 子任务ID
-            error_message: 错误信息
-        """
+        """子任务失败回调"""
         with self.get_cursor() as cursor:
             # 获取父任务ID
             cursor.execute(
@@ -909,15 +766,7 @@ class TaskDB:
                 logger.error(f"❌ Parent task {parent_task_id} marked as failed due to subtask failure")
 
     def get_task_with_children(self, task_id: str) -> Optional[Dict]:
-        """
-        获取任务及其所有子任务
-
-        Args:
-            task_id: 任务ID
-
-        Returns:
-            task: 包含 children 字段的任务字典
-        """
+        """获取任务及其所有子任务"""
         with self.get_cursor() as cursor:
             # 获取主任务
             cursor.execute("SELECT * FROM tasks WHERE task_id = ?", (task_id,))
@@ -946,15 +795,7 @@ class TaskDB:
             return parent
 
     def get_child_tasks(self, parent_task_id: str) -> List[Dict]:
-        """
-        获取父任务的所有子任务
-
-        Args:
-            parent_task_id: 父任务ID
-
-        Returns:
-            children: 子任务列表
-        """
+        """获取父任务的所有子任务"""
         with self.get_cursor() as cursor:
             cursor.execute(
                 """
@@ -965,6 +806,75 @@ class TaskDB:
                 (parent_task_id,),
             )
             return [dict(row) for row in cursor.fetchall()]
+
+    # ========================================================================
+    # 新增功能：重试、清理、暂停、恢复、清理缓存
+    # ========================================================================
+
+    def retry_task(self, task_id: str) -> bool:
+        """
+        重试任务：将任务状态重置为 pending，清空错误和时间，重试次数 +1
+        """
+        with self.get_cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE tasks 
+                SET status = 'pending', 
+                    error_message = NULL, 
+                    started_at = NULL, 
+                    completed_at = NULL, 
+                    worker_id = NULL,
+                    retry_count = retry_count + 1
+                WHERE task_id = ?
+                """,
+                (task_id,)
+            )
+            return cursor.rowcount > 0
+
+    def pause_task(self, task_id: str) -> bool:
+        """
+        暂停任务：仅允许暂停处于 pending（排队中）的任务
+        """
+        with self.get_cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE tasks 
+                SET status = 'paused' 
+                WHERE task_id = ? AND status = 'pending'
+                """,
+                (task_id,)
+            )
+            return cursor.rowcount > 0
+
+    def resume_task(self, task_id: str) -> bool:
+        """
+        恢复任务：将 paused 状态的任务重新放回 pending 队列
+        """
+        with self.get_cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE tasks 
+                SET status = 'pending' 
+                WHERE task_id = ? AND status = 'paused'
+                """,
+                (task_id,)
+            )
+            return cursor.rowcount > 0
+
+    def clear_task_cache(self, task_id: str) -> bool:
+        """
+        清理任务缓存：保留数据库历史记录，但将 result_path 标记为已清理
+        """
+        with self.get_cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE tasks 
+                SET result_path = 'CLEARED' 
+                WHERE task_id = ?
+                """,
+                (task_id,)
+            )
+            return cursor.rowcount > 0
 
 
 if __name__ == "__main__":

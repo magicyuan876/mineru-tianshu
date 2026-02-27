@@ -1,5 +1,5 @@
 <template>
-  <div class="markdown-viewer card prose prose-sm max-w-none">
+  <div class="markdown-viewer prose prose-sm max-w-none">
     <div v-if="loading" class="text-center py-8">
       <LoadingSpinner text="加载中..." />
     </div>
@@ -108,8 +108,7 @@ const renderedContent = computed(() => {
 
 <style scoped>
 .markdown-viewer {
-  max-height: 800px;
-  overflow-y: auto;
+  width: 100%;
 }
 
 .markdown-content :deep(pre) {

@@ -1,47 +1,43 @@
 /**
- * 任务状态管理
+ * 任务状态管理 Store
  */
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { taskApi } from '@/api'
-import type { Task, SubmitTaskRequest, TaskStatus } from '@/api/types'
+// ✅ 修复：导入 TaskStatus 类型
+import type { Task, SubmitTaskRequest, TaskQueryParams, TaskStatus } from '@/api/types'
 
 export const useTaskStore = defineStore('task', () => {
-  // 状态
+  // ----------------------------------------------------------------
+  // State (状态)
+  // ----------------------------------------------------------------
   const tasks = ref<Task[]>([])
+  const total = ref(0)
   const currentTask = ref<Task | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
 
-  // 计算属性
-  const pendingTasks = computed(() =>
-    tasks.value.filter(t => t.status === 'pending')
-  )
+  // ----------------------------------------------------------------
+  // Getters (计算属性)
+  // ----------------------------------------------------------------
+  const pendingTasks = computed(() => tasks.value.filter(t => t.status === 'pending'))
+  const processingTasks = computed(() => tasks.value.filter(t => t.status === 'processing'))
+  const completedTasks = computed(() => tasks.value.filter(t => t.status === 'completed'))
+  const failedTasks = computed(() => tasks.value.filter(t => t.status === 'failed'))
 
-  const processingTasks = computed(() =>
-    tasks.value.filter(t => t.status === 'processing')
-  )
+  // ----------------------------------------------------------------
+  // Actions (动作)
+  // ----------------------------------------------------------------
 
-  const completedTasks = computed(() =>
-    tasks.value.filter(t => t.status === 'completed')
-  )
-
-  const failedTasks = computed(() =>
-    tasks.value.filter(t => t.status === 'failed')
-  )
-
-  // 动作
   /**
    * 提交任务
    */
   async function submitTask(request: SubmitTaskRequest) {
     loading.value = true
     error.value = null
-
     try {
       const response = await taskApi.submitTask(request)
-
-      // 添加到任务列表
+      // 乐观更新：添加到列表顶部
       const newTask: Task = {
         task_id: response.task_id,
         file_name: response.file_name,
@@ -56,8 +52,8 @@ export const useTaskStore = defineStore('task', () => {
         retry_count: 0,
         result_path: null,
       }
-
       tasks.value.unshift(newTask)
+      total.value += 1
       return response
     } catch (err: any) {
       error.value = err.message || '提交任务失败'
@@ -68,86 +64,15 @@ export const useTaskStore = defineStore('task', () => {
   }
 
   /**
-   * 获取任务状态
-   */
-  async function fetchTaskStatus(
-    taskId: string,
-    uploadImages: boolean = false,
-    format: 'markdown' | 'json' | 'both' = 'markdown'
-  ) {
-    loading.value = true
-    error.value = null
-
-    try {
-      const response = await taskApi.getTaskStatus(taskId, uploadImages, format)
-      currentTask.value = {
-        task_id: response.task_id,
-        file_name: response.file_name,
-        status: response.status,
-        backend: response.backend,
-        priority: response.priority,
-        error_message: response.error_message,
-        created_at: response.created_at,
-        started_at: response.started_at,
-        completed_at: response.completed_at,
-        worker_id: response.worker_id,
-        retry_count: response.retry_count,
-        result_path: null,
-        data: response.data,
-      }
-
-      // 更新任务列表中的任务
-      const index = tasks.value.findIndex(t => t.task_id === taskId)
-      if (index !== -1) {
-        tasks.value[index] = currentTask.value
-      }
-
-      return response
-    } catch (err: any) {
-      error.value = err.message || '获取任务状态失败'
-      throw err
-    } finally {
-      loading.value = false
-    }
-  }
-
-  /**
-   * 取消任务
-   */
-  async function cancelTask(taskId: string) {
-    loading.value = true
-    error.value = null
-
-    try {
-      await taskApi.cancelTask(taskId)
-
-      // 更新任务状态
-      const task = tasks.value.find(t => t.task_id === taskId)
-      if (task) {
-        task.status = 'cancelled'
-      }
-
-      if (currentTask.value?.task_id === taskId) {
-        currentTask.value.status = 'cancelled'
-      }
-    } catch (err: any) {
-      error.value = err.message || '取消任务失败'
-      throw err
-    } finally {
-      loading.value = false
-    }
-  }
-
-  /**
    * 获取任务列表
    */
-  async function fetchTasks(status?: TaskStatus, limit: number = 100) {
+  async function fetchTasks(params: TaskQueryParams) {
     loading.value = true
     error.value = null
-
     try {
-      const response = await taskApi.listTasks(status, limit)
+      const response = await taskApi.listTasks(params)
       tasks.value = response.tasks
+      total.value = response.total
       return response
     } catch (err: any) {
       error.value = err.message || '获取任务列表失败'
@@ -158,55 +83,178 @@ export const useTaskStore = defineStore('task', () => {
   }
 
   /**
-   * 轮询任务状态
+   * 获取单任务详情
    */
-  function pollTaskStatus(
-    taskId: string,
-    interval: number = 2000,
-    onUpdate?: (task: Task) => void,
-    format: 'markdown' | 'json' | 'both' = 'markdown'
-  ): () => void {
+  async function fetchTaskStatus(taskId: string, uploadImages = false, format: 'markdown' | 'json' | 'both' = 'markdown') {
+    // 仅当首次加载或强制刷新时显示 loading，避免轮询闪烁
+    if (!currentTask.value || currentTask.value.task_id !== taskId) {
+       loading.value = true
+    }
+    error.value = null
+
+    try {
+      const response = await taskApi.getTaskStatus(taskId, uploadImages, format)
+      
+      const updatedTask: Task = {
+        ...response, // 自动展开 API 响应中的所有字段
+        result_path: response.result_path || null
+      }
+
+      currentTask.value = updatedTask
+
+      // 同步更新列表中的状态，保持数据一致性
+      const index = tasks.value.findIndex(t => t.task_id === taskId)
+      if (index !== -1) {
+        tasks.value[index] = { ...tasks.value[index], ...updatedTask }
+      }
+      return response
+    } catch (err: any) {
+      error.value = err.message || '获取任务详情失败'
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  /**
+   * 取消任务
+   */
+  async function cancelTask(taskId: string) {
+    try {
+      await taskApi.cancelTask(taskId)
+      // 本地状态更新
+      updateLocalTaskStatus(taskId, 'cancelled')
+    } catch (err: any) {
+      error.value = err.message || '取消任务失败'
+      throw err
+    }
+  }
+
+  // =================================================================
+  // 新增核心 Action：重试、暂停、恢复、清理
+  // =================================================================
+
+  /**
+   * 重试任务
+   */
+  async function retryTask(taskId: string) {
+    try {
+      await taskApi.retryTask(taskId)
+      // 重试后状态变为 pending，清除错误信息
+      const task = tasks.value.find(t => t.task_id === taskId)
+      if (task) {
+        task.status = 'pending'
+        task.error_message = null
+      }
+      if (currentTask.value?.task_id === taskId) {
+        currentTask.value.status = 'pending'
+        currentTask.value.error_message = null
+      }
+    } catch (err: any) {
+      error.value = err.message || '重试任务失败'
+      throw err
+    }
+  }
+
+  /**
+   * 暂停任务
+   */
+  async function pauseTask(taskId: string) {
+    try {
+      await taskApi.pauseTask(taskId)
+      updateLocalTaskStatus(taskId, 'paused')
+    } catch (err: any) {
+      error.value = err.message || '暂停任务失败'
+      throw err
+    }
+  }
+
+  /**
+   * 恢复任务
+   */
+  async function resumeTask(taskId: string) {
+    try {
+      await taskApi.resumeTask(taskId)
+      updateLocalTaskStatus(taskId, 'pending')
+    } catch (err: any) {
+      error.value = err.message || '恢复任务失败'
+      throw err
+    }
+  }
+
+  /**
+   * 清理任务缓存
+   */
+  async function clearTaskCache(taskId: string) {
+    try {
+      await taskApi.clearTaskCache(taskId)
+      // 更新本地状态标记
+      const task = tasks.value.find(t => t.task_id === taskId)
+      if (task) task.result_path = 'CLEARED'
+      if (currentTask.value?.task_id === taskId) currentTask.value.result_path = 'CLEARED'
+    } catch (err: any) {
+      error.value = err.message || '清理缓存失败'
+      throw err
+    }
+  }
+
+  /**
+   * 一键清理失败任务
+   */
+  async function clearFailedTasks() {
+    try {
+      const res = await taskApi.clearFailedTasks()
+      // 从本地列表中移除 failed 状态的任务
+      tasks.value = tasks.value.filter(t => t.status !== 'failed')
+      // 更新总数 (防止分页数据不准)
+      total.value = Math.max(0, total.value - res.deleted_count)
+    } catch (err: any) {
+      error.value = err.message || '清理失败任务失败'
+      throw err
+    }
+  }
+
+  // ----------------------------------------------------------------
+  // 辅助函数
+  // ----------------------------------------------------------------
+
+  /**
+   * 辅助：更新本地任务状态
+   * ✅ 修复：将 status 参数类型从 string 改为 TaskStatus
+   */
+  function updateLocalTaskStatus(taskId: string, status: TaskStatus) {
+    const task = tasks.value.find(t => t.task_id === taskId)
+    if (task) task.status = status
+    if (currentTask.value?.task_id === taskId) currentTask.value.status = status
+  }
+
+  /**
+   * 轮询逻辑
+   */
+  function pollTaskStatus(taskId: string, interval = 2000, onUpdate?: (task: Task) => void) {
     let timerId: number | null = null
     let stopped = false
 
     const poll = async () => {
       if (stopped) return
-
       try {
-        const response = await fetchTaskStatus(taskId, false, format)
-
-        if (onUpdate && currentTask.value) {
-          onUpdate(currentTask.value)
-        }
-
-        // 如果任务完成或失败，停止轮询
-        if (response.status === 'completed' || response.status === 'failed' || response.status === 'cancelled') {
+        await fetchTaskStatus(taskId)
+        if (currentTask.value && onUpdate) onUpdate(currentTask.value)
+        
+        const status = currentTask.value?.status
+        if (['completed', 'failed', 'cancelled'].includes(status || '')) {
           stopped = true
           return
         }
-
-        // 继续轮询
-        if (!stopped) {
-          timerId = window.setTimeout(poll, interval)
-        }
+        if (!stopped) timerId = window.setTimeout(poll, interval)
       } catch (err) {
-        console.error('轮询任务状态失败:', err)
-        // 发生错误时也停止轮询
+        // 出错停止轮询，防止无限报错
         stopped = true
       }
     }
-
-    // 开始轮询
+    
     poll()
-
-    // 返回停止函数
-    return () => {
-      stopped = true
-      if (timerId) {
-        clearTimeout(timerId)
-        timerId = null
-      }
-    }
+    return () => { stopped = true; if (timerId) clearTimeout(timerId) }
   }
 
   /**
@@ -216,36 +264,35 @@ export const useTaskStore = defineStore('task', () => {
     error.value = null
   }
 
-  /**
-   * 重置状态
-   */
   function reset() {
     tasks.value = []
+    total.value = 0
     currentTask.value = null
     loading.value = false
     error.value = null
   }
 
   return {
-    // 状态
     tasks,
+    total,
     currentTask,
     loading,
     error,
-
-    // 计算属性
     pendingTasks,
     processingTasks,
     completedTasks,
     failedTasks,
-
-    // 动作
     submitTask,
     fetchTaskStatus,
-    cancelTask,
     fetchTasks,
+    cancelTask,
+    retryTask,      
+    pauseTask,      
+    resumeTask,     
+    clearTaskCache, 
+    clearFailedTasks,
     pollTaskStatus,
     clearError,
-    reset,
+    reset
   }
 })
