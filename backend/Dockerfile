@@ -59,15 +59,11 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install torch==2.10.0+cu130 torchvision==0.25.0+cu130 --index-url https://download.pytorch.org/whl/cu130 --break-system-packages
 
-# Step 3: [扩展] FlashAttention
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.7.16/flash_attn-2.8.3%2Bcu130torch2.10-cp312-cp312-linux_x86_64.whl --break-system-packages
-
-# Step 4: [框架B] PaddlePaddle 3.3.0
+# Step 3: [框架B] PaddlePaddle 3.3.0
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install paddlepaddle-gpu==3.3.0 -i https://www.paddlepaddle.org.cn/packages/stable/cu130/ --break-system-packages
 
-# Step 5: [核心业务包] (注意：移除 --no-deps，补全缺失的 botocore/reportlab 等)
+# Step 4: [核心业务包] (注意：移除 --no-deps，补全缺失的 botocore/reportlab 等)
 # 加入了日志中提示缺失的所有包
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install "huggingface-hub<1.0" \
@@ -92,14 +88,25 @@ RUN --mount=type=cache,target=/root/.cache/pip \
                 "ujson" \
     -i ${PIP_MIRROR} --break-system-packages
 
-# Step 6: [补全] 安装 requirements.txt 并过滤掉已安装的重型框架
+# Step 5: [补全] 安装 requirements.txt 并过滤掉已安装的重型框架
 RUN --mount=type=cache,target=/root/.cache/pip \
     sed -i '/torch/d; /paddle/d; /nvidia/d; /opencv/d; /numpy/d; /pandas/d; /transformers/d; /mineru/d; /paddlex/d; /boto3/d; /openai/d; /pypdf/d' /tmp/requirements.txt && \
     pip install -r /tmp/requirements.txt -i ${PIP_MIRROR} --break-system-packages
 
+# Step 5: [重新锁定 PyTorch] 防止上游包降级或替换 torch 版本
+# flash_attn 必须与运行时 torch 版本严格匹配，此步确保一致性
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install torch==2.10.0+cu130 torchvision==0.25.0+cu130 \
+    --index-url https://download.pytorch.org/whl/cu130 \
+    --break-system-packages
+
+# Step 6: [扩展] FlashAttention (必须在 torch 版本确认后最后安装)
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.7.16/flash_attn-2.8.3%2Bcu130torch2.10-cp312-cp312-linux_x86_64.whl --break-system-packages
+
 # Step 7: [最终验证]
-RUN python -c "import torch; import pypdf; import boto3; import botocore; import openai; print('✅ All Backend Dependencies Verified')" && \
-    pip show paddlepaddle-gpu paddleocr paddlex mineru | grep Version
+RUN python -c "import torch; import flash_attn; import pypdf; import boto3; import botocore; import openai; print('✅ All Backend Dependencies Verified')" && \
+    pip show paddlepaddle-gpu paddleocr paddlex mineru flash-attn | grep -E "^(Name|Version)"
 
 # -----------------------------------------------------------------------------
 # Stage 3: Application Runtime
