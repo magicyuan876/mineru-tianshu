@@ -1,6 +1,6 @@
 # ============================================================================
 # MinerU Server - Enterprise AI Data Preprocessing (CUDA 13.0 Edition)
-# Optimized for: MinerU 2.7.6 (1.2B VLM Support)
+# Optimized for: MinerU 3.0.9 (VLM Support)
 # Fixes: Missing botocore, s3transfer, reportlab, and other sub-dependencies
 # ============================================================================
 
@@ -71,7 +71,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # 加入了日志中提示缺失的所有包
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install "huggingface-hub<1.0" \
-                "mineru[core]>=2.7.6" \
+                "mineru[all]>=3.0.9" \
                 "paddleocr[all]>=3.4.0" \
                 "paddlex>=3.4.1" \
                 "transformers==4.57.6" \

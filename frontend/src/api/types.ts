@@ -106,11 +106,11 @@ export type Backend =
   | 'vlm-vllm-engine'   // (已废弃，保留兼容)
 
 // 语言类型 (扩充以支持 MinerU 所有语言)
-export type Language = 
-  | 'auto' 
-  | 'ch' | 'en' | 'korean' | 'japan' 
+export type Language =
+  | 'auto'
+  | 'ch' | 'en' | 'korean' | 'japan'
   | 'chinese_cht' // 繁体中文
-  | 'ch_server' | 'ch_lite' 
+  | 'ch_server' | 'ch_lite'
   | 'th' // 泰语
   | 'vi' // 越南语
   | 'ru' // 俄语
@@ -135,11 +135,11 @@ export interface TaskOptions {
   formula_enable: boolean
   table_enable: boolean
   priority?: number
-  
+
   // 分页
   start_page?: number
   end_page?: number
-  
+
   // 远程配置
   server_url?: string
 
@@ -151,7 +151,7 @@ export interface TaskOptions {
   dump_model_output?: boolean
   dump_content_list?: boolean
   dump_orig_pdf?: boolean
-  
+
   // 旧字段兼容
   force_ocr?: boolean
   draw_layout?: boolean
@@ -187,7 +187,7 @@ export interface SubmitTaskRequest {
   formula_enable?: boolean
   table_enable?: boolean
   priority?: number
-  
+
   // 页码范围
   start_page?: number
   end_page?: number
@@ -205,9 +205,9 @@ export interface SubmitTaskRequest {
   dump_orig_pdf?: boolean
 
   // 兼容旧字段 (即将废弃)
-  draw_layout?: boolean 
-  draw_span?: boolean    
-  force_ocr?: boolean    
+  draw_layout?: boolean
+  draw_span?: boolean
+  force_ocr?: boolean
 
   // Video 专属参数
   keep_audio?: boolean
@@ -340,6 +340,39 @@ export interface ApiResponse<T = any> {
   success: boolean
   message?: string
   data?: T
+}
+
+// ==================== 引擎信息类型 ====================
+
+export interface EngineItem {
+  name: string
+  display_name: string
+  version?: string
+  description?: string
+  supported_formats: string[]
+}
+
+export interface EngineSystemInfo {
+  python: string
+  platform: string
+  cuda: string
+  gpu: string
+  gpu_memory_gb: number | null
+  packages: Record<string, string>
+}
+
+export interface EnginesResponse {
+  success: boolean
+  engines: {
+    document: EngineItem[]
+    ocr: EngineItem[]
+    audio: EngineItem[]
+    video: EngineItem[]
+    format: EngineItem[]
+    office: EngineItem[]
+  }
+  system_info: EngineSystemInfo
+  timestamp: string
 }
 
 // ==================== 系统配置类型 ====================

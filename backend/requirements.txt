@@ -17,13 +17,15 @@ thop>=0.1.1
 # [新增] 修复 FASTA 格式解析报错
 biopython>=1.80
 
-# 2. MinerU 2.7.6 & 1.2B VLM 必需依赖
-# [关键修复] 补全日志缺失的 botocore, reportlab, pdfminer
+# 2. MinerU 3.0+ & VLM 必需依赖
+# mineru[all] 包含 pipeline/vlm/hybrid 所有后端
+mineru[all]>=3.0.9
+# 以下为 mineru 依赖树中的关键包，显式声明以确保版本锁定
 boto3>=1.34.0
 botocore>=1.34.0
 pypdf>=5.1.0
 json-repair>=0.46.2
-# [关键修复] 日志提示 mineru 2.7.6 强依赖 fast-langdetect < 0.3.0
+# fast-langdetect: mineru 3.0 仍约束 <0.3.0
 fast-langdetect>=0.2.3,<0.3.0
 magika>=0.6.2
 pdftext>=0.6.3

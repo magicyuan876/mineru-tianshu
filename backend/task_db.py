@@ -42,7 +42,6 @@ class TaskDB:
 
     def __init__(self, db_path=None):
         # 导入所需模块
-        import os
         from pathlib import Path
 
         # 优先使用传入的路径，其次使用环境变量，最后使用默认路径
@@ -506,7 +505,7 @@ class TaskDB:
     def _delete_task_files(self, task_row):
         """辅助方法：安全删除任务的源文件和结果目录"""
         task_id = task_row["task_id"]
-        
+
         # 1. 删除上传的源文件
         if task_row["file_path"]:
             try:
@@ -516,7 +515,7 @@ class TaskDB:
                     logger.debug(f"Deleted source file for task {task_id}")
             except Exception as e:
                 logger.warning(f"Failed to delete source file for task {task_id}: {e}")
-        
+
         # 2. 删除结果目录
         if task_row["result_path"]:
             try:
@@ -531,24 +530,30 @@ class TaskDB:
         """清理旧任务"""
         with self.get_cursor() as cursor:
             # 先查询要删除的任务及其文件路径
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT task_id, file_path, result_path FROM tasks
                 WHERE completed_at < datetime('now', '-' || ? || ' days')
                 AND status IN ('completed', 'failed')
-            """, (days,))
+            """,
+                (days,),
+            )
             old_tasks = cursor.fetchall()
-            
+
             # 删除所有相关文件
             for task in old_tasks:
                 self._delete_task_files(task)
-            
+
             # 删除数据库记录
-            cursor.execute("""
+            cursor.execute(
+                """
                 DELETE FROM tasks
                 WHERE completed_at < datetime('now', '-' || ? || ' days')
                 AND status IN ('completed', 'failed')
-            """, (days,))
-            
+            """,
+                (days,),
+            )
+
             return cursor.rowcount
 
     def reset_stale_tasks(self, timeout_minutes: int = 60):
@@ -580,13 +585,13 @@ class TaskDB:
             # 1. 查询所有 failed 任务
             cursor.execute("SELECT task_id, file_path, result_path FROM tasks WHERE status = 'failed'")
             failed_tasks = cursor.fetchall()
-            
+
             count = 0
             # 2. 物理删除
             for task in failed_tasks:
                 self._delete_task_files(task)
                 count += 1
-            
+
             # 3. 数据库删除
             cursor.execute("DELETE FROM tasks WHERE status = 'failed'")
             logger.info(f"🧹 Cleared {cursor.rowcount} failed tasks (files deleted for {count} tasks)")
@@ -818,16 +823,16 @@ class TaskDB:
         with self.get_cursor() as cursor:
             cursor.execute(
                 """
-                UPDATE tasks 
-                SET status = 'pending', 
-                    error_message = NULL, 
-                    started_at = NULL, 
-                    completed_at = NULL, 
+                UPDATE tasks
+                SET status = 'pending',
+                    error_message = NULL,
+                    started_at = NULL,
+                    completed_at = NULL,
                     worker_id = NULL,
                     retry_count = retry_count + 1
                 WHERE task_id = ?
                 """,
-                (task_id,)
+                (task_id,),
             )
             return cursor.rowcount > 0
 
@@ -838,11 +843,11 @@ class TaskDB:
         with self.get_cursor() as cursor:
             cursor.execute(
                 """
-                UPDATE tasks 
-                SET status = 'paused' 
+                UPDATE tasks
+                SET status = 'paused'
                 WHERE task_id = ? AND status = 'pending'
                 """,
-                (task_id,)
+                (task_id,),
             )
             return cursor.rowcount > 0
 
@@ -853,11 +858,11 @@ class TaskDB:
         with self.get_cursor() as cursor:
             cursor.execute(
                 """
-                UPDATE tasks 
-                SET status = 'pending' 
+                UPDATE tasks
+                SET status = 'pending'
                 WHERE task_id = ? AND status = 'paused'
                 """,
-                (task_id,)
+                (task_id,),
             )
             return cursor.rowcount > 0
 
@@ -868,11 +873,11 @@ class TaskDB:
         with self.get_cursor() as cursor:
             cursor.execute(
                 """
-                UPDATE tasks 
-                SET result_path = 'CLEARED' 
+                UPDATE tasks
+                SET result_path = 'CLEARED'
                 WHERE task_id = ?
                 """,
-                (task_id,)
+                (task_id,),
             )
             return cursor.rowcount > 0
 

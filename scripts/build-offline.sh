@@ -96,9 +96,7 @@ main() {
         python3 -m pip install --quiet huggingface-hub modelscope loguru 2>/dev/null || true
 
         # 执行下载
-        python3 backend/download_models.py --output "$MODELS_DIR"
-
-        if [ $? -eq 0 ]; then
+        if python3 backend/download_models.py --output "$MODELS_DIR"; then
             log_success "Models downloaded successfully"
         else
             log_error "Model download failed!"
@@ -119,7 +117,7 @@ main() {
     echo ""
 
     DOCKER_BUILDKIT=1 docker buildx build \
-        --platform linux/$PLATFORM \
+        --platform "linux/$PLATFORM" \
         --file backend/Dockerfile.offline \
         --tag tianshu-backend:latest \
         --load \
@@ -133,7 +131,7 @@ main() {
     echo ""
 
     DOCKER_BUILDKIT=1 docker buildx build \
-        --platform linux/$PLATFORM \
+        --platform "linux/$PLATFORM" \
         --file frontend/Dockerfile \
         --tag tianshu-frontend:latest \
         --load \
@@ -196,10 +194,18 @@ main() {
     log_info "   ✓ docker-compose.offline.yml (backup)"
 
     # 复制 .env.example
-    cp .env.example "$OUTPUT_DIR/" 2>/dev/null && log_info "   ✓ .env.example" || log_warning ".env.example not found, skipping"
+    if cp .env.example "$OUTPUT_DIR/" 2>/dev/null; then
+        log_info "   ✓ .env.example"
+    else
+        log_warning ".env.example not found, skipping"
+    fi
 
     # 复制部署脚本
-    cp scripts/deploy-offline.sh "$OUTPUT_DIR/" 2>/dev/null && log_info "   ✓ deploy-offline.sh" || log_warning "deploy-offline.sh not found, skipping"
+    if cp scripts/deploy-offline.sh "$OUTPUT_DIR/" 2>/dev/null; then
+        log_info "   ✓ deploy-offline.sh"
+    else
+        log_warning "deploy-offline.sh not found, skipping"
+    fi
     chmod +x "$OUTPUT_DIR/deploy-offline.sh" 2>/dev/null || true
 
     # 复制 MCP 配置示例

@@ -101,8 +101,7 @@ main() {
     fi
 
     # 创建初始化标记文件
-    touch /root/.cache/.models_initialized
-    echo "$(date -Iseconds)" > /root/.cache/.models_initialized
+    date -Iseconds > /root/.cache/.models_initialized
 
     echo ""
     log_success "✅ Models initialized successfully"

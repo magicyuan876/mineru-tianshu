@@ -181,6 +181,7 @@ deploy_on_server() {
     fi
 
     # 在服务器上执行部署脚本
+    # shellcheck disable=SC2029
     ssh "${SERVER_USER}@${SERVER_HOST}" "cd ${SERVER_PATH} && bash deploy-offline.sh"
 }
 

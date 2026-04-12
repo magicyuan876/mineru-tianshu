@@ -86,33 +86,33 @@ export function formatBackendName(backend: string): string {
   const backendNames: Record<string, string> = {
     // 自动
     'auto': 'Auto Detect (自动)',
-    
+
     // MinerU 核心
     'pipeline': 'Pipeline (Standard)',
     'vlm-auto-engine': 'MinerU VLM 2.5 (Local)',
     'hybrid-auto-engine': 'Hybrid High-Prec (Local)',
-    
+
     // 远程模式
     'vlm-http-client': 'MinerU VLM (Remote)',
     'hybrid-http-client': 'Hybrid (Remote)',
-    
+
     // PaddleOCR 系列 (明确版本)
     'paddleocr-vl': 'PaddleOCR-VL v1.5 (0.9B)',
     // ✅ 修复：加上 0.9B
     'paddleocr-vl-vllm': 'PaddleOCR-VL v1.5 (0.9B) (vLLM)',
-    
+
     // 音视频
     'sensevoice': 'SenseVoice (Audio)',
     'video': 'Video Analysis',
-    
+
     // 专业格式
     'fasta': 'Bio: FASTA',
     'genbank': 'Bio: GenBank',
-    
+
     // 兼容旧版
     'vlm-transformers': 'VLM Transformers (Legacy)',
     'vlm-vllm-engine': 'VLM vLLM (Legacy)',
   }
-  
+
   return backendNames[backend] || backend
 }

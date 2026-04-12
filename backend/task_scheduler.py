@@ -71,14 +71,14 @@ class TaskScheduler:
         self.cleanup_old_files_days = cleanup_old_files_days
         self.cleanup_old_records_days = cleanup_old_records_days
         self.worker_auto_mode = worker_auto_mode
-        
+
         # 初始化数据库连接
         db_path = os.getenv("DATABASE_PATH")
         if db_path:
             self.db = TaskDB(db_path)
         else:
             self.db = TaskDB()
-            
+
         self.running = True
 
     async def check_worker_health(self, session: aiohttp.ClientSession):
@@ -92,7 +92,7 @@ class TaskScheduler:
                 if resp.status == 200:
                     try:
                         return await resp.json()
-                    except:
+                    except Exception:
                         return {"status": "ok", "raw": await resp.text()}
                 else:
                     # 如果 /health 不存在，尝试 POST /predict
@@ -165,7 +165,9 @@ class TaskScheduler:
                         try:
                             reset_count = self.db.reset_stale_tasks(self.stale_task_timeout)
                             if reset_count > 0:
-                                logger.warning(f"⚠️  Reset {reset_count} stale tasks (timeout: {self.stale_task_timeout}m)")
+                                logger.warning(
+                                    f"⚠️  Reset {reset_count} stale tasks (timeout: {self.stale_task_timeout}m)"
+                                )
                         except Exception as e:
                             logger.error(f"Failed to reset stale tasks: {e}")
 
@@ -228,17 +230,15 @@ async def health_check(litserve_url: str) -> bool:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="MinerU Tianshu Task Scheduler (Optional)")
-    
+
     parser.add_argument("--litserve-url", type=str, default="http://localhost:8001/predict", help="LitServe worker URL")
-    
+
     # ✅ 修复：同时支持 --monitor-interval 和 --interval (兼容 docker-compose)
     parser.add_argument(
         "--monitor-interval", type=int, default=300, help="Monitor interval in seconds (default: 300s = 5 minutes)"
     )
-    parser.add_argument(
-        "--interval", type=int, dest="monitor_interval", help="Alias for --monitor-interval"
-    )
-    
+    parser.add_argument("--interval", type=int, dest="monitor_interval", help="Alias for --monitor-interval")
+
     parser.add_argument(
         "--health-check-interval",
         type=int,

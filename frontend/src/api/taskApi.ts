@@ -21,7 +21,7 @@ import type {
 export async function submitTask(request: SubmitTaskRequest): Promise<SubmitTaskResponse> {
   const formData = new FormData()
   formData.append('file', request.file)
-  
+
   // 基础参数
   if (request.backend) formData.append('backend', request.backend)
   if (request.lang) formData.append('lang', request.lang)
@@ -51,7 +51,7 @@ export async function submitTask(request: SubmitTaskRequest): Promise<SubmitTask
   if (request.dump_model_output !== undefined) formData.append('dump_model_output', String(request.dump_model_output))
   if (request.dump_content_list !== undefined) formData.append('dump_content_list', String(request.dump_content_list))
   if (request.dump_orig_pdf !== undefined) formData.append('dump_orig_pdf', String(request.dump_orig_pdf))
-  
+
   // 兼容旧参数
   if (request.draw_layout !== undefined) formData.append('draw_layout', String(request.draw_layout))
   if (request.draw_span !== undefined) formData.append('draw_span', String(request.draw_span))

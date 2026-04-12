@@ -221,10 +221,8 @@ test_office_to_pdf_api() {
 
     if [ "$convert_mode" = "true" ]; then
         log_info "Testing Office to PDF API (Complete Solution)..."
-        MODE_DESC="Complete (Office → PDF → Markdown)"
     else
         log_info "Testing Office to PDF API (Fast Solution)..."
-        MODE_DESC="Fast (Office → Markdown directly)"
     fi
 
     # 提交任务

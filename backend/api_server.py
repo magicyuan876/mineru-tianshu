@@ -38,12 +38,12 @@ from auth.routes import router as auth_router
 from task_db import TaskDB
 
 # ✅ [优化] 预注册 MIME 类型，防止精简环境识别失败导致浏览器强制下载
-mimetypes.add_type('application/pdf', '.pdf')
-mimetypes.add_type('image/png', '.png')
-mimetypes.add_type('image/jpeg', '.jpg')
-mimetypes.add_type('image/jpeg', '.jpeg')
-mimetypes.add_type('text/markdown', '.md')
-mimetypes.add_type('application/json', '.json')
+mimetypes.add_type("application/pdf", ".pdf")
+mimetypes.add_type("image/png", ".png")
+mimetypes.add_type("image/jpeg", ".jpg")
+mimetypes.add_type("image/jpeg", ".jpeg")
+mimetypes.add_type("text/markdown", ".md")
+mimetypes.add_type("application/json", ".json")
 
 # 初始化 FastAPI 应用
 app = FastAPI(
@@ -53,12 +53,14 @@ app = FastAPI(
     # 不设置 servers，让 FastAPI 自动根据请求的 Host 生成
 )
 
+
 # ============================================================================
 # ✅ 终极修复：ASGI 路径重写中间件
 # 彻底解决 Nginx proxy_pass 剥离 /api/ 导致所有后端接口(特别是 auth)报 404 的问题
 # ============================================================================
 class NginxPathRewriteMiddleware:
     """拦截底层 ASGI 请求，给被 Nginx 剥离的路径补全前缀"""
+
     def __init__(self, app: ASGIApp):
         self.app = app
 
@@ -72,6 +74,7 @@ class NginxPathRewriteMiddleware:
                 if "raw_path" in scope:
                     scope["raw_path"] = b"/api" + scope["raw_path"]
         await self.app(scope, receive, send)
+
 
 # 必须最先添加此中间件！
 app.add_middleware(NginxPathRewriteMiddleware)
@@ -168,7 +171,7 @@ def process_markdown_images_legacy(md_content: str, image_dir: Path, result_path
                 relative_path = result_path_str[len(output_dir_str) :].lstrip("/")
                 encoded_relative_path = quote(relative_path, safe="/")
                 encoded_filename = quote(image_filename, safe="/")
-                
+
                 static_url = f"/api/v1/files/output/{encoded_relative_path}/images/{encoded_filename}"
 
                 if "![" in full_match:
@@ -221,12 +224,10 @@ async def submit_task(
     formula_enable: bool = Form(True, description="是否启用公式识别"),
     table_enable: bool = Form(True, description="是否启用表格识别"),
     priority: int = Form(0, description="优先级，数字越大越优先"),
-    
     start_page: Optional[int] = Form(None, description="起始页码（从0开始）"),
     end_page: Optional[int] = Form(None, description="结束页码"),
     force_ocr: bool = Form(False, description="[兼容旧版] 是否强制使用OCR"),
     server_url: Optional[str] = Form(None, description="远程服务器地址 (仅 Client 模式需要)"),
-
     draw_layout_bbox: bool = Form(True, description="绘制布局边框 (_layout.pdf)"),
     draw_span_bbox: bool = Form(True, description="绘制文本边框 (_span.pdf)"),
     dump_markdown: bool = Form(True, description="输出 Markdown"),
@@ -236,18 +237,15 @@ async def submit_task(
     dump_orig_pdf: bool = Form(True, description="保存原始/截取 PDF"),
     draw_layout: bool = Form(True, description="[兼容旧版] 是否绘制布局边框"),
     draw_span: bool = Form(True, description="[兼容旧版] 是否绘制文本Span边框"),
-    
     keep_audio: bool = Form(False, description="视频处理时是否保留提取的音频文件"),
     enable_keyframe_ocr: bool = Form(False, description="是否启用视频关键帧OCR识别（实验性功能）"),
     ocr_backend: str = Form("paddleocr-vl", description="关键帧OCR引擎: paddleocr-vl"),
     keep_keyframes: bool = Form(False, description="是否保留提取的关键帧图像"),
-    
     enable_speaker_diarization: bool = Form(False, description="是否启用说话人分离"),
     remove_watermark: bool = Form(False, description="是否启用水印去除"),
     watermark_conf_threshold: float = Form(0.35, description="水印检测置信度阈值"),
     watermark_dilation: int = Form(10, description="水印掩码膨胀大小"),
     convert_office_to_pdf: bool = Form(False, description="是否将 Office 文件转换为 PDF 后再处理"),
-
     useDocOrientationClassify: bool = Form(False, description="文档方向分类"),
     useDocUnwarping: bool = Form(False, description="文档去弯曲"),
     useLayoutDetection: bool = Form(True, description="是否启用版面分析"),
@@ -265,8 +263,9 @@ async def submit_task(
     maxPixels: int = Form(2822400, description="最大像素"),
     layoutNms: bool = Form(True, description="是否启用版面 NMS"),
     restructurePages: bool = Form(True, description="是否重构页面"),
-    markdownIgnoreLabels: str = Form("header,header_image,footer,footer_image,number,footnote,aside_text", description="忽略的标签 (逗号分隔)"),
-    
+    markdownIgnoreLabels: str = Form(
+        "header,header_image,footer,footer_image,number,footnote,aside_text", description="忽略的标签 (逗号分隔)"
+    ),
     current_user: User = Depends(require_permission(Permission.TASK_SUBMIT)),
 ):
     try:
@@ -419,7 +418,7 @@ async def get_task_status(
                 }
                 for child in children
             ]
-        except Exception as e:
+        except Exception:
             pass
 
     if task["status"] == "completed":
@@ -432,16 +431,17 @@ async def get_task_status(
         if result_dir.exists():
             md_files = list(result_dir.rglob("*.md"))
             json_files = [
-                f for f in result_dir.rglob("*.json")
+                f
+                for f in result_dir.rglob("*.json")
                 if not f.parent.name.startswith("page_")
                 and (f.name in ["content.json", "result.json"] or "_content_list.json" in f.name)
             ]
-            
+
             if md_files or json_files:
                 try:
                     response["data"] = {}
                     response["data"]["json_available"] = len(json_files) > 0
-                    
+
                     pdf_files = list(result_dir.rglob("*.pdf"))
                     preview_pdf = None
                     for pdf in pdf_files:
@@ -449,10 +449,10 @@ async def get_task_status(
                             preview_pdf = pdf
                             break
                     if not preview_pdf:
-                         for pdf in pdf_files:
-                             if "_span.pdf" in pdf.name:
-                                 preview_pdf = pdf
-                                 break
+                        for pdf in pdf_files:
+                            if "_span.pdf" in pdf.name:
+                                preview_pdf = pdf
+                                break
                     if not preview_pdf:
                         for pdf in pdf_files:
                             if not pdf.name.startswith("page_"):
@@ -461,11 +461,11 @@ async def get_task_status(
 
                     if preview_pdf:
                         try:
-                             rel_path = preview_pdf.relative_to(OUTPUT_DIR)
-                             encoded_path = quote(str(rel_path).replace("\\", "/"), safe="/")
-                             response["data"]["pdf_path"] = encoded_path
+                            rel_path = preview_pdf.relative_to(OUTPUT_DIR)
+                            encoded_path = quote(str(rel_path).replace("\\", "/"), safe="/")
+                            response["data"]["pdf_path"] = encoded_path
                         except ValueError:
-                             pass
+                            pass
 
                     if format in ["markdown", "both"] and md_files:
                         md_file = next((f for f in md_files if f.name == "result.md"), md_files[0])
@@ -482,6 +482,7 @@ async def get_task_status(
 
                     if format in ["json", "both"] and json_files:
                         import json as json_lib
+
                         json_file = json_files[0]
                         try:
                             with open(json_file, "r", encoding="utf-8") as f:
@@ -508,6 +509,7 @@ async def get_task_status(
 # ========================================================================
 # 🚨 终极修复：物理清理任务接口（解决清理失败、任务依然存在问题）
 # ========================================================================
+
 
 @router.delete("/tasks/{task_id}", tags=["任务管理"])
 async def delete_task(task_id: str, current_user: User = Depends(get_current_active_user)):
@@ -556,35 +558,40 @@ async def clear_failed_tasks_endpoint(current_user: User = Depends(require_permi
         # 获取所有失败的任务信息
         cursor.execute("SELECT task_id, file_path FROM tasks WHERE status = 'failed'")
         failed_tasks = [dict(row) for row in cursor.fetchall()]
-        
+
         deleted_count = 0
         for task in failed_tasks:
             t_id = task.get("task_id")
             f_path = task.get("file_path")
-            
+
             # 删除 Output 文件夹
             output_dir = OUTPUT_DIR / t_id
             if output_dir.exists():
                 shutil.rmtree(output_dir, ignore_errors=True)
-            
+
             # 删除上传的源文件
             if f_path and Path(f_path).exists():
                 try:
                     Path(f_path).unlink()
                 except Exception:
                     pass
-            
+
             # 从数据库中彻底删除
             cursor.execute("DELETE FROM tasks WHERE task_id = ?", (t_id,))
             deleted_count += 1
 
     logger.info(f"🧹 Cleared {deleted_count} failed tasks from DB and Disk.")
-    return {"success": True, "deleted_count": deleted_count, "message": f"Successfully cleared {deleted_count} failed tasks."}
+    return {
+        "success": True,
+        "deleted_count": deleted_count,
+        "message": f"Successfully cleared {deleted_count} failed tasks.",
+    }
 
 
 # ========================================================================
 # 修复：重试与暂停权限报错 (TASK_MANAGE_ALL -> TASK_DELETE_ALL)
 # ========================================================================
+
 
 @router.post("/tasks/{task_id}/retry", tags=["任务管理"])
 async def retry_task(task_id: str, current_user: User = Depends(get_current_active_user)):
@@ -594,10 +601,10 @@ async def retry_task(task_id: str, current_user: User = Depends(get_current_acti
     task = db.get_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-        
+
     # 🚨 修复属性名称错误
     if not current_user.has_permission(Permission.TASK_DELETE_ALL):
-         if task.get("user_id") != current_user.user_id:
+        if task.get("user_id") != current_user.user_id:
             raise HTTPException(status_code=403, detail="Permission denied")
 
     if db.retry_task(task_id):
@@ -607,9 +614,9 @@ async def retry_task(task_id: str, current_user: User = Depends(get_current_acti
                 shutil.rmtree(output_dir)
             except Exception as e:
                 logger.warning(f"Warning: Failed to clean up output directory for retried task {task_id}: {e}")
-        
+
         return {"success": True, "message": "Task submitted for retry"}
-    
+
     raise HTTPException(status_code=404, detail="Task not found")
 
 
@@ -621,15 +628,15 @@ async def pause_task_endpoint(task_id: str, current_user: User = Depends(get_cur
     task = db.get_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-        
+
     # 🚨 修复属性名称错误
     if not current_user.has_permission(Permission.TASK_DELETE_ALL):
-         if task.get("user_id") != current_user.user_id:
+        if task.get("user_id") != current_user.user_id:
             raise HTTPException(status_code=403, detail="Permission denied")
 
     if db.pause_task(task_id):
         return {"success": True, "message": "Task paused"}
-    
+
     raise HTTPException(status_code=409, detail="Task cannot be paused (must be in pending status)")
 
 
@@ -641,15 +648,15 @@ async def resume_task_endpoint(task_id: str, current_user: User = Depends(get_cu
     task = db.get_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-        
+
     # 🚨 修复属性名称错误
     if not current_user.has_permission(Permission.TASK_DELETE_ALL):
-         if task.get("user_id") != current_user.user_id:
+        if task.get("user_id") != current_user.user_id:
             raise HTTPException(status_code=403, detail="Permission denied")
 
     if db.resume_task(task_id):
         return {"success": True, "message": "Task resumed"}
-    
+
     raise HTTPException(status_code=409, detail="Task cannot be resumed (must be in paused status)")
 
 
@@ -661,9 +668,9 @@ async def clear_task_cache_endpoint(task_id: str, current_user: User = Depends(g
     task = db.get_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-    
+
     if not current_user.has_permission(Permission.TASK_DELETE_ALL):
-         if task.get("user_id") != current_user.user_id:
+        if task.get("user_id") != current_user.user_id:
             raise HTTPException(status_code=403, detail="Permission denied")
 
     output_dir = OUTPUT_DIR / task_id
@@ -672,10 +679,10 @@ async def clear_task_cache_endpoint(task_id: str, current_user: User = Depends(g
             shutil.rmtree(output_dir)
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to delete files: {str(e)}")
-    
+
     if db.clear_task_cache(task_id):
         return {"success": True, "message": "Task cache cleared, space freed"}
-    
+
     raise HTTPException(status_code=404, detail="Task not found")
 
 
@@ -695,10 +702,10 @@ async def get_queue_stats(current_user: User = Depends(require_permission(Permis
 async def list_tasks(
     status: Optional[str] = Query(None, description="筛选状态"),
     limit: int = Query(100, description="返回数量限制", le=1000),
-    page: int = Query(1, ge=1, description="页码"),  
-    page_size: int = Query(20, ge=1, le=100, description="每页数量"), 
-    backend: Optional[str] = Query(None, description="筛选后端引擎"), 
-    search: Optional[str] = Query(None, description="搜索文件名或任务ID"), 
+    page: int = Query(1, ge=1, description="页码"),
+    page_size: int = Query(20, ge=1, le=100, description="每页数量"),
+    backend: Optional[str] = Query(None, description="筛选后端引擎"),
+    search: Optional[str] = Query(None, description="搜索文件名或任务ID"),
     current_user: User = Depends(get_current_active_user),
 ):
     can_view_all = current_user.has_permission(Permission.TASK_VIEW_ALL)
@@ -715,7 +722,7 @@ async def list_tasks(
     if backend:
         conditions.append("backend = ?")
         params.append(backend)
-    
+
     if search:
         search = search.strip()
         conditions.append("(file_name LIKE ? OR task_id = ?)")
@@ -741,13 +748,13 @@ async def list_tasks(
         tasks = [dict(row) for row in cursor.fetchall()]
 
     return {
-        "success": True, 
+        "success": True,
         "total": total,
         "page": page,
         "page_size": page_size,
         "count": len(tasks),
-        "tasks": tasks, 
-        "can_view_all": can_view_all
+        "tasks": tasks,
+        "can_view_all": can_view_all,
     }
 
 
@@ -781,25 +788,72 @@ async def reset_stale_tasks(
 
 @router.get("/engines", tags=["系统信息"])
 async def list_engines():
+    import importlib.util
+    import importlib.metadata
+    import sys
+
+    def _pkg_version(pkg: str) -> str:
+        try:
+            return importlib.metadata.version(pkg)
+        except Exception:
+            return "N/A"
+
+    # ── 运行环境信息 ──────────────────────────────────────────
+    cuda_version = "N/A"
+    gpu_name = "N/A"
+    gpu_memory_gb = None
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            cuda_version = torch.version.cuda or "N/A"
+            gpu_name = torch.cuda.get_device_name(0)
+            gpu_memory_gb = round(torch.cuda.get_device_properties(0).total_memory / 1024**3, 1)
+    except Exception:
+        pass
+
+    system_info = {
+        "python": sys.version.split()[0],
+        "platform": sys.platform,
+        "cuda": cuda_version,
+        "gpu": gpu_name,
+        "gpu_memory_gb": gpu_memory_gb,
+        "packages": {
+            "mineru": _pkg_version("mineru"),
+            "paddleocr": _pkg_version("paddleocr"),
+            "paddlepaddle-gpu": _pkg_version("paddlepaddle-gpu"),
+            "torch": _pkg_version("torch"),
+            "transformers": _pkg_version("transformers"),
+            "litserve": _pkg_version("litserve"),
+        },
+    }
+
+    # ── 引擎列表 ──────────────────────────────────────────────
+    mineru_ver = system_info["packages"]["mineru"]
+    paddleocr_ver = system_info["packages"]["paddleocr"]
+
     engines = {
         "document": [
             {
                 "name": "pipeline",
-                "display_name": "Standard Pipeline (通用管道)",
+                "display_name": "Standard Pipeline",
+                "version": mineru_ver,
                 "description": "基于 PDF-Extract-Kit 的传统多模型管道，速度快，无幻觉，适合大多数文档。",
-                "supported_formats": [".pdf", ".png", ".jpg", ".jpeg"],
+                "supported_formats": [".pdf", ".png", ".jpg", ".jpeg", ".docx"],
             },
             {
                 "name": "vlm-auto-engine",
-                "display_name": "MinerU 2.5 VLM (视觉大模型)",
-                "description": "基于 MinerU 2.5 (1.2B) 视觉模型，擅长处理复杂排版、图表和非标准文档。",
-                "supported_formats": [".pdf", ".png", ".jpg", ".jpeg"],
+                "display_name": "MinerU VLM (视觉大模型)",
+                "version": mineru_ver,
+                "description": "基于 MinerU 3.X (1.2B) 视觉模型，擅长处理复杂排版、图表和非标准文档。DOCX 文件将使用原生解析。",
+                "supported_formats": [".pdf", ".png", ".jpg", ".jpeg", ".docx"],
             },
             {
                 "name": "hybrid-auto-engine",
                 "display_name": "Hybrid High-Precision (高精度混合)",
-                "description": "结合 Pipeline 的稳定性与 VLM 的理解能力，提供最高精度的解析效果。",
-                "supported_formats": [".pdf", ".png", ".jpg", ".jpeg"],
+                "version": mineru_ver,
+                "description": "结合 Pipeline 的稳定性与 VLM 的理解能力，提供最高精度的解析效果。DOCX 文件将使用原生解析。",
+                "supported_formats": [".pdf", ".png", ".jpg", ".jpeg", ".docx"],
             },
         ],
         "ocr": [],
@@ -810,47 +864,80 @@ async def list_engines():
             {
                 "name": "MarkItDown (快速)",
                 "value": "auto",
+                "version": _pkg_version("markitdown"),
                 "description": "Office 文档和文本文件转换引擎（快速但图片提取可能不完整）",
                 "supported_formats": [".docx", ".xlsx", ".pptx", ".doc", ".xls", ".ppt", ".html", ".txt", ".csv"],
             },
             {
                 "name": "LibreOffice + MinerU (完整)",
                 "value": "auto",
+                "version": mineru_ver,
                 "description": "将 Office 文件转为 PDF 后使用 MinerU 处理（慢但图片提取完整）",
                 "supported_formats": [".docx", ".xlsx", ".pptx", ".doc", ".xls", ".ppt"],
-            }
+            },
         ],
     }
 
-    import importlib.util
-
     if importlib.util.find_spec("paddleocr_vl") is not None:
-        engines["ocr"].append({"name": "paddleocr_vl", "display_name": "PaddleOCR-VL v1.5 (0.9B)", "supported_formats": [".pdf", ".png", ".jpg", ".jpeg"]})
+        engines["ocr"].append(
+            {
+                "name": "paddleocr_vl",
+                "display_name": "PaddleOCR-VL v1.5 (0.9B)",
+                "version": paddleocr_ver,
+                "supported_formats": [".pdf", ".png", ".jpg", ".jpeg"],
+            }
+        )
 
     if importlib.util.find_spec("paddleocr_vl_vllm") is not None:
-        engines["ocr"].append({"name": "paddleocr-vl-vllm", "display_name": "PaddleOCR-VL v1.5 (0.9B) (vLLM)", "supported_formats": [".pdf", ".png", ".jpg", ".jpeg"]})
+        engines["ocr"].append(
+            {
+                "name": "paddleocr-vl-vllm",
+                "display_name": "PaddleOCR-VL v1.5 (0.9B) (vLLM)",
+                "version": paddleocr_ver,
+                "supported_formats": [".pdf", ".png", ".jpg", ".jpeg"],
+            }
+        )
 
     if importlib.util.find_spec("audio_engines") is not None:
-        engines["audio"].append({"name": "sensevoice", "display_name": "SenseVoice", "supported_formats": [".wav", ".mp3", ".flac", ".m4a", ".ogg"]})
+        engines["audio"].append(
+            {
+                "name": "sensevoice",
+                "display_name": "SenseVoice",
+                "version": _pkg_version("funasr"),
+                "supported_formats": [".wav", ".mp3", ".flac", ".m4a", ".ogg"],
+            }
+        )
 
     if importlib.util.find_spec("video_engines") is not None:
-        engines["video"].append({"name": "video", "display_name": "Video Processing", "supported_formats": [".mp4", ".avi", ".mkv", ".mov", ".flv", ".wmv"]})
+        engines["video"].append(
+            {
+                "name": "video",
+                "display_name": "Video Processing",
+                "version": "N/A",
+                "supported_formats": [".mp4", ".avi", ".mkv", ".mov", ".flv", ".wmv"],
+            }
+        )
 
     try:
         from format_engines import FormatEngineRegistry
+
         for engine_info in FormatEngineRegistry.list_engines():
-            engines["format"].append({
-                "name": engine_info["name"],
-                "display_name": engine_info["name"].upper(),
-                "description": engine_info["description"],
-                "supported_formats": engine_info["extensions"],
-            })
+            engines["format"].append(
+                {
+                    "name": engine_info["name"],
+                    "display_name": engine_info["name"].upper(),
+                    "version": engine_info.get("version", "N/A"),
+                    "description": engine_info["description"],
+                    "supported_formats": engine_info["extensions"],
+                }
+            )
     except ImportError:
         pass
 
     return {
         "success": True,
         "engines": engines,
+        "system_info": system_info,
         "timestamp": datetime.now().isoformat(),
     }
 
@@ -876,7 +963,7 @@ async def serve_output_file(file_path: str):
     try:
         decoded_path = unquote(file_path).lstrip("/")
         full_path = (OUTPUT_DIR / decoded_path).resolve()
-        
+
         logger.debug(f"📥 Serving output file: {full_path}")
 
         if not full_path.is_relative_to(OUTPUT_DIR.resolve()) or not full_path.is_file():
@@ -886,16 +973,10 @@ async def serve_output_file(file_path: str):
         media_type, _ = mimetypes.guess_type(full_path)
         media_type = media_type or "application/octet-stream"
 
-        headers = {
-            "Content-Disposition": f"inline; filename*=utf-8''{quote(full_path.name)}"
-        }
-        
-        return FileResponse(
-            path=str(full_path), 
-            media_type=media_type, 
-            headers=headers
-        )
-        
+        headers = {"Content-Disposition": f"inline; filename*=utf-8''{quote(full_path.name)}"}
+
+        return FileResponse(path=str(full_path), media_type=media_type, headers=headers)
+
     except HTTPException:
         raise
     except Exception as e:
@@ -909,7 +990,7 @@ async def serve_upload_file(file_path: str):
     try:
         decoded_path = unquote(file_path).lstrip("/")
         full_path = (UPLOAD_DIR / decoded_path).resolve()
-        
+
         logger.debug(f"📥 Serving upload file: {full_path}")
 
         if not full_path.is_relative_to(UPLOAD_DIR.resolve()) or not full_path.is_file():
@@ -919,16 +1000,10 @@ async def serve_upload_file(file_path: str):
         media_type, _ = mimetypes.guess_type(full_path)
         media_type = media_type or "application/octet-stream"
 
-        headers = {
-            "Content-Disposition": f"inline; filename*=utf-8''{quote(full_path.name)}"
-        }
+        headers = {"Content-Disposition": f"inline; filename*=utf-8''{quote(full_path.name)}"}
 
-        return FileResponse(
-            path=str(full_path), 
-            media_type=media_type, 
-            headers=headers
-        )
-        
+        return FileResponse(path=str(full_path), media_type=media_type, headers=headers)
+
     except HTTPException:
         raise
     except Exception as e:

@@ -15,14 +15,14 @@
 
     <div ref="scrollContainer" class="flex-1 overflow-y-auto w-full custom-scrollbar relative outline-none" @scroll="onScroll" tabindex="0">
       <div :style="{ height: totalHeight + 'px' }" class="relative w-full">
-        <div 
-          v-for="page in visiblePages" 
+        <div
+          v-for="page in visiblePages"
           :key="page.id"
           class="absolute left-0 w-full flex justify-center transition-opacity duration-200"
           :style="{ top: page.top + 'px', height: page.height + 'px' }"
         >
           <div class="bg-white shadow-sm relative transition-shadow hover:shadow-md" :style="{ width: page.width + 'px', height: page.height + 'px' }">
-            
+
             <div v-if="!page.rendered" class="absolute inset-0 flex items-center justify-center bg-gray-50/50 z-10">
               <div class="flex flex-col items-center">
                 <div class="w-8 h-8 border-4 border-gray-200 border-t-primary-600 rounded-full animate-spin mb-2"></div>
@@ -43,7 +43,7 @@
               ></div>
             </div>
 
-            <div 
+            <div
               v-if="highlightTarget && highlightTarget.pageIndex === page.id"
               class="absolute z-30 border-[3px] border-red-500 bg-red-500/20 animate-pulse pointer-events-none box-border rounded-[4px] shadow-[0_0_15px_rgba(239,68,68,0.7)]"
               :style="getBlockStyle(page.id, highlightTarget.bbox)"
@@ -53,7 +53,7 @@
         </div>
       </div>
     </div>
-    
+
     <div v-if="!loading && totalPages > 0" class="absolute bottom-6 right-8 bg-gray-900/75 text-white px-3 py-1.5 rounded-md text-xs backdrop-blur-md z-30 font-mono shadow-lg pointer-events-none select-none border border-white/10">
       {{ currentPage }} <span class="text-gray-400 mx-1">/</span> {{ totalPages }}
     </div>
@@ -69,7 +69,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker
 
 const props = defineProps<{
   src: string | null
-  layoutData?: any[] 
+  layoutData?: any[]
 }>()
 
 const emit = defineEmits<{
@@ -90,7 +90,7 @@ const containerHeight = ref(0)
 const totalHeight = ref(0) // 🚨 绝对不可丢：滚动条支柱
 const totalPages = ref(0)
 const globalScale = ref(1.0)
-const PAGE_GAP = 16 
+const PAGE_GAP = 16
 
 interface PageData {
   id: number
@@ -112,7 +112,7 @@ const sourcePdfWidth = computed(() => {
   if (props.layoutData && props.layoutData.length > 0 && props.layoutData[0]._page_width) {
     return props.layoutData[0]._page_width;
   }
-  return 595.28; 
+  return 595.28;
 })
 
 // 将后端发来的块数据按页码归类
@@ -138,9 +138,9 @@ const pageOcrScales = computed(() => {
 
 const getBlockStyle = (pageId: number, bbox: any) => {
   if (!bbox || !Array.isArray(bbox) || bbox.length === 0) return { display: 'none' }
-  
+
   let x0 = 0, y0 = 0, x1 = 0, y1 = 0;
-  
+
   // 兼容绝对坐标和多边形坐标
   if (bbox.length === 4 && typeof bbox[0] === 'number') {
     [x0, y0, x1, y1] = bbox as number[];
@@ -150,12 +150,12 @@ const getBlockStyle = (pageId: number, bbox: any) => {
   } else { return { display: 'none' } }
 
   const s = pageOcrScales.value[pageId] || globalScale.value;
-  
-  return { 
-    left: `${x0 * s}px`, 
-    top: `${y0 * s}px`, 
-    width: `${Math.max((x1 - x0) * s, 6)}px`, 
-    height: `${Math.max((y1 - y0) * s, 6)}px` 
+
+  return {
+    left: `${x0 * s}px`,
+    top: `${y0 * s}px`,
+    width: `${Math.max((x1 - x0) * s, 6)}px`,
+    height: `${Math.max((y1 - y0) * s, 6)}px`
   }
 }
 
@@ -167,9 +167,9 @@ const getBlockStyle = (pageId: number, bbox: any) => {
 const visiblePages = computed(() => {
   if (pages.value.length === 0) return []
   const startY = scrollTop.value - containerHeight.value * 1.5
-  const endY = scrollTop.value + containerHeight.value * 2.5 
+  const endY = scrollTop.value + containerHeight.value * 2.5
   const result = []
-  
+
   for (const page of pages.value) {
     const pageBottom = page.top + page.height
     if (pageBottom < startY) continue
@@ -255,10 +255,10 @@ const buildPageSkeletons = async (retryCount = 0) => {
   containerHeight.value = scrollContainer.value.clientHeight
 
   const newPages: PageData[] = []
-  
+
   const page1 = await pdfProxy.getPage(1)
   const baseViewport = page1.getViewport({ scale: 1 })
-  const fitScale = Math.min(containerW / baseViewport.width, 1.8) 
+  const fitScale = Math.min(containerW / baseViewport.width, 1.8)
   globalScale.value = fitScale
 
   let currentTop = PAGE_GAP
@@ -267,17 +267,17 @@ const buildPageSkeletons = async (retryCount = 0) => {
   for (let i = 1; i <= totalPages.value; i++) {
     const p = await pdfProxy.getPage(i)
     const vp = p.getViewport({ scale: fitScale })
-    newPages.push({ 
-      id: i, 
-      width: vp.width, 
-      height: vp.height, 
+    newPages.push({
+      id: i,
+      width: vp.width,
+      height: vp.height,
       top: currentTop, // 这个保证了绝对定位
-      viewport: vp, 
-      rendered: false 
+      viewport: vp,
+      rendered: false
     })
     currentTop += vp.height + PAGE_GAP
   }
-  
+
   pages.value = newPages
   totalHeight.value = currentTop // 这个保证了滚动条的出现
   processing.value = false
@@ -286,7 +286,7 @@ const buildPageSkeletons = async (retryCount = 0) => {
 // 执行 PDF.js 的页面渲染
 const renderCanvas = async (pageInfo: PageData) => {
   if (!pdfProxy) return
-  
+
   const canvasId = `pdf-canvas-${pageInfo.id}`
   const canvas = document.getElementById(canvasId) as HTMLCanvasElement
   // 防御性拦截：如果因为页面切换太快 DOM 还不在，就放弃渲染
@@ -294,7 +294,7 @@ const renderCanvas = async (pageInfo: PageData) => {
 
   renderTasks.set(pageInfo.id, true)
   const origPage = pages.value.find(p => p.id === pageInfo.id)
-  
+
   try {
     const page = await pdfProxy.getPage(pageInfo.id)
     const dpr = window.devicePixelRatio || 1
@@ -305,7 +305,7 @@ const renderCanvas = async (pageInfo: PageData) => {
 
     const renderCtx = { canvasContext: ctx, viewport: pageInfo.viewport, transform: [dpr, 0, 0, dpr, 0, 0] }
     await page.render(renderCtx).promise
-    
+
     // 渲染成功后，更新状态，让热区盖上来
     if (origPage) origPage.rendered = true
   } catch (err: any) {
@@ -323,7 +323,7 @@ const renderCanvas = async (pageInfo: PageData) => {
 const highlightBlock = (pageIndex: number, bbox: any) => {
   if (!scrollContainer.value) return
   highlightTarget.value = { pageIndex, bbox }
-  
+
   const pageNode = pages.value.find(p => p.id === pageIndex)
   if (pageNode) {
     let blockY = 0
@@ -332,9 +332,9 @@ const highlightBlock = (pageIndex: number, bbox: any) => {
     }
     const s = pageOcrScales.value[pageIndex] || globalScale.value;
     const targetScroll = pageNode.top + (blockY * s) - (containerHeight.value / 3)
-    
+
     scrollContainer.value.scrollTo({ top: Math.max(0, targetScroll), behavior: 'smooth' })
-    
+
     setTimeout(() => { highlightTarget.value = null }, 3000)
   }
 }

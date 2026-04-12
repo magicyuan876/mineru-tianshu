@@ -59,6 +59,11 @@
       </div>
     </div>
 
+    <!-- 引擎信息 -->
+    <div class="mb-6 lg:mb-8">
+      <EngineInfo />
+    </div>
+
     <!-- 最近任务 -->
     <div class="card">
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
@@ -148,6 +153,7 @@ import { formatRelativeTime } from '@/utils/format'
 import StatCard from '@/components/StatCard.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import LoadingSpinner from '@/components/LoadingSpinner.vue'
+import EngineInfo from '@/components/EngineInfo.vue'
 import {
   Clock,
   Loader,

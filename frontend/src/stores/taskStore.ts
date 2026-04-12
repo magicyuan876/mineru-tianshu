@@ -94,7 +94,7 @@ export const useTaskStore = defineStore('task', () => {
 
     try {
       const response = await taskApi.getTaskStatus(taskId, uploadImages, format)
-      
+
       const updatedTask: Task = {
         ...response, // 自动展开 API 响应中的所有字段
         result_path: response.result_path || null
@@ -240,7 +240,7 @@ export const useTaskStore = defineStore('task', () => {
       try {
         await fetchTaskStatus(taskId)
         if (currentTask.value && onUpdate) onUpdate(currentTask.value)
-        
+
         const status = currentTask.value?.status
         if (['completed', 'failed', 'cancelled'].includes(status || '')) {
           stopped = true
@@ -252,7 +252,7 @@ export const useTaskStore = defineStore('task', () => {
         stopped = true
       }
     }
-    
+
     poll()
     return () => { stopped = true; if (timerId) clearTimeout(timerId) }
   }
@@ -286,10 +286,10 @@ export const useTaskStore = defineStore('task', () => {
     fetchTaskStatus,
     fetchTasks,
     cancelTask,
-    retryTask,      
-    pauseTask,      
-    resumeTask,     
-    clearTaskCache, 
+    retryTask,
+    pauseTask,
+    resumeTask,
+    clearTaskCache,
     clearFailedTasks,
     pollTaskStatus,
     clearError,

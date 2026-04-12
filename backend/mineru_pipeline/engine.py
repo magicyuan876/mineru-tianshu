@@ -12,7 +12,6 @@ MinerU Pipeline Engine
 """
 
 import json
-import os
 import shutil
 import tempfile
 import time
@@ -33,6 +32,7 @@ try:
     import torch
 except ImportError:
     torch = None
+
 
 class MinerUPipelineEngine:
     """
@@ -72,14 +72,14 @@ class MinerUPipelineEngine:
             # [新增] 智能显存管理状态变量
             # =========================================================
             self.last_active_time = time.time()  # 最后活动时间
-            self.is_processing = False           # 是否正在处理任务
-            self.is_offloaded = True             # 是否已卸载显存
-            self.idle_timeout = 300              # 空闲超时时间 (秒) - 5分钟
+            self.is_processing = False  # 是否正在处理任务
+            self.is_offloaded = True  # 是否已卸载显存
+            self.idle_timeout = 300  # 空闲超时时间 (秒) - 5分钟
 
             # 启动显存监控后台线程
             self._monitor_thread = threading.Thread(target=self._auto_sleep_monitor, daemon=True)
             self._monitor_thread.start()
-            
+
             self._initialized = True
             logger.info(f"🔧 MinerU Pipeline Engine initialized on {device}")
             logger.info(f"⏳ Auto-sleep monitor enabled (Timeout: {self.idle_timeout}s)")
@@ -96,12 +96,12 @@ class MinerUPipelineEngine:
                 # 如果 1. 正在处理任务 或 2. 已经卸载，则跳过
                 if self.is_processing or self.is_offloaded:
                     continue
-                
+
                 idle_duration = time.time() - self.last_active_time
                 if idle_duration > self.idle_timeout:
                     logger.info(f"💤 System idle for {idle_duration:.0f}s. Unloading models to save VRAM...")
-                    self.cleanup() # 执行清理
-                    self.is_offloaded = True # 标记为已卸载
+                    self.cleanup()  # 执行清理
+                    self.is_offloaded = True  # 标记为已卸载
             except Exception as e:
                 logger.error(f"Error in auto-sleep monitor: {e}")
 
@@ -120,6 +120,7 @@ class MinerUPipelineEngine:
 
             try:
                 from mineru.cli.common import do_parse
+
                 self._pipeline = do_parse
                 logger.info("✅ MinerU Pipeline loaded successfully!")
                 return self._pipeline
@@ -132,12 +133,12 @@ class MinerUPipelineEngine:
         base_url = server_url.rstrip("/")
         if base_url.endswith("/v1"):
             base_url = base_url[:-3]
-            
+
         health_url = f"{base_url}/v1/models"
-        
+
         logger.info(f"⏳ Waiting for VLLM server at {base_url} (Timeout: {timeout}s)...")
         start_time = time.time()
-        
+
         while time.time() - start_time < timeout:
             try:
                 with urllib.request.urlopen(health_url, timeout=2) as response:
@@ -148,9 +149,9 @@ class MinerUPipelineEngine:
                 pass
             except Exception as e:
                 logger.debug(f"Health check warning: {e}")
-            
+
             time.sleep(1)
-            
+
         logger.warning(f"⚠️  VLLM server wait timed out after {timeout}s. Process may fail.")
         return False
 
@@ -170,22 +171,22 @@ class MinerUPipelineEngine:
         text = html.unescape(text)
 
         # 2. 暴力替换常见的未转义字符
-        text = text.replace('&gt;', '>').replace('&lt;', '<').replace('&amp;', '&')
+        text = text.replace("&gt;", ">").replace("&lt;", "<").replace("&amp;", "&")
 
         # 3. 去除 LaTeX 的 \mathrm{} 包装
-        text = re.sub(r'\\mathrm\{(.*?)\}', r'\1', text, flags=re.DOTALL)
+        text = re.sub(r"\\mathrm\{(.*?)\}", r"\1", text, flags=re.DOTALL)
 
         # 4. 清洗 LaTeX 特殊字符
-        text = text.replace('~', ' ')
-        
+        text = text.replace("~", " ")
+
         # 5. 去除模型幻觉产生的 <del> 标签
-        text = text.replace('<del>', '').replace('</del>', '')
-        
-        # 6. [加强版] 暴力去重逻辑 
-        text = re.sub(r'(\S+)([\s\r\n]+)\1', r'\1', text)
+        text = text.replace("<del>", "").replace("</del>", "")
+
+        # 6. [加强版] 暴力去重逻辑
+        text = re.sub(r"(\S+)([\s\r\n]+)\1", r"\1", text)
 
         # 7. 去除连续的多余空行
-        text = re.sub(r'\n{3,}', '\n\n', text)
+        text = re.sub(r"\n{3,}", "\n\n", text)
 
         return text
 
@@ -198,13 +199,14 @@ class MinerUPipelineEngine:
             logger.info("🧹 Starting memory cleanup...")
             try:
                 from mineru.utils.model_utils import clean_memory
+
                 clean_memory()
             except Exception:
                 pass
-            
+
             # 强制 GC 与 CUDA 缓存清理
             try:
-                self._pipeline = None # 释放函数引用，促使下次重新加载
+                self._pipeline = None  # 释放函数引用，促使下次重新加载
                 gc.collect()
                 if torch and torch.cuda.is_available():
                     torch.cuda.empty_cache()
@@ -222,15 +224,15 @@ class MinerUPipelineEngine:
         # =========================================================
         self.is_processing = True
         self.last_active_time = time.time()
-        
+
         if self.is_offloaded:
             logger.info("🚀 New task received. Waking up models (Auto-Wakeup)...")
             self.is_offloaded = False
             # 注意：下方的 _load_pipeline() 会自动处理重新加载逻辑
-        
+
         try:
             options = options or {}
-            
+
             final_output_dir = Path(output_path)
             final_output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -267,27 +269,32 @@ class MinerUPipelineEngine:
 
             formula_enable = options.get("formula_enable", True)
             table_enable = options.get("table_enable", True)
-            
-            f_draw_layout_bbox = options.get("draw_layout_bbox", True)      
-            f_draw_span_bbox = options.get("draw_span_bbox", True)          
-            f_dump_md = options.get("dump_markdown", True)                  
-            f_dump_middle_json = options.get("dump_middle_json", True)      
-            f_dump_model_output = options.get("dump_model_output", True)    
-            f_dump_content_list = options.get("dump_content_list", True)    
-            f_dump_orig_pdf = options.get("dump_orig_pdf", True)            
+
+            f_draw_layout_bbox = options.get("draw_layout_bbox", True)
+            f_draw_span_bbox = options.get("draw_span_bbox", True)
+            f_dump_md = options.get("dump_markdown", True)
+            f_dump_middle_json = options.get("dump_middle_json", True)
+            f_dump_model_output = options.get("dump_model_output", True)
+            f_dump_content_list = options.get("dump_content_list", True)
+            f_dump_orig_pdf = options.get("dump_orig_pdf", True)
 
             start_page_id = options.get("start_page_id", 0)
             end_page_id = options.get("end_page_id", None)
-            
-            try: start_page_id = int(start_page_id)
-            except: start_page_id = 0
-            
-            try: 
-                if end_page_id is not None and str(end_page_id).strip() != "": 
+
+            try:
+                start_page_id = int(start_page_id)
+            except Exception:
+                start_page_id = 0
+
+            try:
+                if end_page_id is not None and str(end_page_id).strip() != "":
                     end_page_id = int(end_page_id)
-                    if end_page_id == -1: end_page_id = None
-                else: end_page_id = None
-            except: end_page_id = None
+                    if end_page_id == -1:
+                        end_page_id = None
+                else:
+                    end_page_id = None
+            except Exception:
+                end_page_id = None
 
             do_parse_func = self._load_pipeline()
 
@@ -300,46 +307,50 @@ class MinerUPipelineEngine:
                     pdf_bytes = img2pdf.convert(file_bytes)
                 except Exception as e:
                     raise ValueError(f"Image conversion failed: {e}")
+                safe_file_name = "result.pdf"
+            elif file_ext == ".docx":
+                # MinerU 3.0 原生 DOCX 解析：直接传字节，保留 .docx 后缀
+                # do_parse 内部通过文件名后缀识别类型，走 office_docx_analyze() 路径
+                logger.info("📄 DOCX detected, passing to MinerU native parser...")
+                pdf_bytes = file_bytes
+                safe_file_name = "result.docx"
             else:
                 pdf_bytes = file_bytes
+                safe_file_name = "result.pdf"
 
             lang = options.get("lang", "auto")
-            if lang == "auto": lang = "ch"
+            if lang == "auto":
+                lang = "ch"
 
             # 使用临时纯英文目录处理
             with tempfile.TemporaryDirectory(prefix="mineru_proc_") as temp_dir:
                 temp_work_dir = Path(temp_dir)
                 logger.info(f"🛠️  Working in temp directory: {temp_work_dir}")
-                
-                safe_file_name = "result.pdf"
-                
+
                 do_parse_func(
                     output_dir=str(temp_work_dir),
                     pdf_file_names=[safe_file_name],
                     pdf_bytes_list=[pdf_bytes],
                     p_lang_list=[lang],
-                    
                     backend=backend,
                     parse_method=parse_method,
                     server_url=server_url,
-                    
                     start_page_id=start_page_id,
                     end_page_id=end_page_id,
                     formula_enable=formula_enable,
                     table_enable=table_enable,
-                    
                     f_draw_layout_bbox=f_draw_layout_bbox,
                     f_draw_span_bbox=f_draw_span_bbox,
                     f_dump_md=f_dump_md,
                     f_dump_middle_json=f_dump_middle_json,
                     f_dump_model_output=f_dump_model_output,
                     f_dump_orig_pdf=f_dump_orig_pdf,
-                    f_dump_content_list=f_dump_content_list
+                    f_dump_content_list=f_dump_content_list,
                 )
 
                 # 结果提取与搬运
                 generated_result_dir = temp_work_dir / "result"
-                
+
                 if not generated_result_dir.exists():
                     temp_md_files = list(temp_work_dir.rglob("*.md"))
                     if temp_md_files:
@@ -347,33 +358,37 @@ class MinerUPipelineEngine:
                     else:
                         temp_json_files = list(temp_work_dir.rglob("*_content_list.json"))
                         if temp_json_files:
-                             generated_result_dir = temp_json_files[0].parent.parent
+                            generated_result_dir = temp_json_files[0].parent.parent
                         else:
-                             raise FileNotFoundError("Processing failed internally - No output generated")
+                            raise FileNotFoundError("Processing failed internally - No output generated")
 
                 # 1. 读取内容并进行深度清洗
                 content = ""
                 json_content = None
-                
+
                 temp_md_files = list(generated_result_dir.rglob("*.md"))
                 if temp_md_files:
                     md_file = temp_md_files[0]
                     raw_content = md_file.read_text(encoding="utf-8")
-                    
+
                     # 深度清洗
                     content = self._clean_markdown(raw_content)
-                    
+
                     # 覆盖写入清洗后的内容
                     md_file.write_text(content, encoding="utf-8")
-                    
+
                     logger.info(f"✅ Read and cleaned MD content: {len(content)} chars")
-                
-                temp_json_files = list(generated_result_dir.rglob("*_content_list.json"))
+
+                # MinerU 3.0 新增 content_list_v2.json（推荐格式），优先使用；兼容 v1
+                temp_json_files = list(generated_result_dir.rglob("*_content_list_v2.json"))
+                if not temp_json_files:
+                    temp_json_files = list(generated_result_dir.rglob("*_content_list.json"))
                 if temp_json_files:
                     try:
                         with open(temp_json_files[0], "r", encoding="utf-8") as f:
                             json_content = json.load(f)
-                    except: pass
+                    except Exception:
+                        pass
 
                 # 2. 如果 MD 为空，尝试从 JSON 恢复
                 if not content.strip() and json_content:
@@ -385,10 +400,10 @@ class MinerUPipelineEngine:
                             text = self._clean_markdown(text)
                             recovered_text.append(text)
                     content = "\n\n".join(recovered_text)
-                    
+
                     if temp_md_files:
                         temp_md_files[0].write_text(content, encoding="utf-8")
-                        
+
                     logger.info(f"ℹ️  Recovered {len(content)} chars from JSON")
 
                 # 3. 搬运文件
@@ -404,15 +419,19 @@ class MinerUPipelineEngine:
                 # 4. 返回路径
                 final_md_path = None
                 final_json_path = None
-                
+
                 final_mds = list(final_output_dir.rglob("*.md"))
                 if final_mds:
                     final_md_path = str(final_mds[0])
                     # 覆盖写入
                     Path(final_md_path).write_text(content, encoding="utf-8")
-                
-                final_jsons = list(final_output_dir.rglob("*_content_list.json"))
-                if final_jsons: final_json_path = str(final_jsons[0])
+
+                # MinerU 3.0 新增 content_list_v2.json，优先使用；兼容 v1
+                final_jsons = list(final_output_dir.rglob("*_content_list_v2.json"))
+                if not final_jsons:
+                    final_jsons = list(final_output_dir.rglob("*_content_list.json"))
+                if final_jsons:
+                    final_json_path = str(final_jsons[0])
 
                 if not content.strip():
                     layout_pdfs = list(final_output_dir.rglob("*_layout.pdf"))
@@ -426,12 +445,13 @@ class MinerUPipelineEngine:
                     "result_path": str(final_output_dir),
                     "markdown_file": final_md_path,
                     "json_path": final_json_path,
-                    "json_content": json_content
+                    "json_content": json_content,
                 }
 
         except Exception as e:
             logger.error(f"❌ Pipeline processing failed: {e}")
             import traceback
+
             logger.debug(traceback.format_exc())
             raise
 
@@ -448,6 +468,7 @@ class MinerUPipelineEngine:
 
 # 全局单例
 _engine = None
+
 
 def get_engine(vlm_api_base: str = None) -> MinerUPipelineEngine:
     global _engine

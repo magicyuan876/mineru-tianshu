@@ -129,21 +129,21 @@ export default {
     taskSubmitted: '任务提交成功',
     taskDeleted: '任务删除成功',
     confirmDelete: '确认删除此任务？',
-    
+
     // [新增] 任务管理相关
     retryTask: '重试任务',
     pauseTask: '暂停任务',
     resumeTask: '恢复任务',
     clearCache: '清理缓存',
     clearFailedTasks: '清理失败任务',
-    
+
     confirmCancel: '确定要取消此任务吗？',
     confirmPause: '确定要暂停此任务吗？任务将暂时移出队列。',
     confirmResume: '确定要恢复此任务吗？任务将重新进入队列等待。',
     confirmRetry: '确定要重试此任务吗？原有进度将被重置。',
     confirmClearCache: '确定要清理此任务的缓存文件吗？这将释放磁盘空间，但保留数据库记录。',
     confirmClearFailed: '确定要一键清理所有失败的任务吗？此操作不可恢复。',
-    
+
     filesCleared: '文件已清理',
     filesClearedDesc: '为了节省服务器空间，此任务的结果文件已被清理。数据库记录仍然保留以供查询。',
 
@@ -187,7 +187,7 @@ export default {
     enableTableRecognition: '启用表格识别',
     tableRecognitionDisabledHint: '禁用后，表格将显示为图片。',
     pleaseSelectFile: '请先选择文件',
-    
+
     // Backend Group Labels
     groupMinerU: 'MinerU 文档解析',
     groupPaddleOCR: 'PaddleOCR 识别',
@@ -201,7 +201,7 @@ export default {
     clearFilters: '清除筛选条件',
     confirmBatchCancel: '确定要取消这 {count} 个任务吗？',
     noPendingTasksToCancel: '选中的任务中没有等待状态(Pending)的任务，无法执行取消操作。',
-    
+
     // [新增] TaskDetail 专用
     singlePage: '单页',
     splitView: '分屏对比',
@@ -237,7 +237,7 @@ export default {
     backendFastaHint: '🧬 FASTA: 解析生物序列文件（.fasta/.fa/.fna），支持蛋白质和核酸序列，生成语义化描述',
     backendGenBank: '🧬 GenBank（基因序列注释格式）',
     backendGenBankHint: '🧬 GenBank: 解析基因序列注释文件（.gb/.gbk），提取特征、注释和元数据',
-    
+
     // [新增] Parsing Method
     parseMethod: '解析策略',
     methodAuto: '自动 (Auto) - 推荐',
@@ -274,7 +274,7 @@ export default {
     langCyrillic: '西里尔语系 (Cyrillic)',
     langDevanagari: '梵文/印地文 (Devanagari)',
     langHint: '💡 音频文件请选择 SenseVoice 引擎，视频文件请选择 Video 引擎',
-    
+
     // Config Labels
     recognitionControl: '识别与解析控制',
     forceOCR: '强制启用 OCR',
@@ -290,7 +290,7 @@ export default {
     mediaParams: '媒体处理参数',
     keepAudioFile: '保留音频轨道文件',
     enableKeyframeOCR: '启用关键帧 OCR 内容识别',
-    
+
     // [新增] Debug Output
     outputSettings: '输出与调试设置',
     debugOutput: 'DEBUG OUTPUT',
@@ -301,7 +301,7 @@ export default {
     dumpOrigPdf: '保存原始/截取 PDF',
     drawLayout: '绘制布局边框 (Layout BBox)',
     drawSpan: '绘制文本边框 (Span BBox)',
-    
+
     generateLayoutPDF: '生成 Layout 标注 PDF',
     generateSpanPDF: '生成 Span 标注 PDF',
     pageError: '结束页码不能小于开始页码',
@@ -328,7 +328,7 @@ export default {
 
     // Tips
     tipBothFormats: '💡 提示：{backend} 会同时生成 Markdown 和 JSON 两种格式，您可以在查看结果时切换显示格式。',
-    
+
     // Video options
     videoOptions: '🎬 视频处理选项',
     keepAudio: '保留提取的音频文件',
@@ -338,7 +338,7 @@ export default {
     ocrEngine: 'OCR 引擎',
     ocrEngineRecommended: 'PaddleOCR-VL（推荐，支持多语言）',
     keepKeyframes: '保留提取的关键帧图像',
-    
+
     // PaddleOCR-VL options
     paddleOCREnhanced: '✨ 已启用增强功能',
     paddleOCRFeature1: '✅ 文档方向自动分类与校正',
@@ -350,7 +350,7 @@ export default {
     paddleOCRTip2: '支持中文、英文、日文、韩文、阿拉伯文等 109+ 种语言',
     paddleOCRTip3: '原生支持 PDF 多页文档处理',
     paddleOCRTip4: '仅支持 GPU 推理（要求 NVIDIA GPU）',
-    
+
     // === 新增：PaddleOCR 详细参数翻译 ===
     paddleOCROptions: '🌟 PaddleOCR 专用处理选项',
     useDocOrientationClassify: '文档方向自动分类校正',
@@ -367,7 +367,7 @@ export default {
     layoutShapeMode: '版面形状模式',
     minMaxPixels: '图像像素限制 (Min - Max)',
     markdownIgnoreLabels: '忽略的 Markdown 标签 (逗号分隔)',
-    
+
     // Watermark removal
     watermarkOptions: '🎨 水印去除选项',
     enableWatermarkRemoval: '启用水印去除 (Watermark Removal)',
@@ -388,7 +388,7 @@ export default {
     watermarkPDFTip1: '可编辑 PDF：直接删除水印对象',
     watermarkPDFTip2: '扫描件 PDF：转图片 → 去水印 → 重组 PDF',
     watermarkPDFTip3: '图片格式：直接使用 YOLO + LaMa 处理',
-    
+
     // Audio options
     audioOptions: '🎙️ 音频处理选项',
     enableSpeakerDiarization: '启用说话人分离 (Speaker Diarization)',

@@ -127,9 +127,11 @@ EOF
 
     # 检查并添加 CPU 配置（如果不存在）
     if ! grep -q "^ACCELERATOR=cpu" .env.cpu; then
-        echo "" >> .env.cpu
-        echo "# CPU Mode Overrides (Auto-generated)" >> .env.cpu
-        echo "ACCELERATOR=cpu" >> .env.cpu
+        {
+            echo ""
+            echo "# CPU Mode Overrides (Auto-generated)"
+            echo "ACCELERATOR=cpu"
+        } >> .env.cpu
     fi
 
     if ! grep -q "^CUDA_VISIBLE_DEVICES=" .env.cpu; then

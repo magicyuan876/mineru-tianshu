@@ -126,7 +126,8 @@ get_file_info() {
 # ============================================================================
 upload_file() {
     local file_spec=$1
-    local file_info=$(get_file_info "$file_spec")
+    local file_info
+    file_info=$(get_file_info "$file_spec")
 
     if [ "$file_info" = "config_files" ]; then
         # 上传配置文件
@@ -145,6 +146,7 @@ upload_file() {
         fi
 
         log_info "使用 rsync 上传配置文件..."
+        # shellcheck disable=SC2086
         rsync -avz --progress ${config_files} "${SERVER_USER}@${SERVER_HOST}:${SERVER_PATH}/"
 
     else
@@ -180,9 +182,11 @@ server_operations() {
             read -p "是否在服务器上重新加载镜像？(y/n) " -n 1 -r
             echo
             if [[ $REPLY =~ ^[Yy]$ ]]; then
-                local file_info=$(get_file_info "$file_spec")
+                local file_info
+                file_info=$(get_file_info "$file_spec")
                 log_info "♻️  加载镜像..."
 
+                # shellcheck disable=SC2087
                 ssh "${SERVER_USER}@${SERVER_HOST}" << EOF
                     cd ${SERVER_PATH}
                     docker load < ${file_info}
@@ -210,6 +214,7 @@ EOF
                             ;;
                     esac
 
+                    # shellcheck disable=SC2087
                     ssh "${SERVER_USER}@${SERVER_HOST}" << EOF
                         cd ${SERVER_PATH}
                         docker-compose restart ${services}
@@ -242,6 +247,7 @@ EOF
             echo
             if [[ $REPLY =~ ^[Yy]$ ]]; then
                 log_info "♻️  更新模型..."
+                # shellcheck disable=SC2087
                 ssh "${SERVER_USER}@${SERVER_HOST}" << EOF
                     cd ${SERVER_PATH}
                     rm -rf models-offline

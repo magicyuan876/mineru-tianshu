@@ -25,7 +25,6 @@ import atexit
 import shutil
 import socket
 import multiprocessing
-import requests
 import warnings
 import subprocess
 import tempfile
@@ -40,21 +39,28 @@ try:
     import litserve.mcp as ls_mcp
 
     if not hasattr(ls_mcp, "MCPServer"):
+
         class DummyMCPServer:
-            def __init__(self, *args, **kwargs): pass
+            def __init__(self, *args, **kwargs):
+                pass
+
         ls_mcp.MCPServer = DummyMCPServer
         if "litserve.mcp" in sys.modules:
             sys.modules["litserve.mcp"].MCPServer = DummyMCPServer
 
     if not hasattr(ls_mcp, "StreamableHTTPSessionManager"):
+
         class DummyStreamableHTTPSessionManager:
-            def __init__(self, *args, **kwargs): pass
+            def __init__(self, *args, **kwargs):
+                pass
+
         ls_mcp.StreamableHTTPSessionManager = DummyStreamableHTTPSessionManager
         if "litserve.mcp" in sys.modules:
             sys.modules["litserve.mcp"].StreamableHTTPSessionManager = DummyStreamableHTTPSessionManager
 
     class DummyMCPConnector:
         """完全禁用 LitServe 内置 MCP 的 Dummy 实现"""
+
         def __init__(self, *args, **kwargs):
             self.mcp_server = None
             self.session_manager = None
@@ -87,6 +93,7 @@ from output_normalizer import normalize_output
 from utils import parse_list_arg
 import importlib.util
 
+
 # ==============================================================================
 # 2. Dependency Checks & Global Configurations
 # ==============================================================================
@@ -98,10 +105,12 @@ def check_dependency(module_name: str, display_name: str) -> bool:
     logger.info(f"{icon} {display_name} {msg}")
     return available
 
+
 # Check optional dependencies
 MARKITDOWN_AVAILABLE = False
 try:
     from markitdown import MarkItDown
+
     MARKITDOWN_AVAILABLE = True
     logger.info("✅ MarkItDown available")
 except ImportError:
@@ -117,6 +126,7 @@ WATERMARK_REMOVAL_AVAILABLE = check_dependency("remove_watermark", "Watermark Re
 FORMAT_ENGINES_AVAILABLE = False
 try:
     from format_engines import FormatEngineRegistry, FASTAEngine, GenBankEngine
+
     FormatEngineRegistry.register(FASTAEngine())
     FormatEngineRegistry.register(GenBankEngine())
     FORMAT_ENGINES_AVAILABLE = True
@@ -130,7 +140,7 @@ except ImportError as e:
 # ==============================================================================
 class VLLMController:
     """管理 vLLM Docker 容器的互斥启动"""
-    
+
     def __init__(self):
         pass
 
@@ -138,6 +148,7 @@ class VLLMController:
         """按需获取 Docker 客户端"""
         try:
             import docker
+
             return docker.from_env()
         except Exception as e:
             logger.warning(f"⚠️  Docker client init failed: {e}")
@@ -150,15 +161,15 @@ class VLLMController:
         client = self._get_client()
         if not client:
             return
-        
+
         try:
             # 1. 检查并关闭冲突容器
             try:
                 conflict = client.containers.get(conflict_container)
-                if conflict.status == 'running':
+                if conflict.status == "running":
                     logger.info(f"🛑 Stopping conflicting service {conflict_container} to free VRAM...")
                     conflict.stop()
-                    time.sleep(2) # 等待释放
+                    time.sleep(2)  # 等待释放
                     logger.info(f"✅ Service {conflict_container} stopped.")
             except Exception:
                 pass
@@ -166,27 +177,27 @@ class VLLMController:
             # 2. 检查并启动目标容器
             try:
                 target = client.containers.get(target_container)
-                if target.status == 'running':
+                if target.status == "running":
                     return
-                
+
                 logger.info(f"🚀 Starting service {target_container} (Manual/Cold Start)...")
                 target.start()
-                
+
                 # 等待服务健康 (简单轮询)
                 for _ in range(30):
                     time.sleep(1)
                     target.reload()
-                    if target.status == 'running':
+                    if target.status == "running":
                         break
                 logger.info(f"✅ Service {target_container} started.")
-                
+
             except Exception as e:
                 logger.error(f"❌ Failed to start target container {target_container}: {e}")
                 raise e
         finally:
             try:
                 client.close()
-            except:
+            except Exception:
                 pass
 
 
@@ -204,21 +215,21 @@ class MinerUWorkerAPI(ls.LitAPI):
         paddleocr_vl_vllm_engine_enabled=False,
     ):
         super().__init__()
-        
+
         # 路径配置
         project_root = Path(__file__).parent.parent
         default_output = project_root / "data" / "output"
         self.output_dir = output_dir or os.getenv("OUTPUT_PATH", str(default_output))
-        
+
         # 运行配置
         self.poll_interval = poll_interval
         self.enable_worker_loop = enable_worker_loop
-        
+
         # API 配置
         self.paddleocr_vl_vllm_engine_enabled = paddleocr_vl_vllm_engine_enabled
         self.paddleocr_vl_vllm_api_list = paddleocr_vl_vllm_api_list or []
         self.mineru_vllm_api_list = mineru_vllm_api_list or []
-        
+
         # 进程间共享计数器
         ctx = multiprocessing.get_context("spawn")
         self._global_worker_counter = ctx.Value("i", 0)
@@ -231,9 +242,9 @@ class MinerUWorkerAPI(ls.LitAPI):
         with self._global_worker_counter.get_lock():
             my_global_index = self._global_worker_counter.value
             self._global_worker_counter.value += 1
-        
+
         logger.info(f"🔢 [Init] I am Global Worker #{my_global_index} (on {device})")
-        
+
         # API 分配
         self.paddleocr_vl_vllm_api = None
         if self.paddleocr_vl_vllm_engine_enabled and self.paddleocr_vl_vllm_api_list:
@@ -279,6 +290,7 @@ class MinerUWorkerAPI(ls.LitAPI):
 
         # MinerU VRAM 设置
         from mineru.utils.model_utils import get_vram
+
         if os.getenv("MINERU_VIRTUAL_VRAM_SIZE", None) is None:
             if self.accelerator == "cuda":
                 try:
@@ -296,7 +308,7 @@ class MinerUWorkerAPI(ls.LitAPI):
         else:
             project_root = Path(__file__).parent.parent
             db_path = (project_root / "data" / "db" / "mineru_tianshu.db").resolve()
-        
+
         db_path.parent.mkdir(parents=True, exist_ok=True)
         self.task_db = TaskDB(str(db_path))
 
@@ -321,8 +333,9 @@ class MinerUWorkerAPI(ls.LitAPI):
         if WATERMARK_REMOVAL_AVAILABLE and self.accelerator == "cuda":
             try:
                 from remove_watermark.pdf_watermark_handler import PDFWatermarkHandler
+
                 self.watermark_handler = PDFWatermarkHandler(device="cuda:0", use_lama=True)
-                logger.info(f"✅ Watermark engine initialized")
+                logger.info("✅ Watermark engine initialized")
             except Exception as e:
                 logger.error(f"❌ Failed to init watermark engine: {e}")
 
@@ -359,7 +372,8 @@ class MinerUWorkerAPI(ls.LitAPI):
                             stats = self.task_db.get_queue_stats()
                             if loop_count % 100 == 0:
                                 logger.info(f"💤 {self.worker_id} idle. Queue stats: {stats}")
-                        except: pass
+                        except Exception:
+                            pass
                         last_stats_log = loop_count
                     time.sleep(self.poll_interval)
 
@@ -381,14 +395,20 @@ class MinerUWorkerAPI(ls.LitAPI):
             mineru_container = "tianshu-vllm-mineru"
 
             if backend == "paddleocr-vl-vllm" and self.paddleocr_vl_vllm_api:
-                self.vllm_controller.ensure_service(target_container=paddle_container, conflict_container=mineru_container)
+                self.vllm_controller.ensure_service(
+                    target_container=paddle_container, conflict_container=mineru_container
+                )
             elif backend in ["vlm-auto-engine", "hybrid-auto-engine"] and self.mineru_vllm_api:
-                self.vllm_controller.ensure_service(target_container=mineru_container, conflict_container=paddle_container)
+                self.vllm_controller.ensure_service(
+                    target_container=mineru_container, conflict_container=paddle_container
+                )
 
             file_ext = Path(file_path).suffix.lower()
 
             # 2. 预处理
-            if file_ext in [".docx", ".xlsx", ".pptx", ".doc", ".xls", ".ppt"] and options.get("convert_office_to_pdf", False):
+            if file_ext in [".docx", ".xlsx", ".pptx", ".doc", ".xls", ".ppt"] and options.get(
+                "convert_office_to_pdf", False
+            ):
                 try:
                     pdf_path = self._convert_office_to_pdf(file_path)
                     file_path = pdf_path
@@ -414,23 +434,28 @@ class MinerUWorkerAPI(ls.LitAPI):
             result = None
 
             if backend == "sensevoice":
-                if not SENSEVOICE_AVAILABLE: raise ValueError("SenseVoice not available")
+                if not SENSEVOICE_AVAILABLE:
+                    raise ValueError("SenseVoice not available")
                 result = self._process_audio(file_path, options)
 
             elif backend == "video":
-                if not VIDEO_ENGINE_AVAILABLE: raise ValueError("Video engine not available")
+                if not VIDEO_ENGINE_AVAILABLE:
+                    raise ValueError("Video engine not available")
                 result = self._process_video(file_path, options)
 
             elif backend == "paddleocr-vl":
-                if not PADDLEOCR_VL_AVAILABLE: raise ValueError("PaddleOCR-VL not available")
+                if not PADDLEOCR_VL_AVAILABLE:
+                    raise ValueError("PaddleOCR-VL not available")
                 result = self._process_with_paddleocr_vl(file_path, options)
 
             elif backend == "paddleocr-vl-vllm":
-                if not PADDLEOCR_VL_VLLM_AVAILABLE: raise ValueError("PaddleOCR-VL-VLLM not available")
+                if not PADDLEOCR_VL_VLLM_AVAILABLE:
+                    raise ValueError("PaddleOCR-VL-VLLM not available")
                 result = self._process_with_paddleocr_vl_vllm(file_path, options)
 
             elif "pipeline" in backend or "vlm-" in backend or "hybrid-" in backend:
-                if not MINERU_PIPELINE_AVAILABLE: raise ValueError("MinerU Pipeline not available")
+                if not MINERU_PIPELINE_AVAILABLE:
+                    raise ValueError("MinerU Pipeline not available")
                 options["parse_mode"] = backend
                 result = self._process_with_mineru(file_path, options)
 
@@ -441,9 +466,28 @@ class MinerUWorkerAPI(ls.LitAPI):
                     result = self._process_audio(file_path, options)
                 elif file_ext in [".mp4", ".avi", ".mkv", ".mov"] and VIDEO_ENGINE_AVAILABLE:
                     result = self._process_video(file_path, options)
-                elif file_ext in [".pdf", ".png", ".jpg", ".jpeg"] and MINERU_PIPELINE_AVAILABLE:
+                elif file_ext in [".pdf", ".png", ".jpg", ".jpeg", ".docx"] and MINERU_PIPELINE_AVAILABLE:
                     options["parse_mode"] = "pipeline"
                     result = self._process_with_mineru(file_path, options)
+                elif file_ext in [".doc", ".xls", ".ppt"]:
+                    # 旧格式先用 LibreOffice 转为对应新格式，再走已有处理链
+                    # .doc→.docx→MinerU原生  .xls→.xlsx→MarkItDown  .ppt→.pptx→MarkItDown
+                    try:
+                        new_path = self._convert_office_to_new_format(file_path)
+                        new_ext = Path(new_path).suffix.lower()
+                        if new_ext == ".docx" and MINERU_PIPELINE_AVAILABLE:
+                            options["parse_mode"] = "pipeline"
+                            result = self._process_with_mineru(new_path, options)
+                        elif self.markitdown:
+                            result = self._process_with_markitdown(new_path)
+                        else:
+                            raise ValueError(f"No handler available for converted {new_ext}")
+                    except Exception as e:
+                        logger.warning(f"⚠️ Old format conversion failed ({e}), falling back to MarkItDown")
+                        if self.markitdown:
+                            result = self._process_with_markitdown(file_path)
+                        else:
+                            raise ValueError(f"Unsupported file type: {file_ext}") from e
                 elif self.markitdown:
                     result = self._process_with_markitdown(file_path)
                 else:
@@ -468,12 +512,14 @@ class MinerUWorkerAPI(ls.LitAPI):
                 status="completed",
                 result_path=result["result_path"],
                 error_message=None,
-                data=json.dumps({
-                    "pdf_path": result.get("pdf_path"),      # 关键：供前端左侧预览使用
-                    "json_content": result.get("json_content"), # 关键：供前端右侧布局渲染使用
-                    "markdown": result.get("content"),
-                    "markdown_file": result.get("markdown_file") 
-                })
+                data=json.dumps(
+                    {
+                        "pdf_path": result.get("pdf_path"),  # 关键：供前端左侧预览使用
+                        "json_content": result.get("json_content"),  # 关键：供前端右侧布局渲染使用
+                        "markdown": result.get("content"),
+                        "markdown_file": result.get("markdown_file"),
+                    }
+                ),
             )
 
             # 7. 合并子任务
@@ -502,10 +548,10 @@ class MinerUWorkerAPI(ls.LitAPI):
         """
         output_dir = Path(output_dir)
         source_file = Path(file_path)
-        
+
         # 1. 如果源文件不是 PDF (可能是图片)，尝试找转换后的 PDF
         if source_file.suffix.lower() != ".pdf":
-             # 检查是否有 layout.pdf
+            # 检查是否有 layout.pdf
             layout_pdfs = list(output_dir.glob("*_layout.pdf"))
             if layout_pdfs:
                 return layout_pdfs[0].name
@@ -516,11 +562,11 @@ class MinerUWorkerAPI(ls.LitAPI):
         layout_pdfs = list(output_dir.glob("*_layout.pdf"))
         if layout_pdfs:
             return layout_pdfs[0].name
-        
+
         # 3. 如果没有布局 PDF，则复制源 PDF 到输出目录
         target_name = preferred_name or source_file.name
         target_path = output_dir / target_name
-        
+
         if not target_path.exists():
             try:
                 shutil.copy2(source_file, target_path)
@@ -528,7 +574,7 @@ class MinerUWorkerAPI(ls.LitAPI):
             except Exception as e:
                 logger.warning(f"Failed to copy source PDF: {e}")
                 return None
-        
+
         return target_name
 
     # -------------------------------------------------------------------------
@@ -537,9 +583,9 @@ class MinerUWorkerAPI(ls.LitAPI):
     def _process_with_mineru(self, file_path: str, options: dict) -> dict:
         if self.mineru_pipeline_engine is None:
             from mineru_pipeline import MinerUPipelineEngine
+
             self.mineru_pipeline_engine = MinerUPipelineEngine(
-                device=self.engine_device,
-                vlm_api_base=self.mineru_vllm_api
+                device=self.engine_device, vlm_api_base=self.mineru_vllm_api
             )
 
         output_dir = Path(self.output_dir) / Path(file_path).stem
@@ -549,7 +595,7 @@ class MinerUWorkerAPI(ls.LitAPI):
             options.setdefault("server_url", self.mineru_vllm_api.replace("/v1", ""))
 
         result = self.mineru_pipeline_engine.parse(file_path, output_path=str(output_dir), options=options)
-        
+
         actual_output = Path(result["result_path"])
         normalize_output(actual_output)
 
@@ -559,13 +605,15 @@ class MinerUWorkerAPI(ls.LitAPI):
                 for item in actual_output.iterdir():
                     dest = output_dir / item.name
                     if dest.exists():
-                        if dest.is_dir(): shutil.rmtree(dest)
-                        else: dest.unlink()
+                        if dest.is_dir():
+                            shutil.rmtree(dest)
+                        else:
+                            dest.unlink()
                     shutil.move(str(item), str(dest))
                 shutil.rmtree(actual_output)
             except Exception as e:
                 logger.warning(f"Flattening warning: {e}")
-        
+
         # [修复] 确保 PDF 存在并返回路径
         pdf_path = self._ensure_pdf_in_output(file_path, output_dir)
 
@@ -573,31 +621,32 @@ class MinerUWorkerAPI(ls.LitAPI):
             "result_path": str(output_dir),
             "content": result.get("markdown", ""),
             "json_content": result.get("json_content"),
-            "pdf_path": pdf_path, # 返回给前端
-            "markdown_file": result.get("markdown_file")
+            "pdf_path": pdf_path,  # 返回给前端
+            "markdown_file": result.get("markdown_file"),
         }
 
     def _process_with_paddleocr_vl(self, file_path: str, options: dict) -> dict:
         if self.accelerator == "cpu":
             raise RuntimeError("PaddleOCR-VL requires GPU")
-            
+
         if self.paddleocr_vl_engine is None:
             from paddleocr_vl import PaddleOCRVLEngine
+
             self.paddleocr_vl_engine = PaddleOCRVLEngine(device="cuda:0", model_name="PaddleOCR-VL-1.5")
 
         output_dir = Path(self.output_dir) / Path(file_path).stem
         output_dir.mkdir(parents=True, exist_ok=True)
 
         result = self.paddleocr_vl_engine.parse(file_path, output_path=str(output_dir), **options)
-        
+
         pdf_path = self._ensure_pdf_in_output(file_path, output_dir)
         normalize_output(output_dir)
-        
+
         return {
-            "result_path": str(output_dir), 
+            "result_path": str(output_dir),
             "content": result.get("markdown", ""),
-            "json_content": result.get("json_content"), # 必须传递
-            "pdf_path": pdf_path
+            "json_content": result.get("json_content"),  # 必须传递
+            "pdf_path": pdf_path,
         }
 
     def _process_with_paddleocr_vl_vllm(self, file_path: str, options: dict) -> dict:
@@ -606,32 +655,32 @@ class MinerUWorkerAPI(ls.LitAPI):
 
         if self.paddleocr_vl_vllm_engine is None:
             from paddleocr_vl_vllm import PaddleOCRVLVLLMEngine
+
             self.paddleocr_vl_vllm_engine = PaddleOCRVLVLLMEngine(
-                device="cuda:0",
-                vllm_api_base=self.paddleocr_vl_vllm_api,
-                model_name="PaddleOCR-VL-1.5-0.9B"
+                device="cuda:0", vllm_api_base=self.paddleocr_vl_vllm_api, model_name="PaddleOCR-VL-1.5-0.9B"
             )
 
         output_dir = Path(self.output_dir) / Path(file_path).stem
         output_dir.mkdir(parents=True, exist_ok=True)
 
         result = self.paddleocr_vl_vllm_engine.parse(file_path, output_path=str(output_dir), **options)
-        
+
         # [修复] 复制源文件以便预览 (关键修复)
         pdf_path = self._ensure_pdf_in_output(file_path, output_dir)
-        
+
         normalize_output(output_dir, handle_method="paddleocr-vl")
-        
+
         return {
-            "result_path": str(output_dir), 
+            "result_path": str(output_dir),
             "content": result.get("markdown", ""),
-            "json_content": result.get("json_content"), # 关键：支持右侧高亮
-            "pdf_path": pdf_path # 关键：支持左侧预览
+            "json_content": result.get("json_content"),  # 关键：支持右侧高亮
+            "pdf_path": pdf_path,  # 关键：支持左侧预览
         }
 
     def _process_audio(self, file_path: str, options: dict) -> dict:
         if self.sensevoice_engine is None:
             from audio_engines import SenseVoiceEngine
+
             self.sensevoice_engine = SenseVoiceEngine(device=self.engine_device)
 
         output_dir = Path(self.output_dir) / Path(file_path).stem
@@ -642,7 +691,7 @@ class MinerUWorkerAPI(ls.LitAPI):
             output_path=str(output_dir),
             language=options.get("lang", "auto"),
             use_itn=options.get("use_itn", True),
-            enable_speaker_diarization=options.get("enable_speaker_diarization", False)
+            enable_speaker_diarization=options.get("enable_speaker_diarization", False),
         )
         normalize_output(output_dir)
         return {"result_path": str(output_dir), "content": result.get("markdown", "")}
@@ -650,6 +699,7 @@ class MinerUWorkerAPI(ls.LitAPI):
     def _process_video(self, file_path: str, options: dict) -> dict:
         if self.video_engine is None:
             from video_engines import VideoProcessingEngine
+
             self.video_engine = VideoProcessingEngine(device=self.engine_device)
 
         output_dir = Path(self.output_dir) / Path(file_path).stem
@@ -663,9 +713,9 @@ class MinerUWorkerAPI(ls.LitAPI):
             keep_audio=options.get("keep_audio", False),
             enable_keyframe_ocr=options.get("enable_keyframe_ocr", False),
             ocr_backend=options.get("ocr_backend", "paddleocr-vl"),
-            keep_keyframes=options.get("keep_keyframes", False)
+            keep_keyframes=options.get("keep_keyframes", False),
         )
-        
+
         (output_dir / f"{Path(file_path).stem}_video_analysis.md").write_text(result["markdown"], encoding="utf-8")
         normalize_output(output_dir)
         return {"result_path": str(output_dir), "content": result["markdown"]}
@@ -683,6 +733,7 @@ class MinerUWorkerAPI(ls.LitAPI):
         if Path(file_path).suffix.lower() == ".docx":
             try:
                 from utils.docx_image_extractor import extract_images_from_docx, append_images_to_markdown
+
                 images_dir = output_dir / "images"
                 images = extract_images_from_docx(file_path, str(images_dir))
                 if images:
@@ -692,37 +743,35 @@ class MinerUWorkerAPI(ls.LitAPI):
 
         (output_dir / f"{Path(file_path).stem}_markitdown.md").write_text(markdown_content, encoding="utf-8")
         normalize_output(output_dir)
-        
+
         # MarkItDown 也可以尝试生成 PDF 预览 (如果源文件是 PDF)
         pdf_path = self._ensure_pdf_in_output(file_path, output_dir)
-        
+
         return {"result_path": str(output_dir), "content": markdown_content, "pdf_path": pdf_path}
 
     def _process_with_format_engine(self, file_path: str, options: dict, engine_name: Optional[str] = None) -> dict:
         lang = options.get("language", "en")
-        
+
         if engine_name:
             engine = FormatEngineRegistry.get_engine(engine_name)
         else:
             engine = FormatEngineRegistry.get_engine_by_extension(file_path)
-            
+
         if not engine:
             raise ValueError("No format engine available")
 
         result = engine.parse(file_path, options={"language": lang})
-        
+
         output_dir = Path(self.output_dir) / Path(file_path).stem
         output_dir.mkdir(parents=True, exist_ok=True)
-        
+
         (output_dir / "result.md").write_text(result["markdown"], encoding="utf-8")
-        (output_dir / "result.json").write_text(json.dumps(result["json_content"], indent=2, ensure_ascii=False), encoding="utf-8")
-        
+        (output_dir / "result.json").write_text(
+            json.dumps(result["json_content"], indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+
         normalize_output(output_dir)
-        return {
-            "result_path": str(output_dir),
-            "content": result["content"],
-            "json_content": result["json_content"]
-        }
+        return {"result_path": str(output_dir), "content": result["content"], "json_content": result["json_content"]}
 
     # -------------------------------------------------------------------------
     # Utilities
@@ -730,7 +779,39 @@ class MinerUWorkerAPI(ls.LitAPI):
     def _convert_office_to_pdf(self, file_path: str) -> str:
         input_file = Path(file_path)
         final_pdf = input_file.parent / f"{input_file.stem}.pdf"
-        if final_pdf.exists(): final_pdf.unlink()
+        if final_pdf.exists():
+            final_pdf.unlink()
+
+        try:
+            with tempfile.TemporaryDirectory(prefix="libreoffice_") as temp_dir:
+                temp_path = Path(temp_dir)
+                temp_input = temp_path / input_file.name
+                shutil.copy2(input_file, temp_input)
+
+                cmd = ["libreoffice", "--headless", "--convert-to", "pdf", "--outdir", str(temp_path), str(temp_input)]
+                subprocess.run(cmd, check=True, timeout=120, capture_output=True)
+
+                temp_pdf = temp_path / f"{input_file.stem}.pdf"
+                if not temp_pdf.exists():
+                    raise RuntimeError("PDF output missing")
+                shutil.move(str(temp_pdf), str(final_pdf))
+                return str(final_pdf)
+        except Exception as e:
+            raise RuntimeError(f"Office conversion failed: {e}")
+
+    def _convert_office_to_new_format(self, file_path: str) -> str:
+        """将旧版 Office 格式转换为对应的 OOXML 新格式（供 MarkItDown / MinerU 处理）。
+        .doc → .docx   .xls → .xlsx   .ppt → .pptx
+        """
+        _fmt_map = {".doc": "docx", ".xls": "xlsx", ".ppt": "pptx"}
+        input_file = Path(file_path)
+        target_fmt = _fmt_map.get(input_file.suffix.lower())
+        if not target_fmt:
+            raise ValueError(f"Unsupported old format: {input_file.suffix}")
+
+        final_new = input_file.parent / f"{input_file.stem}.{target_fmt}"
+        if final_new.exists():
+            final_new.unlink()
 
         try:
             with tempfile.TemporaryDirectory(prefix="libreoffice_") as temp_dir:
@@ -739,48 +820,68 @@ class MinerUWorkerAPI(ls.LitAPI):
                 shutil.copy2(input_file, temp_input)
 
                 cmd = [
-                    "libreoffice", "--headless", "--convert-to", "pdf",
-                    "--outdir", str(temp_path), str(temp_input)
+                    "libreoffice",
+                    "--headless",
+                    "--convert-to",
+                    target_fmt,
+                    "--outdir",
+                    str(temp_path),
+                    str(temp_input),
                 ]
                 subprocess.run(cmd, check=True, timeout=120, capture_output=True)
-                
-                temp_pdf = temp_path / f"{input_file.stem}.pdf"
-                if not temp_pdf.exists(): raise RuntimeError("PDF output missing")
-                shutil.move(str(temp_pdf), str(final_pdf))
-                return str(final_pdf)
+
+                temp_new = temp_path / f"{input_file.stem}.{target_fmt}"
+                if not temp_new.exists():
+                    raise RuntimeError(f"{target_fmt} output missing")
+                shutil.move(str(temp_new), str(final_new))
+                logger.info(f"✅ Converted {input_file.suffix} → .{target_fmt}: {final_new}")
+                return str(final_new)
         except Exception as e:
-            raise RuntimeError(f"Office conversion failed: {e}")
+            raise RuntimeError(f"Old format conversion failed: {e}")
 
     def _preprocess_remove_watermark(self, file_path: str, options: dict) -> Path:
-        if not self.watermark_handler: raise RuntimeError("Watermark handler missing")
+        if not self.watermark_handler:
+            raise RuntimeError("Watermark handler missing")
         output_file = Path(self.output_dir) / f"{Path(file_path).stem}_no_watermark.pdf"
-        
+
         kwargs = {}
-        for k in ["auto_detect", "force_scanned", "remove_text", "remove_images", 
-                  "remove_annotations", "watermark_keywords", "watermark_dpi", 
-                  "watermark_conf_threshold", "watermark_dilation"]:
-            if k in options: kwargs[k.replace("watermark_", "")] = options[k]
+        for k in [
+            "auto_detect",
+            "force_scanned",
+            "remove_text",
+            "remove_images",
+            "remove_annotations",
+            "watermark_keywords",
+            "watermark_dpi",
+            "watermark_conf_threshold",
+            "watermark_dilation",
+        ]:
+            if k in options:
+                kwargs[k.replace("watermark_", "")] = options[k]
 
         return self.watermark_handler.remove_watermark(input_path=file_path, output_path=str(output_file), **kwargs)
 
     def _should_split_pdf(self, task_id, file_path, task, options):
         from utils.pdf_utils import get_pdf_page_count, split_pdf_file
-        if os.getenv("PDF_SPLIT_ENABLED", "true").lower() != "true": return False
-        
+
+        if os.getenv("PDF_SPLIT_ENABLED", "true").lower() != "true":
+            return False
+
         threshold = int(os.getenv("PDF_SPLIT_THRESHOLD_PAGES", "500"))
         chunk_size = int(os.getenv("PDF_SPLIT_CHUNK_SIZE", "500"))
-        
+
         try:
             pages = get_pdf_page_count(Path(file_path))
-            if pages <= threshold: return False
-            
+            if pages <= threshold:
+                return False
+
             logger.info(f"🔀 Splitting PDF ({pages} pages)...")
             self.task_db.convert_to_parent_task(task_id, child_count=0)
             split_dir = Path(self.output_dir) / "splits" / task_id
             split_dir.mkdir(parents=True, exist_ok=True)
-            
+
             chunks = split_pdf_file(Path(file_path), split_dir, chunk_size, task_id)
-            
+
             for chunk in chunks:
                 c_ops = options.copy()
                 c_ops["chunk_info"] = {k: chunk[k] for k in ["start_page", "end_page", "page_count"]}
@@ -791,9 +892,9 @@ class MinerUWorkerAPI(ls.LitAPI):
                     backend=task.get("backend", "auto"),
                     options=c_ops,
                     priority=task.get("priority", 0),
-                    user_id=task.get("user_id")
+                    user_id=task.get("user_id"),
                 )
-            
+
             self.task_db.convert_to_parent_task(task_id, child_count=len(chunks))
             logger.info(f"✂️  Split into {len(chunks)} subtasks")
             return True
@@ -804,43 +905,54 @@ class MinerUWorkerAPI(ls.LitAPI):
     def _merge_parent_task_results(self, parent_task_id):
         parent_task = self.task_db.get_task_with_children(parent_task_id)
         children = parent_task.get("children", [])
-        if not children: return
+        if not children:
+            return
 
         children.sort(key=lambda x: json.loads(x.get("options", "{}")).get("chunk_info", {}).get("start_page", 0))
-        
+
         parent_out = Path(self.output_dir) / Path(parent_task["file_path"]).stem
         parent_out.mkdir(parents=True, exist_ok=True)
-        
+
         md_parts, json_pages = [], []
-        
+
         for child in children:
-            if child["status"] != "completed": continue
+            if child["status"] != "completed":
+                continue
             res_dir = Path(child["result_path"])
-            
-            md_file = next((f for f in res_dir.rglob("*.md") if f.name == "result.md"), None) or list(res_dir.rglob("*.md"))[0]
+
+            md_file = (
+                next((f for f in res_dir.rglob("*.md") if f.name == "result.md"), None)
+                or list(res_dir.rglob("*.md"))[0]
+            )
             md_parts.append(md_file.read_text(encoding="utf-8"))
-            
+
             json_file = next((f for f in res_dir.rglob("*.json") if "result" in f.name or "content" in f.name), None)
             if json_file:
                 try:
                     data = json.loads(json_file.read_text(encoding="utf-8"))
                     offset = json.loads(child.get("options", "{}")).get("chunk_info", {}).get("start_page", 1) - 1
-                    
+
                     # 兼容不同的 JSON 格式
                     pages = []
-                    if isinstance(data, list): pages = data
-                    elif "pages" in data: pages = data["pages"]
-                    
+                    if isinstance(data, list):
+                        pages = data
+                    elif "pages" in data:
+                        pages = data["pages"]
+
                     for p in pages:
                         # 修正页码偏移
-                        if "page_idx" in p: p["page_idx"] += offset
+                        if "page_idx" in p:
+                            p["page_idx"] += offset
                         json_pages.append(p)
-                except: pass
+                except Exception:
+                    pass
 
         (parent_out / "result.md").write_text("\n\n\n\n".join(md_parts), encoding="utf-8")
         if json_pages:
-            (parent_out / "result.json").write_text(json.dumps(json_pages, indent=2, ensure_ascii=False), encoding="utf-8")
-        
+            (parent_out / "result.json").write_text(
+                json.dumps(json_pages, indent=2, ensure_ascii=False), encoding="utf-8"
+            )
+
         # [修复] 复制父任务的源文件到输出
         self._ensure_pdf_in_output(parent_task["file_path"], parent_out)
 
@@ -851,11 +963,15 @@ class MinerUWorkerAPI(ls.LitAPI):
     def _cleanup_child_task_files(self, children):
         for child in children:
             try:
-                if child.get("file_path"): Path(child["file_path"]).unlink(missing_ok=True)
-            except: pass
+                if child.get("file_path"):
+                    Path(child["file_path"]).unlink(missing_ok=True)
+            except Exception:
+                pass
 
     # LitServe Interfaces
-    def decode_request(self, request): return request.get("action", "health")
+    def decode_request(self, request):
+        return request.get("action", "health")
+
     def predict(self, action):
         if action == "health":
             return {"status": "healthy", "worker_id": self.worker_id}
@@ -871,24 +987,37 @@ class MinerUWorkerAPI(ls.LitAPI):
                     return {"status": "failed", "error": str(e)}
             return {"status": "empty"}
         return {"status": "error", "message": "Invalid action"}
-    def encode_response(self, response): return response
+
+    def encode_response(self, response):
+        return response
+
     def teardown(self):
         self.running = False
-        if hasattr(self, "worker_thread"): self.worker_thread.join(timeout=2)
+        if hasattr(self, "worker_thread"):
+            self.worker_thread.join(timeout=2)
 
 
 def start_litserve_workers(
-    output_dir=None, accelerator="auto", devices="auto", workers_per_device=1,
-    port=8001, poll_interval=0.5, enable_worker_loop=True,
-    paddleocr_vl_vllm_engine_enabled=False, paddleocr_vl_vllm_api_list=[],
-    mineru_vllm_api_list=[]
+    output_dir=None,
+    accelerator="auto",
+    devices="auto",
+    workers_per_device=1,
+    port=8001,
+    poll_interval=0.5,
+    enable_worker_loop=True,
+    paddleocr_vl_vllm_engine_enabled=False,
+    paddleocr_vl_vllm_api_list=[],
+    mineru_vllm_api_list=[],
 ):
     def resolve_auto_accelerator():
         try:
             from importlib.metadata import distribution
+
             distribution("torch")
-            if check_cuda_with_nvidia_smi() > 0: return "cuda"
-        except: pass
+            if check_cuda_with_nvidia_smi() > 0:
+                return "cuda"
+        except Exception:
+            pass
         return "cpu"
 
     if output_dir is None:
@@ -917,7 +1046,8 @@ def start_litserve_workers(
     )
 
     def graceful_shutdown(signum=None, frame=None):
-        if hasattr(api, "teardown"): api.teardown()
+        if hasattr(api, "teardown"):
+            api.teardown()
         sys.exit(0)
 
     signal.signal(signal.SIGINT, graceful_shutdown)
@@ -929,6 +1059,7 @@ def start_litserve_workers(
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--output-dir", type=str, default=None)
     parser.add_argument("--port", type=int, default=8001)
@@ -946,7 +1077,8 @@ if __name__ == "__main__":
     devices = args.devices
     if devices == "auto":
         env_dev = os.getenv("CUDA_VISIBLE_DEVICES")
-        if env_dev: devices = env_dev
+        if env_dev:
+            devices = env_dev
 
     port = args.port
     if port == 8001:
@@ -956,14 +1088,14 @@ if __name__ == "__main__":
     # 用户可以在 .env 中设置 MAX_CONCURRENT_TASKS=1 来限制
     env_workers = os.getenv("MAX_CONCURRENT_TASKS", "1")
     workers_per_device = int(env_workers)
-    
+
     logger.info(f"⚙️  Concurrency Config: workers_per_device={workers_per_device} (env: {env_workers})")
 
     start_litserve_workers(
         output_dir=args.output_dir,
         accelerator=args.accelerator,
         devices=devices,
-        workers_per_device=workers_per_device, # 使用处理后的变量
+        workers_per_device=workers_per_device,  # 使用处理后的变量
         port=port,
         poll_interval=args.poll_interval,
         enable_worker_loop=not args.disable_worker_loop,

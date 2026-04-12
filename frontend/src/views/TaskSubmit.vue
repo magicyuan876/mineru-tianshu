@@ -5,8 +5,8 @@
         <h1 class="text-2xl font-bold text-gray-900 tracking-tight">{{ $t('task.submitTask') }}</h1>
         <p class="mt-1 text-sm text-gray-500">{{ $t('task.processingOptions') }}</p>
       </div>
-      <button 
-        @click="resetConfig" 
+      <button
+        @click="resetConfig"
         class="text-xs text-gray-500 hover:text-primary-600 underline transition-colors flex items-center"
         :title="$t('task.resetConfig')"
       >
@@ -16,7 +16,7 @@
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-      
+
       <div class="lg:col-span-5 order-2 lg:order-1">
         <div class="card shadow-sm hover:shadow-md transition-shadow duration-200 h-full flex flex-col">
           <div class="p-4 border-b border-gray-100 bg-gray-50 rounded-t-lg">
@@ -33,7 +33,7 @@
               @update:files="onFilesChange"
               class="flex-1"
             />
-            
+
             <div class="mt-6 pt-6 border-t border-gray-100">
               <button
                 @click="submitTasks"
@@ -63,15 +63,15 @@
               {{ config.backend }}
             </span>
           </div>
-          
+
           <div class="p-6 space-y-6">
-            
+
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
-               <button 
-                 v-for="preset in presets" 
+               <button
+                 v-for="preset in presets"
                  :key="preset.id"
                  @click="applyPreset(preset)"
-                 :class="['p-2 rounded-lg border text-left transition-all relative overflow-hidden group', 
+                 :class="['p-2 rounded-lg border text-left transition-all relative overflow-hidden group',
                            currentPreset === preset.id ? 'border-primary-500 bg-primary-50 ring-1 ring-primary-500' : 'border-gray-200 hover:border-primary-300 hover:bg-gray-50']"
                >
                  <div class="text-xl mb-1">{{ preset.icon }}</div>
@@ -95,7 +95,7 @@
                     class="w-full pl-3 pr-8 py-3 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition-colors text-sm font-medium shadow-sm"
                   >
                     <option value="auto">{{ $t('task.backendAuto') }}</option>
-                    
+
                     <optgroup label="MinerU (Local)">
                       <option value="pipeline">{{ $t('task.backendPipeline') }}</option>
                       <option value="hybrid-auto-engine">{{ $t('task.backendHybridAutoEngine') }}</option>
@@ -106,17 +106,17 @@
                       <option value="hybrid-http-client">{{ $t('task.backendHybridHttpClient') }}</option>
                       <option value="vlm-http-client">{{ $t('task.backendVlmHttpClient') }}</option>
                     </optgroup>
-                    
+
                     <optgroup :label="$t('task.groupPaddleOCR')">
                       <option value="paddleocr-vl">{{ $t('task.backendPaddleOcrVl1509b') }}</option>
                       <option value="paddleocr-vl-vllm">{{ $t('task.backendPaddleOCRVLLM') }}</option>
                     </optgroup>
-                    
+
                     <optgroup :label="$t('task.groupAudioVideo')">
                       <option value="sensevoice">{{ $t('task.backendSenseVoice') }}</option>
                       <option value="video">{{ $t('task.backendVideo') }}</option>
                     </optgroup>
-                    
+
                     <optgroup :label="$t('task.groupProfessional')">
                       <option value="fasta">{{ $t('task.backendFasta') }}</option>
                       <option value="genbank">{{ $t('task.backendGenBank') }}</option>
@@ -135,11 +135,11 @@
               <div v-if="isHttpClientBackend" class="col-span-1 md:col-span-2 animate-fade-in">
                 <label class="block text-sm font-medium text-gray-700 mb-1.5">{{ $t('task.serverUrl') }}</label>
                 <div class="relative">
-                  <input 
-                    v-model="config.server_url" 
-                    type="text" 
+                  <input
+                    v-model="config.server_url"
+                    type="text"
                     :placeholder="$t('task.serverUrlPlaceholder')"
-                    class="w-full pl-9 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500" 
+                    class="w-full pl-9 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                   />
                   <Globe class="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
                 </div>
@@ -174,7 +174,7 @@
               <h3 class="text-sm font-bold text-gray-800 mb-3 flex items-center">
                 <ScanText class="w-4 h-4 mr-2 text-primary-600"/> {{ $t('task.recognitionControl') }}
               </h3>
-              
+
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div class="border border-gray-200 rounded-lg p-3 hover:bg-gray-50 transition-colors">
                   <label class="flex items-center cursor-pointer mb-1">
@@ -273,35 +273,35 @@
                    <div class="bg-green-50 border border-green-100 rounded p-3 space-y-3">
                       <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
                         <label class="flex items-center cursor-pointer">
-                          <input v-model="config.useDocOrientationClassify" type="checkbox" class="mr-2 rounded text-green-600"/> 
+                          <input v-model="config.useDocOrientationClassify" type="checkbox" class="mr-2 rounded text-green-600"/>
                           <span class="text-xs text-gray-700">{{ $t('task.useDocOrientationClassify') }}</span>
                         </label>
                         <label class="flex items-center cursor-pointer">
-                          <input v-model="config.useDocUnwarping" type="checkbox" class="mr-2 rounded text-green-600"/> 
+                          <input v-model="config.useDocUnwarping" type="checkbox" class="mr-2 rounded text-green-600"/>
                           <span class="text-xs text-gray-700">{{ $t('task.useDocUnwarping') }}</span>
                         </label>
                         <label class="flex items-center cursor-pointer">
-                          <input v-model="config.useLayoutDetection" type="checkbox" class="mr-2 rounded text-green-600"/> 
+                          <input v-model="config.useLayoutDetection" type="checkbox" class="mr-2 rounded text-green-600"/>
                           <span class="text-xs text-gray-700">{{ $t('task.useLayoutDetection') }}</span>
                         </label>
                         <label class="flex items-center cursor-pointer">
-                          <input v-model="config.useChartRecognition" type="checkbox" class="mr-2 rounded text-green-600"/> 
+                          <input v-model="config.useChartRecognition" type="checkbox" class="mr-2 rounded text-green-600"/>
                           <span class="text-xs text-gray-700">{{ $t('task.useChartRecognition') }}</span>
                         </label>
                         <label class="flex items-center cursor-pointer">
-                          <input v-model="config.useSealRecognition" type="checkbox" class="mr-2 rounded text-green-600"/> 
+                          <input v-model="config.useSealRecognition" type="checkbox" class="mr-2 rounded text-green-600"/>
                           <span class="text-xs text-gray-700">{{ $t('task.useSealRecognition') }}</span>
                         </label>
                         <label class="flex items-center cursor-pointer">
-                          <input v-model="config.useOcrForImageBlock" type="checkbox" class="mr-2 rounded text-green-600"/> 
+                          <input v-model="config.useOcrForImageBlock" type="checkbox" class="mr-2 rounded text-green-600"/>
                           <span class="text-xs text-gray-700">{{ $t('task.useOcrForImageBlock') }}</span>
                         </label>
                         <label class="flex items-center cursor-pointer">
-                          <input v-model="config.layoutNms" type="checkbox" class="mr-2 rounded text-green-600"/> 
+                          <input v-model="config.layoutNms" type="checkbox" class="mr-2 rounded text-green-600"/>
                           <span class="text-xs text-gray-700">{{ $t('task.layoutNms') }}</span>
                         </label>
                         <label class="flex items-center cursor-pointer">
-                          <input v-model="config.restructurePages" type="checkbox" class="mr-2 rounded text-green-600"/> 
+                          <input v-model="config.restructurePages" type="checkbox" class="mr-2 rounded text-green-600"/>
                           <span class="text-xs text-gray-700">{{ $t('task.restructurePages') }}</span>
                         </label>
                       </div>
@@ -423,7 +423,7 @@
               </div>
             </div>
           </div>
-          
+
           <div v-if="!submitting" class="p-3 bg-gray-50 border-t border-gray-100 flex justify-end space-x-3">
             <button @click="resetForm" class="btn btn-secondary btn-sm text-xs">
               {{ $t('common.continue') }} {{ $t('task.continueClear') }}
@@ -483,18 +483,18 @@ const defaultConfig = {
   priority: 0,
   start_page: undefined as number | undefined,
   end_page: undefined as number | undefined,
-  
+
   // 预处理
   convert_office_to_pdf: false,
   remove_watermark: false,
   watermark_conf_threshold: 0.35,
   watermark_dilation: 10,
-  
+
   // 音视频
   keep_audio: false,
   enable_keyframe_ocr: false,
   enable_speaker_diarization: false,
-  
+
   // 远程服务
   server_url: '',
 
@@ -519,13 +519,13 @@ const defaultConfig = {
   markdownIgnoreLabels: 'header,header_image,footer,footer_image,number,footnote,aside_text',
 
   // Mineru Debug Options (Default: True as per source code)
-  draw_layout_bbox: true, 
-  draw_span_bbox: true,   
-  dump_markdown: true,    
-  dump_middle_json: true, 
+  draw_layout_bbox: true,
+  draw_span_bbox: true,
+  dump_markdown: true,
+  dump_middle_json: true,
   dump_model_output: true,
   dump_content_list: true,
-  dump_orig_pdf: true     
+  dump_orig_pdf: true
 }
 
 const config = reactive({ ...defaultConfig })
@@ -553,7 +553,7 @@ const currentBackendHint = computed(() => {
     'hybrid-auto-engine': t('task.backendHybridAutoHint'),
     'vlm-http-client': t('task.backendVlmHttpClientHint'),
     'hybrid-http-client': t('task.backendHybridHttpClientHint'),
-    'paddleocr-vl': t('task.backendPaddleOcrVl09bHint'), 
+    'paddleocr-vl': t('task.backendPaddleOcrVl09bHint'),
     'paddleocr-vl-vllm': t('task.backendPaddleOCRVLLMHint'),
     'sensevoice': t('task.backendSenseVoiceHint'),
     'video': t('task.backendVideoHint'),
@@ -573,14 +573,14 @@ const availableLanguages = computed(() => {
     { value: 'ch', label: t('task.langChinese') },
     { value: 'en', label: t('task.langEnglish') }
   ]
-  
+
   if (config.backend.includes('vlm')) {
     return [
        { value: 'ch', label: t('task.langChinese') },
        { value: 'en', label: t('task.langEnglish') }
     ]
   }
-  
+
   if (isMinerUBackend.value) {
     return [
       ...commonLangs,
@@ -610,11 +610,11 @@ const availableLanguages = computed(() => {
 
 function onFilesChange(newFiles: File[]) { files.value = newFiles }
 
-function onBackendChange() { 
-  currentPreset.value = 'custom'; 
+function onBackendChange() {
+  currentPreset.value = 'custom';
   if (config.backend.includes('vlm')) {
      if (!['ch', 'en'].includes(config.lang)) {
-        config.lang = 'ch' 
+        config.lang = 'ch'
      }
   }
 }
@@ -640,7 +640,7 @@ function resetForm() {
 
 async function submitTasks() {
   if (files.value.length === 0) { errorMessage.value = t('task.pleaseSelectFile'); return }
-  
+
   if (config.start_page !== undefined && config.end_page !== undefined && config.end_page !== -1) {
     if (config.end_page < config.start_page) {
       errorMessage.value = t('task.pageError')
@@ -661,7 +661,7 @@ async function submitTasks() {
     try {
       const submitConfig = { ...config }
       if (submitConfig.end_page === undefined) delete (submitConfig as any).end_page
-      
+
       const response = await taskStore.submitTask({ file: files.value[i], ...submitConfig })
       submitProgress.value[i].success = true; submitProgress.value[i].taskId = response.task_id
     } catch (err: any) {

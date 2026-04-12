@@ -239,7 +239,7 @@ main() {
         echo -n "."
         sleep 2
 
-        if [ $i -eq 30 ]; then
+        if [ "$i" -eq 30 ]; then
             echo ""
             log_warning "Backend health check timeout"
             log_info "Services may still be starting, check logs with:"

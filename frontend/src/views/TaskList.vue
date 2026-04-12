@@ -8,7 +8,7 @@
         </h1>
         <p class="mt-1 text-sm text-gray-500">{{ $t('task.taskListDesc') }}</p>
       </div>
-      
+
       <div class="flex flex-wrap items-center gap-3">
         <label class="flex items-center cursor-pointer bg-white px-3 py-2 rounded-lg border border-gray-200 shadow-sm hover:bg-gray-50 transition-colors" :title="$t('common.autoRefreshLabel')">
           <input type="checkbox" v-model="autoRefresh" class="sr-only">
@@ -36,7 +36,7 @@
           <RefreshCw :class="{ 'animate-spin': loading }" class="w-4 h-4 mr-1.5" />
           {{ $t('common.refresh') }}
         </button>
-        
+
         <router-link to="/tasks/submit" class="btn btn-primary btn-sm flex items-center shadow-sm shadow-primary-500/30">
           <Plus class="w-4 h-4 mr-1.5" />
           {{ $t('task.submitTask') }}
@@ -99,7 +99,7 @@
           <div class="relative group">
             <input
               v-model="filters.search"
-              @input="applyFilters" 
+              @input="applyFilters"
               type="text"
               :placeholder="$t('common.searchPlaceholder')"
               class="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors text-sm outline-none"
@@ -111,7 +111,7 @@
     </div>
 
     <div class="card shadow-lg shadow-gray-100/50 border-gray-100 overflow-hidden min-h-[400px]">
-      
+
       <div v-if="selectedTasks.length > 0" class="bg-primary-50/50 px-6 py-3 border-b border-primary-100 flex items-center justify-between transition-all animate-fade-in">
         <div class="flex items-center text-primary-800 text-sm font-medium">
           <CheckSquare class="w-4 h-4 mr-2" />
@@ -227,10 +227,10 @@
                   </span>
                 </div>
               </td>
-              
+
               <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                 <div class="flex items-center justify-end gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
-                  
+
                   <router-link
                     :to="`/tasks/${task.task_id}`"
                     class="btn-icon text-gray-500 hover:text-primary-600 hover:bg-primary-50"
@@ -238,7 +238,7 @@
                   >
                     <Eye class="w-4 h-4" />
                   </router-link>
-                  
+
                   <button
                     v-if="task.status === 'pending'"
                     @click="handleAction('pause', task)"
@@ -282,7 +282,7 @@
                     <RefreshCw v-if="isActionLoading(task.task_id, 'clearCache')" class="w-4 h-4 animate-spin" />
                     <Eraser v-else class="w-4 h-4" />
                   </button>
-                  
+
                   <button
                     v-if="['pending', 'processing'].includes(task.status)"
                     @click="handleAction('cancel', task)"
@@ -404,7 +404,7 @@ watch(currentPage, () => {
 // ----------------------------------------------------------------
 async function refreshTasks(forceLoading = false) {
   if (forceLoading) loading.value = true
-  
+
   try {
     await taskStore.fetchTasks({
       page: currentPage.value,
@@ -466,7 +466,7 @@ function handleAction(action: 'retry' | 'pause' | 'resume' | 'cancel' | 'clearCa
     actionLoading.value = true
     currentActionTaskId.value = task.task_id
     currentActionType.value = action
-    
+
     try {
       switch (action) {
         case 'retry': await taskStore.retryTask(task.task_id); break;
@@ -528,14 +528,14 @@ function handleAction(action: 'retry' | 'pause' | 'resume' | 'cancel' | 'clearCa
  * 一键清理失败任务
  */
 function confirmClearFailed() {
-  pendingAction = async () => { 
+  pendingAction = async () => {
     actionLoading.value = true
     currentActionType.value = 'clearFailed'
     try {
       await taskStore.clearFailedTasks()
       // 强制重新加载列表，并重置到第一页
       currentPage.value = 1
-      await refreshTasks(true) 
+      await refreshTasks(true)
     } finally {
       actionLoading.value = false
       currentActionType.value = null
@@ -576,7 +576,7 @@ function batchCancel() {
       currentActionType.value = null
     }
   }
-  
+
   confirmDialogTitle.value = t('task.batchCancel')
   confirmDialogMessage.value = t('task.confirmBatchCancel', { count: pendingIds.length })
   confirmDialogType.value = 'danger'

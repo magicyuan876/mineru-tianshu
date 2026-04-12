@@ -58,12 +58,12 @@
       </div>
 
       <div v-else class="h-full w-full flex flex-row gap-4">
-        
+
         <div v-if="showPdf" :class="['card p-0 flex flex-col h-full border border-gray-200 relative shadow-sm min-w-0 transition-all duration-300', layoutMode === 'split' ? 'flex-1 basis-1/2' : 'flex-1 basis-full']">
           <div class="bg-gray-50 px-3 py-2 border-b border-gray-200 flex justify-between items-center shrink-0">
             <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">源文档预览 (悬浮出现互动热区)</span>
           </div>
-          
+
           <div class="flex-1 relative overflow-hidden min-h-0 bg-gray-200">
             <VirtualPdfViewer
               ref="pdfViewerRef"
@@ -88,12 +88,12 @@
               <Download class="w-3 h-3 mr-1"/> 下载文件
             </button>
           </div>
-          
+
           <div :class="[
             'flex-1 min-h-0 relative bg-white',
             activeTab === 'json' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto overflow-x-hidden custom-scrollbar p-6 scroll-smooth'
           ]">
-            
+
             <div v-if="activeTab === 'markdown'" class="w-full">
                <MarkdownViewer :content="task.data?.content || ''" />
             </div>
@@ -103,22 +103,22 @@
                 <div class="text-xs text-gray-500 bg-blue-50 p-2.5 rounded-lg mb-3 border border-blue-100">
                   💡 此视图用于与左侧 PDF 进行行级别的双向点击定位。如果需要阅读带有精美排版和公式的全局文档，请切换至上方【完整文档】标签。
                 </div>
-                
-                <div 
-                  v-for="block in layoutData" 
+
+                <div
+                  v-for="block in layoutData"
                   :key="block.id"
                   :id="`md-block-${block.id}`"
                   @click="handleMarkdownBlockClick(block)"
-                  :class="['p-3 rounded-lg transition-all cursor-pointer border break-words w-full text-[14px] leading-relaxed relative', 
-                           activeBlockId === block.id 
-                             ? 'bg-yellow-50 border-yellow-400 shadow-sm ring-2 ring-yellow-200' 
+                  :class="['p-3 rounded-lg transition-all cursor-pointer border break-words w-full text-[14px] leading-relaxed relative',
+                           activeBlockId === block.id
+                             ? 'bg-yellow-50 border-yellow-400 shadow-sm ring-2 ring-yellow-200'
                              : 'bg-white border-gray-100 hover:bg-gray-50 hover:border-gray-300']"
                   title="点击在左侧 PDF 中定位"
                 >
                   <div v-if="block.type === 'image'" class="text-blue-500 text-xs font-semibold mb-1 flex items-center gap-1 select-none"><Image class="w-3.5 h-3.5"/> [提取图片]</div>
                   <div v-else-if="block.type === 'table'" class="text-green-500 text-xs font-semibold mb-1 flex items-center gap-1 select-none"><Table class="w-3.5 h-3.5"/> [提取表格]</div>
                   <div v-else-if="block.type === 'doc_title'" class="text-lg font-bold text-gray-900 mb-1 border-b pb-1">{{ block.text }}</div>
-                  
+
                   <div v-if="block.type === 'table'" class="w-full overflow-x-auto mt-2 markdown-table-override">
                     <MarkdownViewer :content="block.text" />
                   </div>
@@ -131,7 +131,7 @@
             <div v-else class="h-full w-full flex-1 flex min-h-0">
                <JsonViewer :data="task.data?.json_content || {}" />
             </div>
-            
+
           </div>
         </div>
 
@@ -169,7 +169,7 @@ const error = ref('')
 const activeTab = ref<'markdown' | 'sync' | 'json'>('markdown')
 const layoutMode = ref<'split' | 'single'>('split')
 
-const activeBlockId = ref<string | number | null>(null) 
+const activeBlockId = ref<string | number | null>(null)
 const pdfViewerRef = ref<InstanceType<typeof VirtualPdfViewer> | null>(null)
 
 const pdfUrl = computed(() => task.value?.data?.pdf_path ? `/api/v1/files/output/${task.value.data.pdf_path}` : null)
@@ -192,7 +192,7 @@ const layoutData = computed(() => {
       } else {
           flatBlocks = jsonContent.map((b: any, i: number) => ({ ...b, _idx: i }))
       }
-  } 
+  }
   else if (jsonContent.pages && Array.isArray(jsonContent.pages)) {
       flatBlocks = jsonContent.pages.flatMap((p: any, pIdx: number) => {
           const blocks = p.blocks || p.parsing_res_list || [];
@@ -207,30 +207,30 @@ const layoutData = computed(() => {
 
   const formattedBlocks = flatBlocks.map((b, globalIdx) => {
       const pIdx = b.page_idx ?? b._page_idx ?? 0;
-      const uniqueId = `block-${pIdx}-${globalIdx}`; 
+      const uniqueId = `block-${pIdx}-${globalIdx}`;
 
       return {
-          id: uniqueId,  
+          id: uniqueId,
           orig_id: b.id ?? b.block_id,
           page_idx: pIdx,
-          bbox: b.bbox ?? b.block_bbox ?? b.layout_bbox ?? [], 
-          text: b.text ?? b.block_content ?? '',               
+          bbox: b.bbox ?? b.block_bbox ?? b.layout_bbox ?? [],
+          text: b.text ?? b.block_content ?? '',
           type: b.type ?? b.block_label ?? 'text',
           order: b.order ?? b.block_order ?? null,
-          _page_width: b._page_width || 595.28 
+          _page_width: b._page_width || 595.28
       }
   })
 
   formattedBlocks.sort((a, b) => {
      if (a.page_idx !== b.page_idx) return a.page_idx - b.page_idx;
-     
+
      const aHasOrder = a.order !== null && a.order !== undefined;
      const bHasOrder = b.order !== null && b.order !== undefined;
-     
+
      if (aHasOrder && bHasOrder) return a.order - b.order;
      if (aHasOrder && !bHasOrder) return -1;
      if (!aHasOrder && bHasOrder) return 1;
-     
+
      return 0;
   });
 
@@ -239,14 +239,14 @@ const layoutData = computed(() => {
 
 const handlePdfBlockClick = (block: any) => {
   if (!block) return
-  activeBlockId.value = block.id 
-  
+  activeBlockId.value = block.id
+
   const isSwitchingTab = activeTab.value !== 'sync';
   if (isSwitchingTab) {
     activeTab.value = 'sync';
   }
 
-  const delay = isSwitchingTab ? 150 : 50; 
+  const delay = isSwitchingTab ? 150 : 50;
 
   setTimeout(() => {
     const el = document.getElementById(`md-block-${block.id}`)
@@ -258,8 +258,8 @@ const handlePdfBlockClick = (block: any) => {
 
 const handleMarkdownBlockClick = (block: any) => {
   if (!block) return
-  activeBlockId.value = block.id 
-  
+  activeBlockId.value = block.id
+
   if (pdfViewerRef.value && typeof pdfViewerRef.value.highlightBlock === 'function') {
     const pageIndex = (typeof block.page_idx === 'number' ? block.page_idx : block.page_id) + 1
     pdfViewerRef.value.highlightBlock(pageIndex, block.bbox)
@@ -271,8 +271,8 @@ let stopPolling: (() => void) | null = null
 
 async function refreshTask() {
   loading.value = true; error.value = '';
-  try { await taskStore.fetchTaskStatus(taskId.value, false, 'both') } 
-  catch (err: any) { error.value = err.message || t('task.loadFailed') } 
+  try { await taskStore.fetchTaskStatus(taskId.value, false, 'both') }
+  catch (err: any) { error.value = err.message || t('task.loadFailed') }
   finally { loading.value = false }
 }
 
@@ -326,7 +326,7 @@ async function executeAction() {
     } else if (currentAction.value === 'delete') {
       await taskStore.deleteTask(taskId.value); router.back();
     }
-  } catch (err: any) { error.value = err.message || 'Action failed' } 
+  } catch (err: any) { error.value = err.message || 'Action failed' }
   finally { actionLoading.value = false; currentAction.value = null }
 }
 

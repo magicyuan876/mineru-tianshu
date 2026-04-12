@@ -62,17 +62,17 @@ apiClient.interceptors.request.use(
     if (config.url && !config.url.startsWith('http')) {
       // 1. 去掉开头的斜杠
       let cleanUrl = config.url.replace(/^\/+/, '')
-      
+
       // 2. 无情剥离代码里可能硬编码的冗余前缀
       cleanUrl = cleanUrl.replace(/^(api\/v1\/|api\/|v1\/)/, '')
-      
+
       // 3. 强制、唯一地组合为标准的绝对 API 路径
       config.url = `/api/v1/${cleanUrl}`
     }
 
     // ✅ 兼容处理：可能存的是 auth_token，也可能存的是 token，做个兜底
     const token = localStorage.getItem('auth_token') || localStorage.getItem('token')
-    
+
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`
     }
