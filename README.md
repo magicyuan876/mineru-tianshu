@@ -46,6 +46,16 @@
 
 ## 📝 最新更新
 
+### 2026-04-12 🔧 MinerU 3.0.9 升级 & Office 格式增强
+
+- ✅ **MinerU 3.0.9 升级**
+  - 核心依赖同步：`transformers==4.57.6`、`albumentations>=1.4.11`
+  - 配置格式迁移：`magic-pdf.json`（扁平）→ `mineru.json`（嵌套 `models-dir` 结构）
+  - 模型路径适配 3.0 新结构（`unimernet_hf_small_2503`、`pp_formulanet_plus_m`）
+- ✅ **DOCX 原生解析**：`.docx` 文件路由至 MinerU 3.0 原生解析器（`office_docx_analyze`），解析精度优于 MarkItDown
+- ✅ **旧版 Office 格式支持**：`.doc`、`.xls`、`.ppt` 经 LibreOffice 自动转换为新格式后，再交由 MinerU 或 MarkItDown 处理，不再报错
+- ✅ **前端引擎信息面板**：仪表盘新增引擎状态卡片，实时展示各引擎版本号、GPU/CUDA 环境及关键包版本
+
 ### 2025-12-10 ⚡ 大文件并行处理
 
 - ✅ **PDF 自动拆分功能**：超过阈值（默认 500 页）的 PDF 自动拆分为多个子任务并行处理

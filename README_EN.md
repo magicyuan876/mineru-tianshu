@@ -44,6 +44,16 @@ English | [简体中文](./README.md)
 
 ## 📝 Latest Updates
 
+### 2026-04-12 🔧 MinerU 3.0.9 Upgrade & Office Format Enhancement
+
+- ✅ **MinerU 3.0.9 Upgrade**
+  - Dependency sync: `transformers==4.57.6`, `albumentations>=1.4.11`
+  - Config migration: `magic-pdf.json` (flat) → `mineru.json` (nested `models-dir` structure)
+  - Model paths updated for 3.0 (`unimernet_hf_small_2503`, `pp_formulanet_plus_m`)
+- ✅ **Native DOCX Parsing**: `.docx` files now routed to MinerU 3.0's native parser (`office_docx_analyze`), with better accuracy than MarkItDown conversion
+- ✅ **Legacy Office Format Support**: `.doc`, `.xls`, `.ppt` are automatically converted to new formats via LibreOffice before being processed by MinerU or MarkItDown
+- ✅ **Frontend Engine Info Panel**: New engine status card on Dashboard showing engine versions, GPU/CUDA environment, and key package versions
+
 ### 2025-12-10 ⚡ Large File Parallel Processing
 
 - ✅ **Auto-split Large PDFs**: Files exceeding threshold (default 500 pages) are automatically split into parallel subtasks
