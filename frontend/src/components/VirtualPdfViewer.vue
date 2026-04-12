@@ -107,14 +107,6 @@ const renderTasks = new Map<number, any>()
 // 🚀 坐标换算与数据映射核心
 // =======================================================
 
-// 后端原图宽度（默认 595.28 是标准 A4 宽度）
-const sourcePdfWidth = computed(() => {
-  if (props.layoutData && props.layoutData.length > 0 && props.layoutData[0]._page_width) {
-    return props.layoutData[0]._page_width;
-  }
-  return 595.28;
-})
-
 // 将后端发来的块数据按页码归类
 const layoutMap = computed(() => {
   const map: Record<number, any[]> = {}
@@ -127,14 +119,35 @@ const layoutMap = computed(() => {
   return map
 })
 
-// 智能换算比例：当前画布真实宽度 / 后端输出的绝对宽度
-const pageOcrScales = computed(() => {
-  const scales: Record<number, number> = {};
-  for (const page of pages.value) {
-    scales[page.id] = page.width / sourcePdfWidth.value;
+// 从 bbox 数据中推断每页的 MinerU 渲染图像宽度（取各块 x1 最大值）
+// MinerU 3.0 输出的 bbox 坐标是渲染图像像素坐标，而非 PDF point 坐标
+const mineruPageWidths = computed(() => {
+  const widths: Record<number, number> = {}
+  if (!props.layoutData) return widths
+  for (const block of props.layoutData) {
+    const pId = (typeof block.page_idx === 'number' ? block.page_idx : (block.page_id ?? 0)) + 1
+    const bbox = block.bbox
+    if (!bbox || !Array.isArray(bbox) || bbox.length === 0) continue
+    let x1 = 0
+    if (bbox.length === 4 && typeof bbox[0] === 'number') x1 = (bbox as number[])[2]
+    else if (bbox.length === 4 && Array.isArray(bbox[0])) x1 = Math.max(...(bbox as number[][]).map((p: number[]) => p[0]))
+    if (x1 > 0) widths[pId] = Math.max(widths[pId] ?? 0, x1)
   }
-  return scales;
-});
+  return widths
+})
+
+// 智能换算比例：优先用显式 _page_width，其次从 bbox 推断渲染宽度，最后 fallback 到 globalScale
+const pageOcrScales = computed(() => {
+  const scales: Record<number, number> = {}
+  for (const page of pages.value) {
+    const providedWidth = layoutMap.value[page.id]?.[0]?._page_width
+    if (providedWidth) { scales[page.id] = page.width / providedWidth; continue }
+    const inferredWidth = mineruPageWidths.value[page.id]
+    if (inferredWidth > 0) { scales[page.id] = page.width / inferredWidth; continue }
+    scales[page.id] = globalScale.value
+  }
+  return scales
+})
 
 const getBlockStyle = (pageId: number, bbox: any) => {
   if (!bbox || !Array.isArray(bbox) || bbox.length === 0) return { display: 'none' }

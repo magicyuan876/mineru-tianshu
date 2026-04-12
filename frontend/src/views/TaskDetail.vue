@@ -182,14 +182,32 @@ const layoutData = computed(() => {
 
   let flatBlocks: any[] = []
 
+  // 从 MinerU content_list_v2 嵌套 content 对象中提取纯文本
+  const extractV2Text = (block: any): string => {
+      if (block.text) return block.text
+      const c = block.content
+      if (!c) return ''
+      const lists = c.title_content ?? c.paragraph_content ?? c.table_content ?? c.list_content ?? []
+      if (Array.isArray(lists)) return lists.map((item: any) => item.content ?? '').join('')
+      if (typeof c === 'string') return c
+      return ''
+  }
+
   if (Array.isArray(jsonContent)) {
-      if (jsonContent.length > 0 && (jsonContent[0].parsing_res_list || jsonContent[0].blocks)) {
+      if (jsonContent.length > 0 && Array.isArray(jsonContent[0])) {
+          // MinerU content_list_v2.json: 外层按页分组的嵌套数组 [[page0_blocks], [page1_blocks], ...]
+          flatBlocks = (jsonContent as any[][]).flatMap((page: any[], pIdx: number) =>
+              page.map((b: any, i: number) => ({ ...b, _page_idx: pIdx, _idx: i }))
+          )
+      } else if (jsonContent.length > 0 && (jsonContent[0].parsing_res_list || jsonContent[0].blocks)) {
+          // 按页分组的对象格式
           flatBlocks = jsonContent.flatMap((p: any, pIdx: number) => {
               const blocks = p.parsing_res_list || p.blocks || [];
               const pageIdx = p.page_index ?? p.page_id ?? p.page_no ?? pIdx;
               return blocks.map((b: any, i: number) => ({ ...b, _page_idx: pageIdx, _idx: i, _page_width: p.width }))
           })
       } else {
+          // 扁平列表格式 content_list_v1：每个 block 自带 page_idx
           flatBlocks = jsonContent.map((b: any, i: number) => ({ ...b, _idx: i }))
       }
   }
@@ -214,10 +232,10 @@ const layoutData = computed(() => {
           orig_id: b.id ?? b.block_id,
           page_idx: pIdx,
           bbox: b.bbox ?? b.block_bbox ?? b.layout_bbox ?? [],
-          text: b.text ?? b.block_content ?? '',
+          text: extractV2Text(b),
           type: b.type ?? b.block_label ?? 'text',
           order: b.order ?? b.block_order ?? null,
-          _page_width: b._page_width || 595.28
+          _page_width: b._page_width ?? null
       }
   })
 
