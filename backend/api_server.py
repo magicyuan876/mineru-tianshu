@@ -575,10 +575,15 @@ async def get_task_images(
             "total": 0,
         }
 
-    # 从 result.md 中提取被引用的图片文件名，只返回实际使用的图片
+    # 从结果 Markdown 中提取被引用的图片文件名，只返回实际使用的图片
     referenced_filenames = set()
     md_file = result_dir / "result.md"
-    if md_file.exists():
+    if not md_file.exists():
+        # MarkItDown/video 等引擎产出的是 {stem}_markitdown.md / {stem}_video_analysis.md，
+        # 没有 result.md 时回退到目录内任意 .md，避免退化成"返回全部图片"
+        md_candidates = sorted(result_dir.glob("*.md"))
+        md_file = md_candidates[0] if md_candidates else None
+    if md_file and md_file.exists():
         try:
             md_content = md_file.read_text(encoding="utf-8")
             # 匹配 Markdown 语法: ![alt](url)

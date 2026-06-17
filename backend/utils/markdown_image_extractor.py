@@ -85,6 +85,7 @@ class MarkdownImageExtractor:
                 "src": src,
                 "alt": alt_text,
                 "local_path": None,
+                "local_rel": None,
                 "rustfs_url": None,
             }
 
@@ -93,14 +94,15 @@ class MarkdownImageExtractor:
             if is_url:
                 try:
                     local_path = self._download_image(src, output_path)
-                    img_info["local_path"] = local_path
+                    if local_path:
+                        img_info["local_path"], img_info["local_rel"] = self._ensure_in_output(local_path, output_path)
                 except Exception as e:
                     logger.warning(f"⚠️  Failed to download image {src}: {e}")
                     img_info["local_path"] = None
             else:
                 local_path = self._resolve_local_image(src, base_dir, output_path)
                 if local_path and local_path.exists():
-                    img_info["local_path"] = str(local_path)
+                    img_info["local_path"], img_info["local_rel"] = self._ensure_in_output(local_path, output_path)
                 else:
                     logger.warning(f"⚠️  Local image not found: {src}")
 
@@ -113,6 +115,7 @@ class MarkdownImageExtractor:
                 "src": src,
                 "alt": Path(src).stem,
                 "local_path": None,
+                "local_rel": None,
                 "rustfs_url": None,
             }
 
@@ -121,23 +124,28 @@ class MarkdownImageExtractor:
             if is_url:
                 try:
                     local_path = self._download_image(src, output_path)
-                    img_info["local_path"] = local_path
+                    if local_path:
+                        img_info["local_path"], img_info["local_rel"] = self._ensure_in_output(local_path, output_path)
                 except Exception as e:
                     logger.warning(f"⚠️  Failed to download wiki image {src}: {e}")
             else:
                 local_path = self._resolve_local_image(src, base_dir, output_path)
                 if local_path and local_path.exists():
-                    img_info["local_path"] = str(local_path)
+                    img_info["local_path"], img_info["local_rel"] = self._ensure_in_output(local_path, output_path)
 
             images.append(img_info)
 
-        for img_info in images:
-            if img_info["local_path"]:
-                try:
-                    url = self._upload_to_rustfs(img_info["local_path"])
-                    img_info["rustfs_url"] = url
-                except Exception as e:
-                    logger.warning(f"⚠️  Failed to upload to rustfs: {e}")
+        # 仅在显式提供了 RustFS 客户端时才上传。
+        # 关键：rustfs_client 为 None 表示调用方（如 use_rustfs=false 的任务）要求保留本地图片，
+        # 不能在此自动 new 一个 RustFSClient 偷偷上传，否则任务级开关 use_rustfs=false 形同虚设。
+        if self._rustfs_client is not None:
+            for img_info in images:
+                if img_info["local_path"]:
+                    try:
+                        url = self._upload_to_rustfs(img_info["local_path"])
+                        img_info["rustfs_url"] = url
+                    except Exception as e:
+                        logger.warning(f"⚠️  Failed to upload to rustfs: {e}")
 
         content = self._remove_markdown_images(content)
         chunks = self._split_into_chunks(content, images)
@@ -172,6 +180,23 @@ class MarkdownImageExtractor:
         except Exception as e:
             logger.error(f"❌ Failed to download {url}: {e}")
             raise
+
+    def _ensure_in_output(self, local_path, output_dir: Path) -> Tuple[str, str]:
+        """
+        确保图片实体落在输出目录内，返回 (最终本地路径, 相对引用 'images/<name>')。
+
+        use_rustfs=false 时不上传 RustFS，必须把被引用的本地图片复制进任务输出目录，
+        否则图片散落在源文件旁、随产物清理而丢失，且交接接口 /tasks/{id}/images 无法枚举。
+        """
+        local_path = Path(local_path)
+        dest = output_dir / local_path.name
+        if local_path.resolve() != dest.resolve():
+            try:
+                shutil.copy2(local_path, dest)
+            except Exception as e:
+                logger.warning(f"⚠️  Failed to copy image into output dir ({local_path.name}): {e}")
+                dest = local_path
+        return str(dest), f"images/{dest.name}"
 
     def _resolve_local_image(self, src: str, base_dir: Path, output_dir: Path) -> Optional[Path]:
         """解析本地图片路径"""
@@ -335,20 +360,25 @@ def process_markdown_images(
 
 
 def _replace_images_with_img_tags(content: str, images: List[Dict]) -> str:
-    """将 Markdown 图片引用替换为 <img> 标签"""
+    """改写 Markdown 图片引用：有 RustFS 时替换为 <img> 标签；
+    无 RustFS 时改写为输出目录内的本地相对路径 images/<name>，
+    使 result.md 指向随产物留存的图片副本（供 /tasks/{id}/images 交接接口枚举）。"""
     for img in images:
-        if not img["rustfs_url"]:
+        src = img["src"]
+        alt = img.get("alt") or ""
+
+        if img.get("rustfs_url"):
+            repl = f'<img src="{img["rustfs_url"]}" alt="{alt}">'
+        elif img.get("local_rel"):
+            repl = f'![{alt}]({img["local_rel"]})'
+        else:
             continue
 
-        src = img["src"]
-        url = img["rustfs_url"]
-        alt = img["alt"] or ""
-
         md_pattern = rf"!\[([^\]]*)\]\({re.escape(src)}\)"
-        content = re.sub(md_pattern, f'<img src="{url}" alt="{alt}">', content)
+        content = re.sub(md_pattern, repl, content)
 
         wiki_pattern = rf"\!\[\[({re.escape(src)})\]\]"
-        content = re.sub(wiki_pattern, f'<img src="{url}" alt="{alt}">', content)
+        content = re.sub(wiki_pattern, repl, content)
 
     return content
 
