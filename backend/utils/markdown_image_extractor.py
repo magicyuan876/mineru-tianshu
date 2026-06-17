@@ -7,16 +7,28 @@ Markdown 图片提取器
 3. 上传到 RustFS 并替换为 <img> 标签
 """
 
+import os
 import re
+import socket
 import shutil
+import ipaddress
 import requests
 from pathlib import Path
+from urllib.parse import urlparse
 from typing import List, Dict, Optional, Tuple
 from loguru import logger
 
 
 MARKDOWN_IMAGE_PATTERN = r"!\[([^\]]*)\]\(([^)]+)\)"
 WIKI_IMAGE_PATTERN = r"!\[\[(.*?)\]\]"
+
+# 远程图片拉取安全配置（上传的 Markdown 是不可信输入）
+# - ALLOW_REMOTE_IMAGES=false 可彻底关闭远程拉取
+# - 单图大小上限，避免被超大文件拖垮磁盘/内存
+# - 最大重定向跳数，每跳都重新做 SSRF 校验
+ALLOW_REMOTE_IMAGES = os.getenv("MARKDOWN_ALLOW_REMOTE_IMAGES", "true").lower() in ("true", "1", "yes")
+MAX_IMAGE_BYTES = int(os.getenv("MARKDOWN_MAX_IMAGE_BYTES", str(20 * 1024 * 1024)))
+MAX_REDIRECTS = 5
 
 
 class MarkdownImageExtractor:
@@ -156,23 +168,75 @@ class MarkdownImageExtractor:
             "chunks": chunks,
         }
 
-    def _download_image(self, url: str, output_dir: Path) -> Optional[str]:
-        """下载远程图片"""
-        try:
-            response = requests.get(url, timeout=30, stream=True)
-            response.raise_for_status()
+    @staticmethod
+    def _assert_safe_remote_url(url: str) -> None:
+        """SSRF 防护：仅允许 http(s)，且目标主机解析出的所有 IP 必须是公网地址。
 
-            content_type = response.headers.get("content-type", "")
+        阻断对内网/回环/链路本地（含云元数据 169.254.169.254）/保留地址的访问。
+        DNS 可能解析出多个地址，逐一校验，任一非公网即拒绝（含 DNS rebind 缓解）。
+        """
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            raise ValueError(f"unsupported url scheme: {parsed.scheme!r}")
+        host = parsed.hostname
+        if not host:
+            raise ValueError("missing host in url")
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        try:
+            infos = socket.getaddrinfo(host, port, proto=socket.IPPROTO_TCP)
+        except socket.gaierror as e:
+            raise ValueError(f"dns resolution failed for {host}: {e}")
+        if not infos:
+            raise ValueError(f"dns resolution returned no records for {host}")
+        for info in infos:
+            ip = ipaddress.ip_address(info[4][0])
+            if (not ip.is_global) or ip.is_multicast or ip.is_reserved or ip.is_loopback or ip.is_link_local:
+                raise ValueError(f"refused non-public address {ip} for host {host}")
+
+    def _download_image(self, url: str, output_dir: Path) -> Optional[str]:
+        """下载远程图片（带 SSRF 防护、重定向逐跳校验与大小上限）"""
+        if not ALLOW_REMOTE_IMAGES:
+            logger.warning(f"⚠️  远程图片拉取已禁用 (MARKDOWN_ALLOW_REMOTE_IMAGES=false)，跳过: {url}")
+            return None
+        try:
+            current = url
+            resp = None
+            for _ in range(MAX_REDIRECTS + 1):
+                self._assert_safe_remote_url(current)
+                resp = requests.get(current, timeout=30, stream=True, allow_redirects=False)
+                if resp.is_redirect or resp.is_permanent_redirect:
+                    location = resp.headers.get("Location")
+                    resp.close()
+                    if not location:
+                        raise ValueError("redirect response without Location header")
+                    current = requests.compat.urljoin(current, location)
+                    continue
+                break
+            else:
+                raise ValueError("too many redirects")
+
+            resp.raise_for_status()
+
+            content_type = resp.headers.get("content-type", "")
             ext = self._get_extension_from_content_type(content_type)
             if not ext:
-                ext = Path(url).suffix or ".jpg"
+                ext = Path(urlparse(url).path).suffix or ".jpg"
 
             filename = self._generate_image_filename(ext)
             filepath = output_dir / filename
 
-            with response as resp:
+            downloaded = 0
+            with resp as r:
                 with open(filepath, "wb") as f:
-                    shutil.copyfileobj(resp.raw, f)
+                    for chunk in r.iter_content(chunk_size=65536):
+                        if not chunk:
+                            continue
+                        downloaded += len(chunk)
+                        if downloaded > MAX_IMAGE_BYTES:
+                            f.close()
+                            filepath.unlink(missing_ok=True)
+                            raise ValueError(f"image exceeds size limit ({MAX_IMAGE_BYTES} bytes)")
+                        f.write(chunk)
 
             logger.debug(f"✅ Downloaded: {url} -> {filepath}")
             return str(filepath)
@@ -198,25 +262,50 @@ class MarkdownImageExtractor:
                 dest = local_path
         return str(dest), f"images/{dest.name}"
 
-    def _resolve_local_image(self, src: str, base_dir: Path, output_dir: Path) -> Optional[Path]:
-        """解析本地图片路径"""
-        src_path = Path(src)
+    @staticmethod
+    def _is_within(path: Path, root: Path) -> bool:
+        try:
+            path.relative_to(root)
+            return True
+        except ValueError:
+            return False
 
-        if src_path.is_absolute():
-            if src_path.exists():
-                return src_path
+    def _resolve_local_image(self, src: str, base_dir: Path, output_dir: Path) -> Optional[Path]:
+        """解析本地图片路径。
+
+        安全约束：被引用的本地图片必须位于 Markdown 所在目录（base_dir）子树内。
+        上传的 Markdown 是不可信输入，绝不允许通过绝对路径（如 /etc/passwd）或 ../
+        逃逸读取任务目录之外的任意文件（LFI / 任意文件读取）。
+        """
+        try:
+            base_real = base_dir.resolve()
+        except Exception:
             return None
 
-        resolved = base_dir / src_path
-        resolved = resolved.resolve()
+        src_path = Path(src)
 
-        if resolved.exists():
-            return resolved
+        candidates: List[Path] = []
+        if src_path.is_absolute():
+            candidates.append(src_path)
+        else:
+            candidates.append(base_dir / src_path)
+            # 按精确文件名在 base_dir 子树内兜底匹配（glob 已限定在子树内）。
+            # 不再用 "**/*<suffix>" 宽松匹配——那会为任意缺失图片返回目录里第一个同后缀文件，
+            # 把不相关的图片塞进结果。
+            if src_path.name:
+                candidates.extend(base_dir.glob("**/" + src_path.name))
 
-        for pattern in ["**/" + src_path.name, "**/*" + src_path.suffix]:
-            matches = list(base_dir.glob(pattern))
-            if matches:
-                return matches[0]
+        for cand in candidates:
+            try:
+                real = cand.resolve()
+            except Exception:
+                continue
+            if not real.exists() or not real.is_file():
+                continue
+            if not self._is_within(real, base_real):
+                logger.warning(f"⚠️  拒绝越界本地图片引用（疑似任意文件读取）: {src}")
+                continue
+            return real
 
         return None
 

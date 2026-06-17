@@ -23,6 +23,7 @@ import threading
 import signal
 import atexit
 import shutil
+import filecmp
 import socket
 import multiprocessing
 import warnings
@@ -1188,7 +1189,7 @@ class MinerUWorkerAPI(ls.LitAPI):
 
         md_parts, json_pages = [], []
 
-        for child in children:
+        for child_idx, child in enumerate(children):
             if child["status"] != "completed":
                 continue
             res_dir = Path(child["result_path"])
@@ -1200,7 +1201,32 @@ class MinerUWorkerAPI(ls.LitAPI):
             if md_file is None:
                 logger.warning(f"⚠️ 子任务输出目录无 .md 文件，合并时跳过该分片: {res_dir}")
                 continue
-            md_parts.append(md_file.read_text(encoding="utf-8"))
+            md_text = md_file.read_text(encoding="utf-8")
+
+            # 搬运子任务的本地图片到父输出目录。
+            # use_rustfs=false 时子任务 result.md 用相对引用 images/xxx.jpg，
+            # 仅拼接 md 而不搬运图片，合并后的父文档图片会全部失效，交接接口也枚举不到。
+            # 跨分片可能出现同名图片：内容相同则跳过；内容不同则改唯一名并改写本片引用。
+            child_images = res_dir / "images"
+            if child_images.is_dir():
+                parent_images = parent_out / "images"
+                parent_images.mkdir(parents=True, exist_ok=True)
+                for img in sorted(child_images.iterdir()):
+                    if not img.is_file():
+                        continue
+                    dest = parent_images / img.name
+                    if dest.exists() and not filecmp.cmp(dest, img, shallow=False):
+                        uniq = f"{img.stem}_c{child_idx}{img.suffix}"
+                        dest = parent_images / uniq
+                        md_text = md_text.replace(f"images/{img.name}", f"images/{uniq}")
+                    if dest.exists():
+                        continue
+                    try:
+                        shutil.copy2(img, dest)
+                    except Exception as e:
+                        logger.warning(f"⚠️  复制子任务图片失败 {img.name}: {e}")
+
+            md_parts.append(md_text)
 
             json_file = next((f for f in res_dir.rglob("*.json") if "result" in f.name or "content" in f.name), None)
             if json_file:
