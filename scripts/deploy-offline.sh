@@ -16,15 +16,41 @@ RUSTFS_IMAGE_TAR="${RUSTFS_IMAGE_TAR:-rustfs-${PLATFORM}.tar.gz}"
 REDIS_IMAGE_TAR="${REDIS_IMAGE_TAR:-redis-${PLATFORM}.tar.gz}"
 MODELS_TAR="${MODELS_TAR:-models-offline.tar.gz}"
 
+read_env_value() {
+    local key="$1"
+    local value=""
+    if [ -f ".env" ]; then
+        value="$(awk -F= -v key="$key" '$1 == key { value=substr($0, length($1) + 2) } END { print value }' .env)"
+        value="${value%\"}"
+        value="${value#\"}"
+        value="${value%\'}"
+        value="${value#\'}"
+    fi
+    printf "%s" "$value"
+}
+
 if [ -z "${OFFLINE_MODELS_PATH:-}" ] && [ -f ".env" ]; then
-    OFFLINE_MODELS_PATH="$(grep -E '^OFFLINE_MODELS_PATH=' .env 2>/dev/null | tail -n 1 | cut -d= -f2- || true)"
-    OFFLINE_MODELS_PATH="${OFFLINE_MODELS_PATH%\"}"
-    OFFLINE_MODELS_PATH="${OFFLINE_MODELS_PATH#\"}"
-    OFFLINE_MODELS_PATH="${OFFLINE_MODELS_PATH%\'}"
-    OFFLINE_MODELS_PATH="${OFFLINE_MODELS_PATH#\'}"
+    OFFLINE_MODELS_PATH="$(read_env_value OFFLINE_MODELS_PATH)"
 fi
 
 OFFLINE_MODELS_PATH="${OFFLINE_MODELS_PATH:-./models-offline}"
+
+load_runtime_ports() {
+    local env_api_port
+    local env_worker_port
+    local env_frontend_port
+    local env_rustfs_console_port
+
+    env_api_port="$(read_env_value API_PORT)"
+    env_worker_port="$(read_env_value WORKER_PORT)"
+    env_frontend_port="$(read_env_value FRONTEND_PORT)"
+    env_rustfs_console_port="$(read_env_value RUSTFS_CONSOLE_PORT)"
+
+    API_PORT="${API_PORT:-${env_api_port:-8000}}"
+    WORKER_PORT="${WORKER_PORT:-${env_worker_port:-8001}}"
+    FRONTEND_PORT="${FRONTEND_PORT:-${env_frontend_port:-80}}"
+    RUSTFS_CONSOLE_PORT="${RUSTFS_CONSOLE_PORT:-${env_rustfs_console_port:-9001}}"
+}
 
 # 颜色输出
 RED='\033[0;31m'
@@ -295,6 +321,8 @@ main() {
         echo ""
     fi
 
+    load_runtime_ports
+
     # 7. 启动服务
     log_info "🚀 Starting services..."
     log_info "   Using docker-compose file: $COMPOSE_FILE"
@@ -321,7 +349,7 @@ main() {
     echo ""
 
     for i in {1..30}; do
-        if curl -f -s http://localhost:8000/api/v1/health > /dev/null 2>&1; then
+        if curl -f -s "http://localhost:${API_PORT}/api/v1/health" > /dev/null 2>&1; then
             log_success "Backend is healthy"
             break
         fi
@@ -362,11 +390,17 @@ main() {
         SERVER_IP="<your-server-ip>"
     fi
 
+    if [ "$FRONTEND_PORT" = "80" ]; then
+        WEB_URL="http://$SERVER_IP"
+    else
+        WEB_URL="http://$SERVER_IP:$FRONTEND_PORT"
+    fi
+
     log_info "🌐 Access URLs:"
-    echo "   Web UI:     http://$SERVER_IP"
-    echo "   API:        http://$SERVER_IP:8000"
-    echo "   API Docs:   http://$SERVER_IP:8000/docs"
-    echo "   RustFS:     http://$SERVER_IP:9001"
+    echo "   Web UI:     $WEB_URL"
+    echo "   API:        http://$SERVER_IP:$API_PORT"
+    echo "   API Docs:   http://$SERVER_IP:$API_PORT/docs"
+    echo "   RustFS:     http://$SERVER_IP:$RUSTFS_CONSOLE_PORT"
     echo ""
 
     log_info "📊 Check status:"
