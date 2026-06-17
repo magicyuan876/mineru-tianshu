@@ -82,7 +82,7 @@ main() {
 
     # 3. 检查模型是否已下载
     log_info "📦 Checking models..."
-    if [ ! -d "$MODELS_DIR" ] || [ -z "$(ls -A $MODELS_DIR 2>/dev/null)" ]; then
+    if [ ! -d "$MODELS_DIR" ] || [ -z "$(ls -A "$MODELS_DIR" 2>/dev/null)" ]; then
         log_warning "Models directory not found or empty!"
         log_info "Running model download script..."
         echo ""

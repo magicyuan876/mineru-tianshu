@@ -21,7 +21,9 @@ try:
     from loguru import logger
 
     logger.remove()
-    logger.add(sys.stdout, format="<green>{time:HH:mm:ss}</green> | <level>{level: <8}</level> | <level>{message}</level>")
+    logger.add(
+        sys.stdout, format="<green>{time:HH:mm:ss}</green> | <level>{level: <8}</level> | <level>{message}</level>"
+    )
 except ImportError:
     import logging
 
@@ -60,7 +62,10 @@ MODELS = {
         "target_dir": "paddlex_cache/official_models/PaddleOCR-VL-1.5-0.9B",
         "required": True,
         "verify_glob": ["*.safetensors"],
-        "post_symlink": ("paddlex_cache/official_models/PaddleOCR-VL-1.5-0.9B", "paddlex_cache/official_models/PaddleOCR-VL-1.5"),
+        "post_symlink": (
+            "paddlex_cache/official_models/PaddleOCR-VL-1.5-0.9B",
+            "paddlex_cache/official_models/PaddleOCR-VL-1.5",
+        ),
     },
     "pp_doclayout_v3": {
         "name": "PP-DocLayoutV3",

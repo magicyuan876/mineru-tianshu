@@ -163,9 +163,7 @@ class SenseVoiceEngine:
                                 "iic/speech_seaco_paraformer_large_asr_nat-zh-cn-16k-common-vocab8404-pytorch",
                                 "Paraformer",
                             ),
-                            vad_model=self._resolve_local_model(
-                                "fsmn-vad", "speech_fsmn_vad_zh-cn-16k-common-pytorch"
-                            ),
+                            vad_model=self._resolve_local_model("fsmn-vad", "speech_fsmn_vad_zh-cn-16k-common-pytorch"),
                             vad_kwargs={"max_single_segment_time": 30000},
                             punc_model=self._resolve_local_model(
                                 "ct-punc", "punc_ct-transformer_zh-cn-common-vocab272727-pytorch"
@@ -202,9 +200,7 @@ class SenseVoiceEngine:
                             model=sensevoice_model,
                             trust_remote_code=True,
                             remote_code=self._resolve_remote_code(sensevoice_model),
-                            vad_model=self._resolve_local_model(
-                                "fsmn-vad", "speech_fsmn_vad_zh-cn-16k-common-pytorch"
-                            ),
+                            vad_model=self._resolve_local_model("fsmn-vad", "speech_fsmn_vad_zh-cn-16k-common-pytorch"),
                             vad_kwargs={"max_single_segment_time": 30000},
                             device=self.device,
                         )

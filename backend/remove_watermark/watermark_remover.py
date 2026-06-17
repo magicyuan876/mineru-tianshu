@@ -114,7 +114,9 @@ class WatermarkRemover:
 
         default_local_model = Path(self.DEFAULT_LOCAL_MODEL)
         self._model_path_provided = model_path is not None
-        self.model_path = model_path or (str(default_local_model) if default_local_model.exists() else self.DEFAULT_MODEL_ID)
+        self.model_path = model_path or (
+            str(default_local_model) if default_local_model.exists() else self.DEFAULT_MODEL_ID
+        )
         self.device = device
         self.use_lama = use_lama and LAMA_AVAILABLE
 
