@@ -5,6 +5,7 @@ MinerU Tianshu - Authentication Database
 管理用户、角色、API Key 的持久化存储
 """
 
+import os
 import sqlite3
 import hashlib
 import secrets
@@ -132,7 +133,14 @@ class AuthDB:
 
             if admin_count == 0:
                 admin_id = str(uuid.uuid4())
-                admin_password = "admin123"  # 默认密码，生产环境应该修改
+                # 安全：初始管理员密码优先取环境变量 ADMIN_PASSWORD；未设置则随机生成，
+                # 绝不在代码里写死 "admin123" 这类公开弱默认密码。随机值仅在本次初始化日志打印一次，
+                # 取自环境变量时则完全不打印明文。
+                admin_password = os.environ.get("ADMIN_PASSWORD")
+                generated = False
+                if not admin_password:
+                    admin_password = secrets.token_urlsafe(16)
+                    generated = True
                 password_hash = self._hash_password(admin_password)
 
                 cursor.execute(
@@ -142,8 +150,11 @@ class AuthDB:
                 """,
                     (admin_id, "admin", "admin@example.com", password_hash, "System Administrator", "admin"),
                 )
-                logger.warning(f"🔐 Created default admin account: admin / {admin_password}")
-                logger.warning("⚠️  Please change the default password immediately!")
+                if generated:
+                    logger.warning(f"🔐 已创建管理员账户 admin，随机初始密码（仅显示这一次）：{admin_password}")
+                else:
+                    logger.warning("🔐 已创建管理员账户 admin（初始密码取自 ADMIN_PASSWORD 环境变量）")
+                logger.warning("⚠️  请立即登录修改初始密码！")
 
     @staticmethod
     def _hash_password(password: str) -> str:

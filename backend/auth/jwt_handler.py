@@ -14,7 +14,18 @@ from loguru import logger
 from .models import TokenData, UserRole
 
 # JWT 配置
-JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-in-production")
+# 安全：绝不使用硬编码默认密钥。HS256 为对称密钥，一旦为公开默认值，
+# 任何人都能伪造任意用户（含 admin）的 token，完全绕过认证。
+# 未配置或仍为旧默认值时直接拒绝启动。
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+if not JWT_SECRET_KEY or JWT_SECRET_KEY == "your-secret-key-change-in-production":
+    raise RuntimeError(
+        "JWT_SECRET_KEY 未设置或仍为默认占位值。请先生成强随机密钥再启动，例如：\n"
+        "  export JWT_SECRET_KEY=$(openssl rand -hex 32)\n"
+        "（绝不能使用公开默认密钥，否则可被伪造任意 admin token）"
+    )
+if len(JWT_SECRET_KEY) < 32:
+    raise RuntimeError("JWT_SECRET_KEY 太短（至少 32 字符），存在被暴力破解的风险。")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "1440"))  # 默认 24 小时
 

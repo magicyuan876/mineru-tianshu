@@ -69,18 +69,19 @@ class PDFWatermarkHandler:
         logger.info("🔍 Detecting PDF type...")
 
         doc = fitz.open(str(pdf_path))
+        try:
+            total_pages = len(doc)
+            text_pages = 0
 
-        total_pages = len(doc)
-        text_pages = 0
+            for page_num in range(min(5, total_pages)):  # 检查前 5 页
+                page = doc[page_num]
+                text = page.get_text().strip()
 
-        for page_num in range(min(5, total_pages)):  # 检查前 5 页
-            page = doc[page_num]
-            text = page.get_text().strip()
-
-            if len(text) > 50:  # 至少 50 个字符
-                text_pages += 1
-
-        doc.close()
+                if len(text) > 50:  # 至少 50 个字符
+                    text_pages += 1
+        finally:
+            # 即使前几页解析异常（损坏 PDF）也必须关闭，否则 Windows 下文件句柄泄漏导致后续无法删除/覆盖
+            doc.close()
 
         text_ratio = text_pages / min(5, total_pages)
         is_editable = text_ratio >= text_ratio_threshold

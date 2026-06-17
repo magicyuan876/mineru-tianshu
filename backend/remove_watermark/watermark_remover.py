@@ -252,21 +252,27 @@ class WatermarkRemover:
             if save_detection_viz and boxes:
                 import cv2
 
-                # 读取图像
-                img = cv2.imread(str(image_path))
-                img_viz = img.copy()
+                # 读取图像（用 imdecode 兼容中文/非 ASCII 路径，cv2.imread 对中文路径返回 None 会崩溃）
+                img = cv2.imdecode(np.fromfile(str(image_path), dtype=np.uint8), cv2.IMREAD_COLOR)
+                if img is None:
+                    logger.warning(f"⚠️ 无法读取图像用于检测可视化（跳过，不影响去水印主流程）: {image_path}")
+                else:
+                    img_viz = img.copy()
 
-                # 绘制检测框
-                for x1, y1, x2, y2, conf in boxes:
-                    # 绘制矩形框（绿色）
-                    cv2.rectangle(img_viz, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                    # 添加置信度标签
-                    label = f"Watermark {conf:.2f}"
-                    cv2.putText(img_viz, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+                    # 绘制检测框
+                    for x1, y1, x2, y2, conf in boxes:
+                        # 绘制矩形框（绿色）
+                        cv2.rectangle(img_viz, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                        # 添加置信度标签
+                        label = f"Watermark {conf:.2f}"
+                        cv2.putText(img_viz, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
-                # 保存
-                cv2.imwrite(str(save_detection_viz), img_viz)
-                logger.info(f"🔍 Detection visualization saved: {save_detection_viz}")
+                    # 保存（imencode + tofile 兼容中文路径）
+                    ext = Path(save_detection_viz).suffix or ".jpg"
+                    ok, buf = cv2.imencode(ext, img_viz)
+                    if ok:
+                        buf.tofile(str(save_detection_viz))
+                        logger.info(f"🔍 Detection visualization saved: {save_detection_viz}")
 
         return boxes
 

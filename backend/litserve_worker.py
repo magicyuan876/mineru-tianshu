@@ -1187,10 +1187,13 @@ class MinerUWorkerAPI(ls.LitAPI):
                 continue
             res_dir = Path(child["result_path"])
 
-            md_file = (
-                next((f for f in res_dir.rglob("*.md") if f.name == "result.md"), None)
-                or list(res_dir.rglob("*.md"))[0]
+            md_candidates = list(res_dir.rglob("*.md"))
+            md_file = next((f for f in md_candidates if f.name == "result.md"), None) or (
+                md_candidates[0] if md_candidates else None
             )
+            if md_file is None:
+                logger.warning(f"⚠️ 子任务输出目录无 .md 文件，合并时跳过该分片: {res_dir}")
+                continue
             md_parts.append(md_file.read_text(encoding="utf-8"))
 
             json_file = next((f for f in res_dir.rglob("*.json") if "result" in f.name or "content" in f.name), None)

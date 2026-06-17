@@ -350,6 +350,13 @@ async def submit_task(
 
     except Exception as e:
         logger.error(f"❌ Failed to submit task: {e}")
+        # 清理已落盘但未入库的上传文件，避免产生无 DB 记录、定时清理也扫不到的孤儿文件
+        temp_path = locals().get("temp_file_path")
+        if temp_path is not None:
+            try:
+                Path(temp_path).unlink(missing_ok=True)
+            except Exception:
+                pass
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -511,6 +518,74 @@ async def get_task_status(
 # ========================================================================
 
 
+def _remove_task_output(task):
+    """
+    删除任务的输出目录。worker 的输出目录按【处理时的文件名 stem】命名（Path(file_path).stem），
+    既不是 task_id。早期代码误用 OUTPUT_DIR/task_id 删除，导致输出从未被真正清理（磁盘泄漏）。
+
+    这里用两个候选都尝试删，以覆盖不同任务状态：
+      - result_path：已完成任务最权威（worker 写入的真实目录）
+      - OUTPUT_DIR/Path(file_path).stem：未完成/失败任务 result_path 为空时的兜底
+        （已知边界：去水印 / Office→PDF 等预处理会改 file_path，这类任务的部分输出
+         可能定位不到，属次要残留，由定时清理兜底）
+    """
+    targets = set()
+    rp = task.get("result_path")
+    if rp and rp != "CLEARED":
+        targets.add(Path(rp))
+
+    fp = task.get("file_path")
+    if fp:
+        stem = Path(fp).stem
+        # worker 输出目录按【处理时的文件名 stem】命名；去水印等预处理会派生
+        # <stem>_no_watermark/（输出目录）和 <stem>_no_watermark.pdf（中间文件）等。
+        # 所有衍生物都以 <stem> 为前缀，而 <stem> 带唯一 uuid 前缀（submit 时的
+        # f"{uuid}_{filename}"），故按前缀匹配既能一并清理、又不会误删其它任务。
+        try:
+            for entry in OUTPUT_DIR.iterdir():
+                if entry.name == stem or entry.name.startswith(f"{stem}_"):
+                    targets.add(entry)
+        except FileNotFoundError:
+            pass
+
+    for d in targets:
+        try:
+            if d.is_dir():
+                shutil.rmtree(d, ignore_errors=True)
+            elif d.exists():
+                d.unlink()  # 去水印中间文件等
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to remove {d}: {e}")
+
+
+def _purge_task_files(task, child_tasks):
+    """
+    删除任务(及其子任务)的全部磁盘产物：
+      - 本任务 + 各子任务的输出目录/衍生(含去水印 _no_watermark 等)
+      - PDF 拆分的分片临时目录 OUTPUT_DIR/splits/<父task_id>/
+      - 本任务 + 各子任务的上传/分片源文件
+    用于父任务(大 PDF 拆分)删除时级联清理,避免子任务输出/分片残留。
+    """
+    for t in [task] + (child_tasks or []):
+        _remove_task_output(t)
+
+    tid = task.get("task_id")
+    if tid:
+        split_dir = OUTPUT_DIR / "splits" / tid
+        if split_dir.exists():
+            shutil.rmtree(split_dir, ignore_errors=True)
+
+    for t in [task] + (child_tasks or []):
+        fp = t.get("file_path")
+        if fp:
+            p = Path(fp)
+            try:
+                if p.exists() and p.is_file():
+                    p.unlink()
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to delete source file {p}: {e}")
+
+
 @router.delete("/tasks/{task_id}", tags=["任务管理"])
 async def delete_task(task_id: str, current_user: User = Depends(get_current_active_user)):
     """
@@ -527,23 +602,15 @@ async def delete_task(task_id: str, current_user: User = Depends(get_current_act
         if task.get("user_id") != current_user.user_id:
             raise HTTPException(status_code=403, detail="Permission denied: You can only delete your own tasks")
 
-    # 1. 物理删除 Output 文件夹
-    output_dir = OUTPUT_DIR / task_id
-    if output_dir.exists():
-        shutil.rmtree(output_dir, ignore_errors=True)
+    # 收集子任务（大 PDF 拆分会产生 parent_task_id 指向本任务的子任务）
+    children = db.get_child_tasks(task_id)
 
-    # 2. 物理删除 Upload 的源文件
-    if task.get("file_path"):
-        file_path = Path(task["file_path"])
-        if file_path.exists():
-            try:
-                file_path.unlink()
-            except Exception as e:
-                logger.warning(f"⚠️ Failed to delete source file: {e}")
+    # 1. 物理删除：本任务 + 所有子任务的输出/衍生、splits 分片临时目录、上传源文件
+    _purge_task_files(task, children)
 
-    # 3. 从数据库彻底移除记录
+    # 2. 从数据库彻底移除记录（级联删子任务：task_id 自身 或 parent_task_id 指向它）
     with db.get_cursor() as cursor:
-        cursor.execute("DELETE FROM tasks WHERE task_id = ?", (task_id,))
+        cursor.execute("DELETE FROM tasks WHERE task_id = ? OR parent_task_id = ?", (task_id, task_id))
 
     logger.info(f"🗑️ Task completely deleted: {task_id} by user {current_user.username}")
     return {"success": True, "message": "Task and files completely deleted."}
@@ -554,30 +621,24 @@ async def clear_failed_tasks_endpoint(current_user: User = Depends(require_permi
     """
     【重构】一键清理所有失败的任务，包含物理清除文件
     """
+    # 1. 查所有 failed 任务（完整字段）
     with db.get_cursor() as cursor:
-        # 获取所有失败的任务信息
-        cursor.execute("SELECT task_id, file_path FROM tasks WHERE status = 'failed'")
+        cursor.execute("SELECT * FROM tasks WHERE status = 'failed'")
         failed_tasks = [dict(row) for row in cursor.fetchall()]
 
-        deleted_count = 0
+    # 2. 逐个清理磁盘产物（含各自的子任务），放事务外避免 cursor 嵌套
+    for task in failed_tasks:
+        children = db.get_child_tasks(task["task_id"])
+        _purge_task_files(task, children)
+
+    # 3. 批量从数据库删除（父 + 子级联）
+    deleted_count = 0
+    with db.get_cursor() as cursor:
         for task in failed_tasks:
-            t_id = task.get("task_id")
-            f_path = task.get("file_path")
-
-            # 删除 Output 文件夹
-            output_dir = OUTPUT_DIR / t_id
-            if output_dir.exists():
-                shutil.rmtree(output_dir, ignore_errors=True)
-
-            # 删除上传的源文件
-            if f_path and Path(f_path).exists():
-                try:
-                    Path(f_path).unlink()
-                except Exception:
-                    pass
-
-            # 从数据库中彻底删除
-            cursor.execute("DELETE FROM tasks WHERE task_id = ?", (t_id,))
+            cursor.execute(
+                "DELETE FROM tasks WHERE task_id = ? OR parent_task_id = ?",
+                (task["task_id"], task["task_id"]),
+            )
             deleted_count += 1
 
     logger.info(f"🧹 Cleared {deleted_count} failed tasks from DB and Disk.")
@@ -608,12 +669,8 @@ async def retry_task(task_id: str, current_user: User = Depends(get_current_acti
             raise HTTPException(status_code=403, detail="Permission denied")
 
     if db.retry_task(task_id):
-        output_dir = OUTPUT_DIR / task_id
-        if output_dir.exists():
-            try:
-                shutil.rmtree(output_dir)
-            except Exception as e:
-                logger.warning(f"Warning: Failed to clean up output directory for retried task {task_id}: {e}")
+        # 清理旧输出（用 result_path，非 task_id）
+        _remove_task_output(task)
 
         return {"success": True, "message": "Task submitted for retry"}
 
@@ -673,12 +730,8 @@ async def clear_task_cache_endpoint(task_id: str, current_user: User = Depends(g
         if task.get("user_id") != current_user.user_id:
             raise HTTPException(status_code=403, detail="Permission denied")
 
-    output_dir = OUTPUT_DIR / task_id
-    if output_dir.exists():
-        try:
-            shutil.rmtree(output_dir)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to delete files: {str(e)}")
+    # 用 result_path 删除输出（非 task_id）
+    _remove_task_output(task)
 
     if db.clear_task_cache(task_id):
         return {"success": True, "message": "Task cache cleared, space freed"}

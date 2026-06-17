@@ -319,6 +319,10 @@ class PaddleOCRVLVLLMEngine:
             # 合并结果
             logger.info(f"🎉 Processing complete. Total pages: {page_count}")
 
+            # 🛡️ 防"假成功"：零页产出说明 VLM 彻底没产出（含 fallback 后仍空），抛错触发重试而非写空结果
+            if page_count == 0:
+                raise RuntimeError("PaddleOCR-VL(vLLM) produced 0 pages (inference yielded nothing)")
+
             markdown_text = ""
             if hasattr(pipeline, "concatenate_markdown_pages") and markdown_list_obj:
                 try:

@@ -81,7 +81,14 @@ class KeyframeExtractor:
         返回: [(timestamp, frame_number), ...]
         """
         cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            logger.error(f"❌ 无法打开视频文件（损坏或编码不支持）: {video_path}")
+            cap.release()
+            return []
         fps = cap.get(cv2.CAP_PROP_FPS)
+        if not fps or fps <= 0:
+            logger.warning(f"⚠️ 视频 FPS 无效 ({fps})，回退为 25.0 以避免除零")
+            fps = 25.0
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
         scene_frames = []

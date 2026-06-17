@@ -368,6 +368,11 @@ class PaddleOCRVLEngine:
 
             logger.info(f"📄 Successfully processed {page_count} pages")
 
+            # 🛡️ 防"假成功"：生成器零页产出说明推理彻底没跑起来（模型崩溃/输入异常），
+            # 绝不写空 result.md 返回 success，否则任务被标成功且无法重试。抛错交由 Worker 标失败重试。
+            if page_count == 0:
+                raise RuntimeError("PaddleOCR-VL produced 0 pages (inference yielded nothing)")
+
             # 合并结果
             full_markdown = "\n\n---\n\n".join(markdown_pages)
 
