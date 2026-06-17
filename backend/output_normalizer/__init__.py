@@ -17,7 +17,7 @@
 """
 
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from loguru import logger
 
 from .base_output_normalizer import BaseOutputNormalizer
@@ -29,7 +29,9 @@ _standard_normalizer = StandardOutputNormalizer()
 _paddleocr_normalizer = PaddleOCROutputNormalizer()
 
 
-def normalize_output(output_dir: Path, handle_method="standard") -> Dict[str, Any]:
+def normalize_output(
+    output_dir: Path, handle_method="standard", use_rustfs: Optional[bool] = None
+) -> Dict[str, Any]:
     """
     便捷函数：规范化输出目录
 
@@ -40,6 +42,8 @@ def normalize_output(output_dir: Path, handle_method="standard") -> Dict[str, An
     Args:
         output_dir: 输出目录路径
         handle_method: 处理方法，默认为 "standard"。支持 "standard" 或 "paddleocr-vl"
+        use_rustfs: 任务级 RustFS 开关。None=由 RUSTFS_ENABLED 环境变量决定（向后兼容）；
+                    True/False=按任务强制开启/关闭
 
     Returns:
         Dict[str, Any]: 规范化后的文件信息
@@ -53,10 +57,10 @@ def normalize_output(output_dir: Path, handle_method="standard") -> Dict[str, An
     ## 基于handle_method选择规范化器
     if handle_method == "standard":
         logger.info("🤖 Using standard output normalize method")
-        return _standard_normalizer.normalize(output_dir)
+        return _standard_normalizer.normalize(output_dir, use_rustfs=use_rustfs)
     elif handle_method == "paddleocr-vl":
         logger.info("🤖 Using PaddleOCR-VL output normalize method")
-        return _paddleocr_normalizer.normalize(output_dir)
+        return _paddleocr_normalizer.normalize(output_dir, use_rustfs=use_rustfs)
     else:
         raise ValueError(f"Unknown output_normalize handle_method: {handle_method}")
 

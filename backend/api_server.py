@@ -266,6 +266,12 @@ async def submit_task(
     markdownIgnoreLabels: str = Form(
         "header,header_image,footer,footer_image,number,footnote,aside_text", description="忽略的标签 (逗号分隔)"
     ),
+    use_rustfs: Optional[bool] = Form(
+        None,
+        description="是否上传图片到 RustFS 对象存储（任务级开关）。"
+        "不传=由 RUSTFS_ENABLED 环境变量决定（向后兼容）；true=强制上传；"
+        "false=保留图片在本地，通过 /files/output 下载",
+    ),
     current_user: User = Depends(require_permission(Permission.TASK_SUBMIT)),
 ):
     try:
@@ -327,6 +333,8 @@ async def submit_task(
         }
 
         options["upload_images"] = os.getenv("RUSTFS_ENABLED", "true").lower() == "true"
+        # 任务级 RustFS 开关：None=按 RUSTFS_ENABLED 环境变量；True/False=按任务强制
+        options["use_rustfs"] = use_rustfs
 
         task_id = db.create_task(
             file_name=file.filename,
@@ -511,6 +519,109 @@ async def get_task_status(
             logger.error(f"❌ Result directory does not exist: {result_dir}")
 
     return response
+
+
+@router.get("/tasks/{task_id}/images", tags=["任务管理"])
+async def get_task_images(
+    task_id: str,
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    获取任务解析结果中实际被引用的图片列表
+
+    返回图片文件名和下载 URL，供外部系统（如 SuperRAG）下载图片到本地存储。
+    仅在任务状态为 completed 时返回图片信息。
+
+    下载 URL 格式：/api/v1/files/output/{相对路径}
+    """
+    task = db.get_task(task_id)
+
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    # 权限检查：用户只能查看自己的任务，管理员可以查看所有任务
+    if not current_user.has_permission(Permission.TASK_VIEW_ALL):
+        if task.get("user_id") != current_user.user_id:
+            raise HTTPException(status_code=403, detail="Permission denied: You can only view your own tasks")
+
+    if task["status"] != "completed":
+        return {
+            "success": True,
+            "task_id": task_id,
+            "status": task["status"],
+            "images": [],
+            "total": 0,
+        }
+
+    if not task.get("result_path"):
+        return {
+            "success": True,
+            "task_id": task_id,
+            "status": "completed",
+            "images": [],
+            "total": 0,
+            "message": "Result files have been cleaned up",
+        }
+
+    result_dir = Path(task["result_path"])
+    image_dir = result_dir / "images"
+
+    if not image_dir.exists():
+        return {
+            "success": True,
+            "task_id": task_id,
+            "status": "completed",
+            "images": [],
+            "total": 0,
+        }
+
+    # 从 result.md 中提取被引用的图片文件名，只返回实际使用的图片
+    referenced_filenames = set()
+    md_file = result_dir / "result.md"
+    if md_file.exists():
+        try:
+            md_content = md_file.read_text(encoding="utf-8")
+            # 匹配 Markdown 语法: ![alt](url)
+            for match in re.finditer(r'!\[[^\]]*\]\(([^)]+)\)', md_content):
+                referenced_filenames.add(Path(match.group(1).split("?")[0]).name)
+            # 匹配 HTML img 标签: <img src="url">
+            for match in re.finditer(r'<img\s+[^>]*src="([^"]+)"[^>]*>', md_content):
+                referenced_filenames.add(Path(match.group(1).split("?")[0]).name)
+            logger.info(f"📄 Found {len(referenced_filenames)} referenced images in result.md")
+        except Exception as e:
+            logger.warning(f"⚠️  Failed to parse result.md for image refs: {e}")
+
+    image_extensions = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".svg"}
+    images = []
+
+    for img_file in sorted(image_dir.iterdir()):
+        if not img_file.is_file() or img_file.suffix.lower() not in image_extensions:
+            continue
+        # 如果解析到了 MD 引用，只返回被引用的图片
+        if referenced_filenames and img_file.name not in referenced_filenames:
+            continue
+        try:
+            relative_path = img_file.relative_to(OUTPUT_DIR)
+            download_url = f"/api/v1/files/output/{relative_path.as_posix()}"
+        except ValueError:
+            logger.warning(f"⚠️  Image file outside OUTPUT_DIR, skipping: {img_file}")
+            continue
+
+        images.append({
+            "filename": img_file.name,
+            "download_url": download_url,
+            "size": img_file.stat().st_size,
+        })
+
+    logger.info(f"📸 Task {task_id}: found {len(images)} images (referenced in markdown)")
+
+    return {
+        "success": True,
+        "task_id": task_id,
+        "status": "completed",
+        "images": images,
+        "total": len(images),
+    }
 
 
 # ========================================================================

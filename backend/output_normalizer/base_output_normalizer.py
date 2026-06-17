@@ -3,7 +3,7 @@
 """
 
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from loguru import logger
 import re
 import json
@@ -26,12 +26,16 @@ class BaseOutputNormalizer:
         """
         self._rustfs_client = None
 
-    def normalize(self, output_dir: Path) -> Dict[str, Any]:
+    def normalize(self, output_dir: Path, use_rustfs: Optional[bool] = None) -> Dict[str, Any]:
         """
         规范化输出目录（模板方法）
 
         Args:
             output_dir: 输出目录（引擎的原始输出目录）
+            use_rustfs: 任务级 RustFS 开关。
+                        None  → 由 RUSTFS_ENABLED 环境变量决定（向后兼容）
+                        True  → 强制上传到 RustFS
+                        False → 不上传，保留本地图片路径
 
         Returns:
             规范化后的文件信息
@@ -55,7 +59,7 @@ class BaseOutputNormalizer:
 
         # 2. 自动上传图片到 RustFS 并替换 URL（基础功能，始终启用）
         if result["image_dir"] and result["image_count"] > 0:
-            self._process_rustfs_upload(result)
+            self._process_rustfs_upload(result, use_rustfs=use_rustfs)
         else:
             logger.debug("ℹ️  No images to upload")
             result["rustfs_enabled"] = False
@@ -85,14 +89,24 @@ class BaseOutputNormalizer:
         """
         raise NotImplementedError
 
-    def _process_rustfs_upload(self, result: Dict[str, Any]):
-        """处理 RustFS 上传和 URL 替换"""
+    def _process_rustfs_upload(self, result: Dict[str, Any], use_rustfs: Optional[bool] = None):
+        """处理 RustFS 上传和 URL 替换
 
-        # 检查是否启用 RustFS
-        rustfs_enabled = os.getenv("RUSTFS_ENABLED", "true").lower() in ("true", "1", "yes")
+        Args:
+            result: 规范化结果字典
+            use_rustfs: 任务级 RustFS 开关。
+                        None  → 读取 RUSTFS_ENABLED 环境变量（向后兼容）
+                        True/False → 按任务强制开启/关闭
+        """
+
+        # 检查是否启用 RustFS：任务级开关优先，未指定时回退到环境变量
+        if use_rustfs is None:
+            rustfs_enabled = os.getenv("RUSTFS_ENABLED", "true").lower() in ("true", "1", "yes")
+        else:
+            rustfs_enabled = use_rustfs
 
         if not rustfs_enabled:
-            logger.info("ℹ️  RustFS is disabled (RUSTFS_ENABLED=false), using local file service")
+            logger.info("ℹ️  RustFS upload disabled for this task, using local file service")
             result["rustfs_enabled"] = False
             result["images_uploaded"] = False
             return

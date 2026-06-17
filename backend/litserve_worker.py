@@ -555,17 +555,17 @@ class MinerUWorkerAPI(ls.LitAPI):
                             # .xls→.xlsx / .ppt→.pptx 转换后走自研解析器
                             result = self._process_office(new_path, options)
                         elif self.markitdown:
-                            result = self._process_with_markitdown(new_path)
+                            result = self._process_with_markitdown(new_path, options)
                         else:
                             raise ValueError(f"No handler available for converted {new_ext}")
                     except Exception as e:
                         logger.warning(f"⚠️ Old format conversion failed ({e}), falling back to MarkItDown")
                         if self.markitdown:
-                            result = self._process_with_markitdown(file_path)
+                            result = self._process_with_markitdown(file_path, options)
                         else:
                             raise ValueError(f"Unsupported file type: {file_ext}") from e
                 elif self.markitdown:
-                    result = self._process_with_markitdown(file_path)
+                    result = self._process_with_markitdown(file_path, options)
                 else:
                     raise ValueError(f"Unsupported file type for Auto mode: {file_ext}")
 
@@ -673,7 +673,7 @@ class MinerUWorkerAPI(ls.LitAPI):
         result = self.mineru_pipeline_engine.parse(file_path, output_path=str(output_dir), options=options)
 
         actual_output = Path(result["result_path"])
-        normalize_output(actual_output)
+        normalize_output(actual_output, use_rustfs=options.get("use_rustfs"))
 
         # 扁平化目录结构
         if actual_output.resolve() != output_dir.resolve():
@@ -716,7 +716,7 @@ class MinerUWorkerAPI(ls.LitAPI):
         result = self.paddleocr_vl_engine.parse(file_path, output_path=str(output_dir), **options)
 
         pdf_path = self._ensure_pdf_in_output(file_path, output_dir)
-        normalize_output(output_dir)
+        normalize_output(output_dir, use_rustfs=options.get("use_rustfs"))
 
         return {
             "result_path": str(output_dir),
@@ -744,7 +744,7 @@ class MinerUWorkerAPI(ls.LitAPI):
         # [修复] 复制源文件以便预览 (关键修复)
         pdf_path = self._ensure_pdf_in_output(file_path, output_dir)
 
-        normalize_output(output_dir, handle_method="paddleocr-vl")
+        normalize_output(output_dir, handle_method="paddleocr-vl", use_rustfs=options.get("use_rustfs"))
 
         return {
             "result_path": str(output_dir),
@@ -769,7 +769,7 @@ class MinerUWorkerAPI(ls.LitAPI):
             use_itn=options.get("use_itn", True),
             enable_speaker_diarization=options.get("enable_speaker_diarization", False),
         )
-        normalize_output(output_dir)
+        normalize_output(output_dir, use_rustfs=options.get("use_rustfs"))
         return {"result_path": str(output_dir), "content": result.get("markdown", "")}
 
     def _process_video(self, file_path: str, options: dict) -> dict:
@@ -793,7 +793,7 @@ class MinerUWorkerAPI(ls.LitAPI):
         )
 
         (output_dir / f"{Path(file_path).stem}_video_analysis.md").write_text(result["markdown"], encoding="utf-8")
-        normalize_output(output_dir)
+        normalize_output(output_dir, use_rustfs=options.get("use_rustfs"))
         return {"result_path": str(output_dir), "content": result["markdown"]}
 
     def _process_markdown(self, file_path: str, options: dict) -> dict:
@@ -817,7 +817,10 @@ class MinerUWorkerAPI(ls.LitAPI):
 
         try:
             use_rustfs = (options or {}).get("use_rustfs")
-            if use_rustfs is False:
+            # 任务级开关优先；未指定(None)时回退到 RUSTFS_ENABLED 环境变量
+            if use_rustfs is None:
+                use_rustfs = os.getenv("RUSTFS_ENABLED", "true").lower() in ("true", "1", "yes")
+            if not use_rustfs:
                 rustfs_client = None
             else:
                 from storage import RustFSClient
@@ -876,9 +879,12 @@ class MinerUWorkerAPI(ls.LitAPI):
         output_dir.mkdir(parents=True, exist_ok=True)
         images_dir = output_dir / "images"
 
-        use_rustfs = (options or {}).get("use_rustfs", True)
+        use_rustfs = (options or {}).get("use_rustfs")
+        # 任务级开关优先；未指定(None)时回退到 RUSTFS_ENABLED 环境变量
+        if use_rustfs is None:
+            use_rustfs = os.getenv("RUSTFS_ENABLED", "true").lower() in ("true", "1", "yes")
         rustfs_client = None
-        if use_rustfs is not False:
+        if use_rustfs:
             try:
                 from storage import RustFSClient
 
@@ -919,7 +925,7 @@ class MinerUWorkerAPI(ls.LitAPI):
             "rustfs_urls": rustfs_urls,
         }
 
-    def _process_with_markitdown(self, file_path: str) -> dict:
+    def _process_with_markitdown(self, file_path: str, options: dict = None) -> dict:
         if not self.markitdown:
             raise RuntimeError("MarkItDown not available")
 
@@ -941,7 +947,7 @@ class MinerUWorkerAPI(ls.LitAPI):
                 logger.warning(f"DOCX image extraction failed: {e}")
 
         (output_dir / f"{Path(file_path).stem}_markitdown.md").write_text(markdown_content, encoding="utf-8")
-        normalize_output(output_dir)
+        normalize_output(output_dir, use_rustfs=(options or {}).get("use_rustfs"))
 
         # MarkItDown 也可以尝试生成 PDF 预览 (如果源文件是 PDF)
         pdf_path = self._ensure_pdf_in_output(file_path, output_dir)
@@ -969,7 +975,7 @@ class MinerUWorkerAPI(ls.LitAPI):
             json.dumps(result["json_content"], indent=2, ensure_ascii=False), encoding="utf-8"
         )
 
-        normalize_output(output_dir)
+        normalize_output(output_dir, use_rustfs=options.get("use_rustfs"))
         return {"result_path": str(output_dir), "content": result["content"], "json_content": result["json_content"]}
 
     # -------------------------------------------------------------------------
@@ -1226,7 +1232,12 @@ class MinerUWorkerAPI(ls.LitAPI):
         # [修复] 复制父任务的源文件到输出
         self._ensure_pdf_in_output(parent_task["file_path"], parent_out)
 
-        normalize_output(parent_out)
+        # 子任务由父任务拆分而来，RustFS 开关沿用父任务的任务级设置
+        try:
+            parent_options = json.loads(parent_task.get("options") or "{}")
+        except (TypeError, ValueError):
+            parent_options = parent_task.get("options") or {}
+        normalize_output(parent_out, use_rustfs=parent_options.get("use_rustfs"))
         self.task_db.update_task_status(parent_task_id, "completed", result_path=str(parent_out))
         self._cleanup_child_task_files(children)
 
