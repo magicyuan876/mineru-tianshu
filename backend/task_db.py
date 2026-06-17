@@ -936,7 +936,9 @@ class TaskDB:
                 """,
                 (child_count, task_id),
             )
-        logger.info(f"🔄 Converted task {task_id} to parent task with {child_count} children (child_completed reset to 0)")
+        logger.info(
+            f"🔄 Converted task {task_id} to parent task with {child_count} children (child_completed reset to 0)"
+        )
 
     def create_child_task(
         self,

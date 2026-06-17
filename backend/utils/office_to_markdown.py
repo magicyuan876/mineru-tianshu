@@ -52,6 +52,7 @@ def _strip_external_links_to_tmp(xlsx_path: str) -> str:
 # DOCX
 # ---------------------------------------------------------------------------
 
+
 def docx_to_markdown(
     docx_path: str,
     images_dir: str,
@@ -129,12 +130,18 @@ def docx_to_markdown(
     def _heading_prefix(para) -> str:
         style = para.style.name if para.style else ""
         mapping = {
-            "Heading 1": "# ", "标题 1": "# ",
-            "Heading 2": "## ", "标题 2": "## ",
-            "Heading 3": "### ", "标题 3": "### ",
-            "Heading 4": "#### ", "标题 4": "#### ",
-            "Heading 5": "##### ", "标题 5": "##### ",
-            "Heading 6": "###### ", "标题 6": "###### ",
+            "Heading 1": "# ",
+            "标题 1": "# ",
+            "Heading 2": "## ",
+            "标题 2": "## ",
+            "Heading 3": "### ",
+            "标题 3": "### ",
+            "Heading 4": "#### ",
+            "标题 4": "#### ",
+            "Heading 5": "##### ",
+            "标题 5": "##### ",
+            "Heading 6": "###### ",
+            "标题 6": "###### ",
         }
         for key, prefix in mapping.items():
             if style.startswith(key):
@@ -157,7 +164,7 @@ def docx_to_markdown(
         return "\n".join(filter(None, [header, separator, body]))
 
     # 按 body 顺序遍历段落和表格
-    from docx.oxml.ns import qn as _qn
+
     body = doc.element.body
     para_idx = 0
     table_idx = 0
@@ -201,6 +208,7 @@ def docx_to_markdown(
 # PPTX
 # ---------------------------------------------------------------------------
 
+
 def pptx_to_markdown(
     pptx_path: str,
     images_dir: str,
@@ -213,11 +221,6 @@ def pptx_to_markdown(
         (markdown_content, images)
     """
     from pptx import Presentation
-    from pptx.enum.shapes import PP_PLACEHOLDER_TYPE
-    try:
-        from pptx.enum.shapes import MSO_SHAPE_TYPE
-    except ImportError:
-        MSO_SHAPE_TYPE = None
 
     PICTURE_TYPE = 13  # MSO_SHAPE_TYPE.PICTURE
 
@@ -306,6 +309,7 @@ def pptx_to_markdown(
 # XLSX
 # ---------------------------------------------------------------------------
 
+
 def xlsx_to_markdown(
     xlsx_path: str,
     images_dir: str,
@@ -363,14 +367,17 @@ def xlsx_to_markdown(
         max_row = ws.max_row or 0
         max_col = ws.max_column or 0
         if max_row > 0 and max_col > 0:
-            rows = list(ws.iter_rows(
-                min_row=1,
-                max_row=min(max_row, 2000),
-                values_only=True,
-            ))
+            rows = list(
+                ws.iter_rows(
+                    min_row=1,
+                    max_row=min(max_row, 2000),
+                    values_only=True,
+                )
+            )
             # 过滤全空行
             rows = [r for r in rows if any(c is not None for c in r)]
             if rows:
+
                 def _cell(v):
                     if v is None:
                         return ""
@@ -426,6 +433,7 @@ def xlsx_to_markdown(
 # ---------------------------------------------------------------------------
 # 统一入口
 # ---------------------------------------------------------------------------
+
 
 def office_to_markdown(
     file_path: str,

@@ -587,7 +587,7 @@ async def get_task_images(
         try:
             md_content = md_file.read_text(encoding="utf-8")
             # 匹配 Markdown 语法: ![alt](url)
-            for match in re.finditer(r'!\[[^\]]*\]\(([^)]+)\)', md_content):
+            for match in re.finditer(r"!\[[^\]]*\]\(([^)]+)\)", md_content):
                 referenced_filenames.add(Path(match.group(1).split("?")[0]).name)
             # 匹配 HTML img 标签: <img src="url">
             for match in re.finditer(r'<img\s+[^>]*src="([^"]+)"[^>]*>', md_content):
@@ -612,11 +612,13 @@ async def get_task_images(
             logger.warning(f"⚠️  Image file outside OUTPUT_DIR, skipping: {img_file}")
             continue
 
-        images.append({
-            "filename": img_file.name,
-            "download_url": download_url,
-            "size": img_file.stat().st_size,
-        })
+        images.append(
+            {
+                "filename": img_file.name,
+                "download_url": download_url,
+                "size": img_file.stat().st_size,
+            }
+        )
 
     logger.info(f"📸 Task {task_id}: found {len(images)} images (referenced in markdown)")
 

@@ -29,9 +29,7 @@ _standard_normalizer = StandardOutputNormalizer()
 _paddleocr_normalizer = PaddleOCROutputNormalizer()
 
 
-def normalize_output(
-    output_dir: Path, handle_method="standard", use_rustfs: Optional[bool] = None
-) -> Dict[str, Any]:
+def normalize_output(output_dir: Path, handle_method="standard", use_rustfs: Optional[bool] = None) -> Dict[str, Any]:
     """
     便捷函数：规范化输出目录
 

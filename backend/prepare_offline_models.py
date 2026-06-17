@@ -30,7 +30,6 @@
 import os
 import sys
 import json
-import shutil
 import traceback
 import urllib.request
 from pathlib import Path
@@ -88,6 +87,7 @@ def step(title):
 def dl_mineru():
     step("MinerU pipeline + VLM (ModelScope)")
     from modelscope import snapshot_download as ms
+
     ms("OpenDataLab/PDF-Extract-Kit-1.0", local_dir=str(ROOT / "PDF-Extract-Kit-1.0"))
     ms("opendatalab/MinerU2.5-2509-1.2B", local_dir=str(ROOT / "MinerU2.5-2509-1.2B"))
 
@@ -98,6 +98,7 @@ def dl_mineru():
 def dl_audio():
     step("Audio: SenseVoice / Paraformer / VAD / Punc / CAM++ (-> modelscope_cache)")
     from modelscope import snapshot_download as ms
+
     for m in [
         "iic/SenseVoiceSmall",
         "iic/speech_fsmn_vad_zh-cn-16k-common-pytorch",
