@@ -92,6 +92,10 @@ setup_mineru_config() {
         cp "$CONFIG_SRC" "${CONFIG_DEST}"
         log_success "mineru.json distributed to ${CONFIG_DEST}"
     else
+        if [ "${MODEL_DOWNLOAD_SOURCE:-auto}" = "local" ]; then
+            log_error "$CONFIG_SRC not found. Offline mode requires a local MinerU config."
+            exit 1
+        fi
         log_warning "$CONFIG_SRC not found. MinerU might use default internal settings."
     fi
 }
@@ -100,22 +104,16 @@ setup_mineru_config() {
 # Model initialization
 # ============================================================================
 initialize_models() {
-    log_info "Initializing models..."
+    log_info "Validating offline models..."
 
-    # 检查是否有外部模型卷挂载
-    if [ -d "/models-external" ]; then
-        # 调用统一的模型初始化脚本
-        INIT_SCRIPT="/usr/local/bin/init-models.sh"
+    INIT_SCRIPT="/usr/local/bin/init-models.sh"
 
-        if [ -f "$INIT_SCRIPT" ]; then
-            log_info "Running model initialization script: $INIT_SCRIPT"
-            bash "$INIT_SCRIPT" || log_warning "Model initialization script failed, continuing..."
-        else
-            log_warning "Model initialization script not found: $INIT_SCRIPT"
-        fi
+    if [ -f "$INIT_SCRIPT" ]; then
+        log_info "Running model validation script: $INIT_SCRIPT"
+        bash "$INIT_SCRIPT"
     else
-        log_warning "External models directory (/models-external) not found"
-        log_warning "Models will be downloaded on first use"
+        log_error "Model validation script not found: $INIT_SCRIPT"
+        exit 1
     fi
 }
 
@@ -126,23 +124,46 @@ check_models() {
     log_info "Checking model files..."
 
     MODEL_PATH=${MODEL_PATH:-/app/models}
+    local failed=0
+    local offline_mode=0
+
+    if [ "${MODEL_DOWNLOAD_SOURCE:-auto}" = "local" ]; then
+        offline_mode=1
+    fi
 
     if [ ! -d "$MODEL_PATH" ]; then
-        log_warning "Model directory does not exist, will create $MODEL_PATH"
-        mkdir -p "$MODEL_PATH"
+        if [ "$offline_mode" -eq 1 ]; then
+            log_error "Model directory does not exist: $MODEL_PATH"
+            exit 1
+        fi
+        log_warning "Model directory does not exist: $MODEL_PATH"
+        return 0
     fi
 
-    # Check key models
-    if [ -d "$MODEL_PATH/paddleocr_vl" ]; then
+    if [ -d "$MODEL_PATH/PDF-Extract-Kit-1.0/models" ]; then
+        log_success "MinerU pipeline model found"
+    else
+        log_warning "MinerU pipeline model not found at $MODEL_PATH/PDF-Extract-Kit-1.0/models"
+        failed=1
+    fi
+
+    if [ -d "$MODEL_PATH/MinerU2.5-2509-1.2B" ]; then
+        log_success "MinerU VLM model found"
+    else
+        log_warning "MinerU VLM model not found at $MODEL_PATH/MinerU2.5-2509-1.2B"
+        failed=1
+    fi
+
+    if [ -d "/root/.paddlex/official_models/PaddleOCR-VL-1.5-0.9B" ]; then
         log_success "PaddleOCR-VL model found"
     else
-        log_warning "PaddleOCR-VL model not found, will be automatically downloaded on first run"
+        log_warning "PaddleOCR-VL model not found at /root/.paddlex/official_models/PaddleOCR-VL-1.5-0.9B"
+        failed=1
     fi
 
-    if [ -d "$MODEL_PATH/sensevoice" ]; then
-        log_success "SenseVoice model found"
-    else
-        log_warning "SenseVoice model not found, audio processing features will be limited"
+    if [ "$failed" -ne 0 ] && [ "$offline_mode" -eq 1 ]; then
+        log_error "Required offline models are missing"
+        exit 1
     fi
 }
 
@@ -232,8 +253,8 @@ main() {
 
     initialize_database
 
-    # Initialize models before checking (for worker only)
-    if [ "$SERVICE_TYPE" = "worker" ]; then
+    # Validate offline models before checking
+    if [ "${MODEL_DOWNLOAD_SOURCE:-auto}" = "local" ] && [ "$SERVICE_TYPE" != "mcp" ]; then
         initialize_models
     fi
 

@@ -632,7 +632,7 @@ class MinerUWorkerAPI(ls.LitAPI):
         if self.paddleocr_vl_engine is None:
             from paddleocr_vl import PaddleOCRVLEngine
 
-            self.paddleocr_vl_engine = PaddleOCRVLEngine(device="cuda:0", model_name="PaddleOCR-VL-1.5")
+            self.paddleocr_vl_engine = PaddleOCRVLEngine(device="cuda:0", model_name="PaddleOCR-VL-1.5-0.9B")
 
         output_dir = Path(self.output_dir) / Path(file_path).stem
         output_dir.mkdir(parents=True, exist_ok=True)

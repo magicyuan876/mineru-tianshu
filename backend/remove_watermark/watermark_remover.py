@@ -5,6 +5,7 @@
 """
 
 import cv2
+import os
 import numpy as np
 from PIL import Image
 from pathlib import Path
@@ -40,6 +41,7 @@ class WatermarkRemover:
 
     # 默认使用 HuggingFace 上的 YOLO11x 水印检测模型
     DEFAULT_MODEL_ID = "corzent/yolo11x_watermark_detection"
+    DEFAULT_LOCAL_MODEL = "/app/models/YOLO11/best.pt"
 
     def __init__(self, model_path: Optional[str] = None, device: str = "cuda", use_lama: bool = True):
         """
@@ -56,7 +58,9 @@ class WatermarkRemover:
         if not ULTRALYTICS_AVAILABLE:
             raise ImportError("ultralytics not installed. Install: pip install ultralytics")
 
-        self.model_path = model_path or self.DEFAULT_MODEL_ID
+        default_local_model = Path(self.DEFAULT_LOCAL_MODEL)
+        self._model_path_provided = model_path is not None
+        self.model_path = model_path or (str(default_local_model) if default_local_model.exists() else self.DEFAULT_MODEL_ID)
         self.device = device
         self.use_lama = use_lama and LAMA_AVAILABLE
 
@@ -100,6 +104,18 @@ class WatermarkRemover:
             logger.error(f"❌ Failed to download model: {e}")
             raise
 
+    def _resolve_local_model_file(self) -> Optional[str]:
+        """Return the mounted offline YOLO checkpoint if it exists."""
+        local_model = Path(self.DEFAULT_LOCAL_MODEL)
+        if local_model.exists():
+            return str(local_model)
+
+        cache_model = Path.home() / ".cache" / "watermark_models" / "yolo11x_watermark.pt"
+        if cache_model.exists():
+            return str(cache_model)
+
+        return None
+
     def _load_yolo(self):
         """加载 YOLO 模型"""
         if self.yolo is not None:
@@ -108,11 +124,19 @@ class WatermarkRemover:
         logger.info("📥 Loading YOLO model...")
 
         # 判断是本地文件还是 HuggingFace ID
+        local_model = self._resolve_local_model_file()
         model_path = Path(self.model_path)
-        if model_path.exists():
+        if local_model and not self._model_path_provided:
+            model_file = local_model
+        elif model_path.exists():
             # 本地文件
             model_file = str(model_path)
         elif "/" in self.model_path:
+            if os.getenv("MODEL_DOWNLOAD_SOURCE", "auto").lower() == "local":
+                raise FileNotFoundError(
+                    "Offline mode requires a local YOLO watermark model at "
+                    f"{self.DEFAULT_LOCAL_MODEL} or ~/.cache/watermark_models/yolo11x_watermark.pt"
+                )
             # HuggingFace ID
             model_file = self._download_model_from_hf()
         else:

@@ -238,7 +238,7 @@ EOF
         models)
             echo ""
             log_warning "模型文件已上传，需要重新部署才能生效："
-            echo "  1. 删除现有的 models-offline 目录"
+            echo "  1. 删除现有的离线模型目录（OFFLINE_MODELS_PATH，默认 ./models-offline）"
             echo "  2. 解压新的 models-offline.tar.gz"
             echo "  3. 删除 Docker 卷中的 .models_initialized 标记"
             echo "  4. 重启 worker 服务"
@@ -250,8 +250,23 @@ EOF
                 # shellcheck disable=SC2087
                 ssh "${SERVER_USER}@${SERVER_HOST}" << EOF
                     cd ${SERVER_PATH}
-                    rm -rf models-offline
-                    tar xzf models-offline.tar.gz
+                    OFFLINE_MODELS_PATH=\$(grep -E '^OFFLINE_MODELS_PATH=' .env 2>/dev/null | tail -n 1 | cut -d= -f2-)
+                    OFFLINE_MODELS_PATH=\${OFFLINE_MODELS_PATH:-./models-offline}
+                    if [ -z "\$OFFLINE_MODELS_PATH" ] || [ "\$OFFLINE_MODELS_PATH" = "/" ]; then
+                        echo "拒绝更新到不安全的 OFFLINE_MODELS_PATH: \$OFFLINE_MODELS_PATH"
+                        exit 1
+                    fi
+                    rm -rf "\$OFFLINE_MODELS_PATH"
+                    mkdir -p "\$OFFLINE_MODELS_PATH"
+                    first_entry=\$(tar tzf models-offline.tar.gz | head -n 1)
+                    case "\$first_entry" in
+                        models-offline|models-offline/*|./models-offline|./models-offline/*)
+                            tar xzf models-offline.tar.gz -C "\$OFFLINE_MODELS_PATH" --strip-components=1
+                            ;;
+                        *)
+                            tar xzf models-offline.tar.gz -C "\$OFFLINE_MODELS_PATH"
+                            ;;
+                    esac
                     docker-compose exec -T worker rm -f /root/.cache/.models_initialized
                     docker-compose restart worker
                     echo "✓ 模型更新完成"

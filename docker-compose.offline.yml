@@ -8,7 +8,7 @@
 #      - tianshu-frontend:latest
 #      - rustfs/rustfs:latest
 #      - redis:7-alpine (可选)
-#   3. 确保已解压模型文件到 ./models-offline 目录
+#   3. 确保已解压模型文件到 OFFLINE_MODELS_PATH 指定目录（默认 ./models-offline）
 #   4. 启动服务:
 #      - 不启用 Redis(默认): docker-compose -f docker-compose.offline.yml up -d
 #      - 启用 Redis: docker-compose -f docker-compose.offline.yml --profile redis up -d
@@ -104,18 +104,15 @@ services:
     ports:
       - "${API_PORT:-8000}:8000"
     volumes:
-      # 模型外部卷(只读)
-      - ./models-offline:/models-external:ro
-      # 容器内模型缓存(读写)
-      - backend-models-cache:/root/.cache:rw
-      - backend-paddleocr-cache:/root/.paddleocr:rw
-      - ./models:/app/models:rw
-      # PaddleOCR 模型缓存(持久化，避免重复下载)
-      - ./models/paddlex_cache:/root/.paddlex:rw
-      # Hugging Face 模型缓存(持久化)
-      - ./models/huggingface_cache:/root/.cache/huggingface:rw
-      # ModelScope 模型缓存(持久化，国内模型下载)
-      - ./models/modelscope_cache:/root/.cache/modelscope:rw
+      # 离线模型目录(只读)
+      - ${OFFLINE_MODELS_PATH:-./models-offline}:/app/models:ro
+      - ${OFFLINE_MODELS_PATH:-./models-offline}/paddlex_cache:/root/.paddlex:ro
+      - ${OFFLINE_MODELS_PATH:-./models-offline}/paddleocr_cache:/root/.paddleocr:ro
+      - ${OFFLINE_MODELS_PATH:-./models-offline}/modelscope_cache:/root/.cache/modelscope:ro
+      - ${OFFLINE_MODELS_PATH:-./models-offline}/huggingface_cache:/root/.cache/huggingface:ro
+      - ${OFFLINE_MODELS_PATH:-./models-offline}/torch_cache:/root/.cache/torch:ro
+      - ${OFFLINE_MODELS_PATH:-./models-offline}/watermark_models:/root/.cache/watermark_models:ro
+      - ${OFFLINE_MODELS_PATH:-./models-offline}/ultralytics_cfg:/root/.config/Ultralytics:ro
       # 上传文件(统一使用 /app/data 路径)
       - ./data/uploads:/app/data/uploads:rw
       # 输出结果
@@ -171,10 +168,23 @@ services:
       - RUSTFS_PUBLIC_URL=${RUSTFS_PUBLIC_URL}
 
       # 模型下载配置(离线模式)
-      - MODEL_DOWNLOAD_SOURCE=${MODEL_DOWNLOAD_SOURCE:-local}
-      - HF_OFFLINE=1
-      - HF_ENDPOINT=${HF_ENDPOINT:-https://hf-mirror.com}
+      - MODEL_DOWNLOAD_SOURCE=local
+      - HF_HUB_OFFLINE=1
+      - TRANSFORMERS_OFFLINE=1
+      - HF_HOME=/root/.cache/huggingface
+      - HF_ENDPOINT=
       - HF_TOKEN=${HF_TOKEN:-}
+      - MODELSCOPE_OFFLINE=1
+      - MODELSCOPE_CACHE=/root/.cache/modelscope
+      - MINERU_MODEL_SOURCE=local
+      - MINERU_TOOLS_CONFIG_JSON=mineru.json
+      - PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK=True
+      - PADDLEX_HOME=/root/.paddlex
+      - PADDLE_HOME=/root/.paddleocr
+      - TORCH_HOME=/root/.cache/torch
+      - LAMA_MODEL=/app/models/big-lama.pt
+      - YOLO_CONFIG_DIR=/root/.config
+      - YOLO_OFFLINE=True
 
       # Redis 队列配置（可选 - 解决 SQLite 并发瓶颈）
       - REDIS_QUEUE_ENABLED=${REDIS_QUEUE_ENABLED:-false}
@@ -213,18 +223,15 @@ services:
     ports:
       - "${WORKER_PORT:-8001}:8001"
     volumes:
-      # 模型外部卷(只读)
-      - ./models-offline:/models-external:ro
-      # 容器内模型缓存(读写)
-      - worker-models-cache:/root/.cache:rw
-      - worker-paddleocr-cache:/root/.paddleocr:rw
-      - ./models:/app/models:rw
-      # PaddleOCR 模型缓存(持久化，避免重复下载)
-      - ./models/paddlex_cache:/root/.paddlex:rw
-      # Hugging Face 模型缓存(持久化)
-      - ./models/huggingface_cache:/root/.cache/huggingface:rw
-      # ModelScope 模型缓存(持久化，国内模型下载)
-      - ./models/modelscope_cache:/root/.cache/modelscope:rw
+      # 离线模型目录(只读)
+      - ${OFFLINE_MODELS_PATH:-./models-offline}:/app/models:ro
+      - ${OFFLINE_MODELS_PATH:-./models-offline}/paddlex_cache:/root/.paddlex:ro
+      - ${OFFLINE_MODELS_PATH:-./models-offline}/paddleocr_cache:/root/.paddleocr:ro
+      - ${OFFLINE_MODELS_PATH:-./models-offline}/modelscope_cache:/root/.cache/modelscope:ro
+      - ${OFFLINE_MODELS_PATH:-./models-offline}/huggingface_cache:/root/.cache/huggingface:ro
+      - ${OFFLINE_MODELS_PATH:-./models-offline}/torch_cache:/root/.cache/torch:ro
+      - ${OFFLINE_MODELS_PATH:-./models-offline}/watermark_models:/root/.cache/watermark_models:ro
+      - ${OFFLINE_MODELS_PATH:-./models-offline}/ultralytics_cfg:/root/.config/Ultralytics:ro
       # 上传文件(读写，需要创建 converted_pdfs 目录用于 Office 转 PDF)
       - ./data/uploads:/app/data/uploads:rw
       # 输出结果
@@ -263,9 +270,22 @@ services:
 
       # 模型下载配置(离线模式)
       - MODEL_DOWNLOAD_SOURCE=local
-      - HF_OFFLINE=1
-      - HF_ENDPOINT=${HF_ENDPOINT:-https://hf-mirror.com}
+      - HF_HUB_OFFLINE=1
+      - TRANSFORMERS_OFFLINE=1
+      - HF_HOME=/root/.cache/huggingface
+      - HF_ENDPOINT=
       - HF_TOKEN=${HF_TOKEN:-}
+      - MODELSCOPE_OFFLINE=1
+      - MODELSCOPE_CACHE=/root/.cache/modelscope
+      - MINERU_MODEL_SOURCE=local
+      - MINERU_TOOLS_CONFIG_JSON=mineru.json
+      - PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK=True
+      - PADDLEX_HOME=/root/.paddlex
+      - PADDLE_HOME=/root/.paddleocr
+      - TORCH_HOME=/root/.cache/torch
+      - LAMA_MODEL=/app/models/big-lama.pt
+      - YOLO_CONFIG_DIR=/root/.config
+      - YOLO_OFFLINE=True
 
       # PDF 拆分配置(Worker 中执行)
       - PDF_SPLIT_ENABLED=${PDF_SPLIT_ENABLED:-true}

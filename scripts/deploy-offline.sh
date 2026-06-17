@@ -9,6 +9,22 @@ set -e
 # 配置
 # ============================================================================
 COMPOSE_FILE="docker-compose.offline.yml"
+PLATFORM="${PLATFORM:-amd64}"
+BACKEND_IMAGE_TAR="${BACKEND_IMAGE_TAR:-tianshu-backend-${PLATFORM}.tar.gz}"
+FRONTEND_IMAGE_TAR="${FRONTEND_IMAGE_TAR:-tianshu-frontend-${PLATFORM}.tar.gz}"
+RUSTFS_IMAGE_TAR="${RUSTFS_IMAGE_TAR:-rustfs-${PLATFORM}.tar.gz}"
+REDIS_IMAGE_TAR="${REDIS_IMAGE_TAR:-redis-${PLATFORM}.tar.gz}"
+MODELS_TAR="${MODELS_TAR:-models-offline.tar.gz}"
+
+if [ -z "${OFFLINE_MODELS_PATH:-}" ] && [ -f ".env" ]; then
+    OFFLINE_MODELS_PATH="$(grep -E '^OFFLINE_MODELS_PATH=' .env 2>/dev/null | tail -n 1 | cut -d= -f2- || true)"
+    OFFLINE_MODELS_PATH="${OFFLINE_MODELS_PATH%\"}"
+    OFFLINE_MODELS_PATH="${OFFLINE_MODELS_PATH#\"}"
+    OFFLINE_MODELS_PATH="${OFFLINE_MODELS_PATH%\'}"
+    OFFLINE_MODELS_PATH="${OFFLINE_MODELS_PATH#\'}"
+fi
+
+OFFLINE_MODELS_PATH="${OFFLINE_MODELS_PATH:-./models-offline}"
 
 # 颜色输出
 RED='\033[0;31m'
@@ -60,8 +76,17 @@ check_nvidia_driver() {
 check_nvidia_container_toolkit() {
     log_info "Checking NVIDIA Container Toolkit..."
 
-    # 测试 GPU 是否可以被 Docker 访问
-    if docker run --rm --gpus all nvidia/cuda:12.6.2-base-ubuntu24.04 nvidia-smi &> /dev/null 2>&1; then
+    local test_image="${GPU_TEST_IMAGE:-tianshu-backend:latest}"
+
+    # 测试 GPU 是否可以被 Docker 访问。离线环境不应依赖额外拉取 nvidia/cuda 测试镜像。
+    if ! docker image inspect "$test_image" > /dev/null 2>&1; then
+        log_warning "GPU test image not loaded yet: $test_image"
+        log_warning "Skipping pre-load container toolkit check; worker startup will verify GPU access after images are loaded"
+        echo ""
+        return 0
+    fi
+
+    if docker run --rm --gpus all --entrypoint nvidia-smi "$test_image" &> /dev/null 2>&1; then
         log_success "NVIDIA Container Toolkit is working"
         log_info "Will use GPU acceleration"
     else
@@ -78,21 +103,21 @@ check_files() {
 
     local missing_files=()
 
-    if [ ! -f "tianshu-backend-amd64.tar.gz" ]; then
-        missing_files+=("tianshu-backend-amd64.tar.gz")
+    if [ ! -f "$BACKEND_IMAGE_TAR" ]; then
+        missing_files+=("$BACKEND_IMAGE_TAR")
     fi
 
-    if [ ! -f "tianshu-frontend-amd64.tar.gz" ]; then
-        missing_files+=("tianshu-frontend-amd64.tar.gz")
+    if [ ! -f "$FRONTEND_IMAGE_TAR" ]; then
+        missing_files+=("$FRONTEND_IMAGE_TAR")
     fi
 
-    if [ ! -f "rustfs-amd64.tar.gz" ]; then
-        missing_files+=("rustfs-amd64.tar.gz")
+    if [ ! -f "$RUSTFS_IMAGE_TAR" ]; then
+        missing_files+=("$RUSTFS_IMAGE_TAR")
     fi
 
-    if [ ! -f "models-offline.tar.gz" ] && [ ! -L "models-offline.tar.gz" ]; then
-        log_warning "models-offline.tar.gz not found"
-        missing_files+=("models-offline.tar.gz")
+    if [ ! -f "$MODELS_TAR" ] && [ ! -L "$MODELS_TAR" ]; then
+        log_warning "$MODELS_TAR not found"
+        missing_files+=("$MODELS_TAR")
     fi
 
     if [ ${#missing_files[@]} -ne 0 ]; then
@@ -108,6 +133,58 @@ check_files() {
     log_success "All required files found"
 }
 
+check_models() {
+    log_info "Checking offline model directory..."
+
+    local missing_paths=()
+    local required_paths=(
+        "$OFFLINE_MODELS_PATH/mineru.json"
+        "$OFFLINE_MODELS_PATH/PDF-Extract-Kit-1.0/models"
+        "$OFFLINE_MODELS_PATH/MinerU2.5-2509-1.2B"
+        "$OFFLINE_MODELS_PATH/paddlex_cache/official_models/PaddleOCR-VL-1.5-0.9B"
+        "$OFFLINE_MODELS_PATH/paddlex_cache/official_models/PP-DocLayoutV3"
+        "$OFFLINE_MODELS_PATH/SenseVoiceSmall"
+        "$OFFLINE_MODELS_PATH/speech_fsmn_vad_zh-cn-16k-common-pytorch"
+    )
+
+    for path in "${required_paths[@]}"; do
+        if [ ! -e "$path" ]; then
+            missing_paths+=("$path")
+        fi
+    done
+
+    if [ ${#missing_paths[@]} -ne 0 ]; then
+        log_error "Offline model directory is incomplete:"
+        for path in "${missing_paths[@]}"; do
+            echo "  - $path"
+        done
+        exit 1
+    fi
+
+    log_success "Offline model directory looks complete"
+}
+
+extract_models() {
+    if [ -z "$OFFLINE_MODELS_PATH" ] || [ "$OFFLINE_MODELS_PATH" = "/" ]; then
+        log_error "Refusing to extract models to unsafe OFFLINE_MODELS_PATH: $OFFLINE_MODELS_PATH"
+        exit 1
+    fi
+
+    rm -rf "$OFFLINE_MODELS_PATH"
+    mkdir -p "$OFFLINE_MODELS_PATH"
+
+    local first_entry
+    first_entry="$(tar tzf "$MODELS_TAR" | head -n 1)"
+    case "$first_entry" in
+        models-offline|models-offline/*|./models-offline|./models-offline/*)
+            tar xzf "$MODELS_TAR" -C "$OFFLINE_MODELS_PATH" --strip-components=1
+            ;;
+        *)
+            tar xzf "$MODELS_TAR" -C "$OFFLINE_MODELS_PATH"
+            ;;
+    esac
+}
+
 # ============================================================================
 # 主函数
 # ============================================================================
@@ -115,11 +192,11 @@ main() {
     log_info "=========================================="
     log_info "🚀 Deploying Tianshu (Offline - GPU Version)"
     log_info "=========================================="
+    log_info "Offline models path: $OFFLINE_MODELS_PATH"
     echo ""
 
     # 1. 检查 NVIDIA 环境
     check_nvidia_driver
-    check_nvidia_container_toolkit
 
     # 2. 检查文件
     check_files
@@ -131,28 +208,40 @@ main() {
     echo ""
 
     log_info "   Loading backend image..."
-    docker load < tianshu-backend-amd64.tar.gz
+    docker load < "$BACKEND_IMAGE_TAR"
 
     log_info "   Loading frontend image..."
-    docker load < tianshu-frontend-amd64.tar.gz
+    docker load < "$FRONTEND_IMAGE_TAR"
 
     log_info "   Loading rustfs image..."
-    docker load < rustfs-amd64.tar.gz
+    docker load < "$RUSTFS_IMAGE_TAR"
+
+    if [ -f "$REDIS_IMAGE_TAR" ]; then
+        log_info "   Loading redis image..."
+        docker load < "$REDIS_IMAGE_TAR"
+    else
+        log_warning "Redis image tar not found ($REDIS_IMAGE_TAR); redis profile will not work offline"
+    fi
 
     log_success "All images loaded successfully"
     echo ""
 
+    # 3.5 检查容器 GPU 访问（使用已加载的后端镜像，避免离线环境拉取测试镜像）
+    check_nvidia_container_toolkit
+
     # 4. 解压模型文件
-    if [ ! -L "models-offline.tar.gz" ]; then
+    if [ ! -L "$MODELS_TAR" ]; then
         log_info "📦 Extracting models..."
-        log_info "   This may take 5-10 minutes..."
-        tar xzf models-offline.tar.gz
-        log_success "Models extracted successfully"
     else
         log_info "📦 Models are linked, extracting from source..."
-        tar xzf models-offline.tar.gz
-        log_success "Models extracted successfully"
     fi
+    log_info "   This may take 5-10 minutes..."
+    extract_models
+    log_success "Models extracted successfully"
+    echo ""
+
+    # 4.5 校验模型目录
+    check_models
     echo ""
 
     # 5. 创建目录结构

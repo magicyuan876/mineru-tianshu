@@ -36,6 +36,8 @@ frontend/.output/
 # Models (too large, should be mounted or downloaded)
 models/
 !models/.gitkeep
+models-offline/
+docker-images/
 
 # Data & Uploads (should be mounted)
 data/

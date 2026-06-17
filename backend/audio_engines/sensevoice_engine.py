@@ -118,6 +118,21 @@ class SenseVoiceEngine:
                 f"   Speaker Diarization: {'✅ Enabled (FunASR Native)' if enable_speaker_diarization else '❌ Disabled'}"
             )
 
+    def _resolve_local_model(self, model_id: str, local_name: str) -> str:
+        """Use a mounted offline model directory when it exists."""
+        model_path = Path("/app/models") / local_name
+        if model_path.exists():
+            return str(model_path)
+        return model_id
+
+    def _resolve_remote_code(self, model_ref: str) -> str:
+        """Use local model code when the mounted model directory is available."""
+        model_path = Path(model_ref)
+        local_code = model_path / "model.py"
+        if model_path.is_dir() and local_code.exists():
+            return str(local_code)
+        return "./model.py"
+
     def _load_model(self, enable_sd: bool = False):
         """
         延迟加载模型（根据需求加载 SenseVoice 或 Paraformer）
@@ -144,11 +159,21 @@ class SenseVoiceEngine:
                         # 使用 Paraformer 模型（支持时间戳和说话人分离）
                         # 参考：https://github.com/lukeewin/AudioSeparationGUI
                         self._paraformer_model = AutoModel(
-                            model="iic/speech_seaco_paraformer_large_asr_nat-zh-cn-16k-common-vocab8404-pytorch",
-                            vad_model="fsmn-vad",
+                            model=self._resolve_local_model(
+                                "iic/speech_seaco_paraformer_large_asr_nat-zh-cn-16k-common-vocab8404-pytorch",
+                                "Paraformer",
+                            ),
+                            vad_model=self._resolve_local_model(
+                                "fsmn-vad", "speech_fsmn_vad_zh-cn-16k-common-pytorch"
+                            ),
                             vad_kwargs={"max_single_segment_time": 30000},
-                            punc_model="ct-punc",  # 标点模型（说话人分离必需）
-                            spk_model="iic/speech_campplus_sv_zh-cn_16k-common",  # 说话人嵌入模型
+                            punc_model=self._resolve_local_model(
+                                "ct-punc", "punc_ct-transformer_zh-cn-common-vocab272727-pytorch"
+                            ),  # 标点模型（说话人分离必需）
+                            spk_model=self._resolve_local_model(
+                                "iic/speech_campplus_sv_zh-cn_16k-common",
+                                "speech_campplus_sv_zh-cn_16k-common",
+                            ),  # 说话人嵌入模型
                             device=self.device,
                         )
 
@@ -172,11 +197,14 @@ class SenseVoiceEngine:
                         logger.info("=" * 60)
                         logger.info(f"🤖 Loading model from: {self.model_dir}")
 
+                        sensevoice_model = self._resolve_local_model(self.model_dir, "SenseVoiceSmall")
                         self._sensevoice_model = AutoModel(
-                            model=self.model_dir,
+                            model=sensevoice_model,
                             trust_remote_code=True,
-                            remote_code="./model.py",
-                            vad_model="fsmn-vad",
+                            remote_code=self._resolve_remote_code(sensevoice_model),
+                            vad_model=self._resolve_local_model(
+                                "fsmn-vad", "speech_fsmn_vad_zh-cn-16k-common-pytorch"
+                            ),
                             vad_kwargs={"max_single_segment_time": 30000},
                             device=self.device,
                         )

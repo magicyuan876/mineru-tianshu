@@ -10,7 +10,7 @@ set -e
 # ============================================================================
 PLATFORM="${PLATFORM:-amd64}"
 OUTPUT_DIR="./docker-images"
-MODELS_DIR="./models-offline"
+MODELS_DIR="${OFFLINE_MODELS_PATH:-./models-offline}"
 
 # 颜色输出
 RED='\033[0;31m'
@@ -45,6 +45,7 @@ main() {
     log_info "=========================================="
     log_info "Platform: linux/$PLATFORM"
     log_info "Output: $OUTPUT_DIR"
+    log_info "Models: $MODELS_DIR"
     echo ""
 
     # 1. 检查 Docker 环境
@@ -96,15 +97,23 @@ main() {
         python3 -m pip install --quiet huggingface-hub modelscope loguru 2>/dev/null || true
 
         # 执行下载
-        if python3 backend/download_models.py --output "$MODELS_DIR"; then
+        if python3 backend/download_models.py --output "$MODELS_DIR" --strict; then
             log_success "Models downloaded successfully"
         else
             log_error "Model download failed!"
-            log_info "Please run manually: python3 backend/download_models.py --output $MODELS_DIR"
+            log_info "Please run manually: python3 backend/download_models.py --output $MODELS_DIR --strict"
             exit 1
         fi
     else
         log_success "Models directory found: $MODELS_DIR"
+        log_info "Verifying existing offline models..."
+        if python3 backend/download_models.py --output "$MODELS_DIR" --verify-only --strict; then
+            log_success "Offline models verified successfully"
+        else
+            log_error "Offline model verification failed!"
+            log_info "Please run manually: python3 backend/download_models.py --output $MODELS_DIR --force"
+            exit 1
+        fi
         log_info "Skipping model download (already exists)"
         log_info "Use --force to re-download: python3 backend/download_models.py --output $MODELS_DIR --force"
     fi
@@ -146,7 +155,13 @@ main() {
     log_success "RustFS image pulled successfully"
     echo ""
 
-    # 7. 导出镜像
+    # 7. 拉取可选 Redis 镜像（离线启用 redis profile 时需要）
+    log_info "📥 Pulling Redis image (platform: linux/$PLATFORM)..."
+    docker pull --platform "linux/$PLATFORM" redis:7-alpine
+    log_success "Redis image pulled successfully"
+    echo ""
+
+    # 8. 导出镜像
     log_info "💾 Exporting images..."
     mkdir -p "$OUTPUT_DIR"
 
@@ -162,27 +177,33 @@ main() {
     docker save rustfs/rustfs:latest | gzip > "$OUTPUT_DIR/rustfs-$PLATFORM.tar.gz" &
     PID_RUSTFS=$!
 
+    log_info "   Exporting redis image..."
+    docker save redis:7-alpine | gzip > "$OUTPUT_DIR/redis-$PLATFORM.tar.gz" &
+    PID_REDIS=$!
+
     # 等待所有导出完成
     wait $PID_BACKEND
     wait $PID_FRONTEND
     wait $PID_RUSTFS
+    wait $PID_REDIS
 
     log_success "All images exported successfully"
     echo ""
 
-    # 8. 处理模型文件
+    # 9. 处理模型文件
     log_info "📦 Handling models..."
 
-    if [ -d "$MODELS_DIR" ] && [ ! -f "$OUTPUT_DIR/models-offline.tar.gz" ]; then
+    if [ -d "$MODELS_DIR" ]; then
         log_info "Packaging models..."
-        tar czf "$OUTPUT_DIR/models-offline.tar.gz" "$MODELS_DIR/"
+        rm -f "$OUTPUT_DIR/models-offline.tar.gz"
+        tar czf "$OUTPUT_DIR/models-offline.tar.gz" -C "$MODELS_DIR" .
         log_success "Models packaged successfully"
     else
-        log_warning "Models directory not found or already packaged"
+        log_warning "Models directory not found"
     fi
     echo ""
 
-    # 9. 复制配置文件
+    # 10. 复制配置文件
     log_info "📋 Copying configuration files..."
 
     # 复制离线 docker-compose 为标准名称（用于部署）
@@ -210,15 +231,16 @@ main() {
 
     # 复制 MCP 配置示例
     if [ -f "mcp_config.example.json" ]; then
-        mkdir -p "$OUTPUT_DIR/mcp_config.example.json"
-        cp mcp_config.example.json "$OUTPUT_DIR/mcp_config.example.json/"
+        cp mcp_config.example.json "$OUTPUT_DIR/mcp_config.example.json"
         log_info "   ✓ mcp_config.example.json"
     fi
+
+    chmod +x "$OUTPUT_DIR/deploy-offline.sh" 2>/dev/null || true
 
     log_success "Configuration files copied"
     echo ""
 
-    # 10. 显示结果
+    # 11. 显示结果
     log_info "=========================================="
     log_success "✅ Build Complete!"
     log_info "=========================================="
@@ -232,7 +254,7 @@ main() {
     log_info "💾 Total size: $TOTAL_SIZE"
     echo ""
 
-    # 11. 显示下一步
+    # 12. 显示下一步
     log_info "📋 Next steps:"
     echo ""
     echo "  1. Verify images:"
