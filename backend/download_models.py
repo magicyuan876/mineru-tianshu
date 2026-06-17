@@ -343,7 +343,7 @@ def generate_mineru_json(output_path: Path) -> None:
     config_path = output_path / "mineru.json"
     config = {
         "models-dir": {
-            "pipeline": "/app/models/PDF-Extract-Kit-1.0/models",
+            "pipeline": "/app/models/PDF-Extract-Kit-1.0",
             "vlm": "/app/models/MinerU2.5-2509-1.2B",
         },
         "config_version": "1.3.1",
@@ -382,7 +382,7 @@ def verify_mineru_json(output_path: Path) -> tuple[bool, str]:
 
     models_dir = config.get("models-dir", {})
     expected = {
-        "pipeline": "/app/models/PDF-Extract-Kit-1.0/models",
+        "pipeline": "/app/models/PDF-Extract-Kit-1.0",
         "vlm": "/app/models/MinerU2.5-2509-1.2B",
     }
     if models_dir != expected:

@@ -84,14 +84,14 @@ models-offline/
 ```json
 {
   "models-dir": {
-    "pipeline": "/app/models/PDF-Extract-Kit-1.0/models",
+    "pipeline": "/app/models/PDF-Extract-Kit-1.0",
     "vlm": "/app/models/MinerU2.5-2509-1.2B"
   },
   "config_version": "1.3.1"
 }
 ```
 
-改造前如果离线部署只把模型挂到 `/models-external`，而没有同步或挂载到 `/app/models`，该配置会指向空目录。当前实现已统一把外置模型目录挂载到 `/app/models`，并在启动时复制 `/app/models/mineru.json` 到 `/root/mineru.json`。
+MinerU 会在 `pipeline` 根目录下继续拼接 `models/...` 子路径，所以这里必须指向 `PDF-Extract-Kit-1.0` 根目录，而不是 `PDF-Extract-Kit-1.0/models`。改造前如果离线部署只把模型挂到 `/models-external`，而没有同步或挂载到 `/app/models`，该配置会指向空目录。当前实现已统一把外置模型目录挂载到 `/app/models`，并在启动时复制 `/app/models/mineru.json` 到 `/root/mineru.json`。
 
 ### 2.4 下载清单不完整
 
@@ -227,12 +227,14 @@ models-offline/
 ```json
 {
   "models-dir": {
-    "pipeline": "/app/models/PDF-Extract-Kit-1.0/models",
+    "pipeline": "/app/models/PDF-Extract-Kit-1.0",
     "vlm": "/app/models/MinerU2.5-2509-1.2B"
   },
   "config_version": "1.3.1"
 }
 ```
+
+注意：`PDF-Extract-Kit-1.0/models` 子目录仍然必须存在；这里只是 `mineru.json` 的 `pipeline` 根路径不能多写一层 `models`。
 
 ### 5.2 PaddleOCR-VL
 
