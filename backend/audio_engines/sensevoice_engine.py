@@ -20,6 +20,7 @@ SenseVoice 语音识别引擎
   - 性能更好，维护更简单
 """
 
+import os
 import json
 from pathlib import Path
 from typing import Dict, Any, List, Optional
@@ -85,12 +86,21 @@ class SenseVoiceEngine:
             if enable_speaker_diarization:
                 logger.info("⚠️  说话人分离需要时间戳支持，将在首次使用时加载 Paraformer 模型")
 
-            # 默认缓存目录：项目根目录/models/sensevoice
+            # 模型缓存目录：funasr 运行时实际从 MODELSCOPE_CACHE 读取模型（AutoModel 不接受
+            # cache_dir 参数），故这里统一对齐——优先用环境变量 MODELSCOPE_CACHE（容器/离线部署
+            # 指定的目录），否则回退项目目录，并显式写回 MODELSCOPE_CACHE，确保 funasr 加载路径
+            # 与下载路径一致（避免"下载到 A、funasr 去 B 找"）。
             if cache_dir is None:
-                project_root = Path(__file__).parent.parent.parent
-                self.cache_dir = str(project_root / "models" / "sensevoice")
+                env_cache = os.environ.get("MODELSCOPE_CACHE")
+                if env_cache:
+                    self.cache_dir = env_cache
+                else:
+                    project_root = Path(__file__).parent.parent.parent
+                    self.cache_dir = str(project_root / "models" / "modelscope")
+                    os.environ["MODELSCOPE_CACHE"] = self.cache_dir
             else:
                 self.cache_dir = cache_dir
+                os.environ["MODELSCOPE_CACHE"] = cache_dir
 
             # 确保缓存目录存在（带错误处理）
             try:

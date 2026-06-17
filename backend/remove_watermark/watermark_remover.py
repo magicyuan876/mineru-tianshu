@@ -4,6 +4,7 @@
 使用 YOLO11x 检测水印位置，LaMa 模型修复图像
 """
 
+import os
 import cv2
 import os
 import numpy as np
@@ -135,7 +136,9 @@ class WatermarkRemover:
         except ImportError:
             raise ImportError("huggingface_hub not installed. Install: pip install huggingface-hub")
 
-        cache_dir = Path.home() / ".cache" / "watermark_models"
+        # 模型目录：优先环境变量 WATERMARK_MODEL_DIR（容器/离线部署指定），默认 ~/.cache/watermark_models。
+        # 代码认死文件名 yolo11x_watermark.pt，离线时把模型放到该目录下并命名为此即可，不会再联网。
+        cache_dir = Path(os.environ.get("WATERMARK_MODEL_DIR") or (Path.home() / ".cache" / "watermark_models"))
         cache_dir.mkdir(parents=True, exist_ok=True)
 
         model_file = cache_dir / "yolo11x_watermark.pt"
