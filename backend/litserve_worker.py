@@ -288,6 +288,26 @@ class MinerUWorkerAPI(ls.LitAPI):
             self.accelerator = "cpu"
             self.engine_device = "cpu"
 
+        # PyTorch 2.6 兼容：torch.load 的 weights_only 默认从 False 改为 True，
+        # 会拒绝加载 doclayout_yolo/ultralytics 等含自定义类（YOLOv10DetectionModel 等）的 .pt 模型，
+        # 报 UnpicklingError。模型来自可信源（ModelScope/打包镜像），这里把默认改回 False。
+        # 必须在 CUDA_VISIBLE_DEVICES 设置之后、加载任何模型之前执行。
+        try:
+            import torch as _torch
+
+            if not getattr(_torch.load, "_weights_only_patched", False):
+                _orig_torch_load = _torch.load
+
+                def _compat_torch_load(*args, **kwargs):
+                    kwargs.setdefault("weights_only", False)
+                    return _orig_torch_load(*args, **kwargs)
+
+                _compat_torch_load._weights_only_patched = True
+                _torch.load = _compat_torch_load
+                logger.info("🔧 [Compat] Patched torch.load(weights_only=False) for PyTorch 2.6")
+        except Exception as _e:
+            logger.warning(f"⚠️  Failed to patch torch.load for PyTorch 2.6: {_e}")
+
         # MinerU VRAM 设置
         from mineru.utils.model_utils import get_vram
 
@@ -339,9 +359,56 @@ class MinerUWorkerAPI(ls.LitAPI):
             except Exception as e:
                 logger.error(f"❌ Failed to init watermark engine: {e}")
 
+        # Worker 启动时恢复卡住的 processing 任务：
+        # 第一步：按 worker 前缀识别已死亡的旧实例（重启后 PID 变化），立即重置其遗留任务
+        # （不依赖时间窗口，比 reset_stale_tasks 更快回收 OOM/崩溃重启留下的孤儿任务）。
+        try:
+            worker_id_prefix = "-".join(self.worker_id.rsplit("-", 1)[:-1])  # 去掉尾部 -{pid}
+            reset_count = self.task_db.reset_tasks_from_dead_worker(
+                worker_id_prefix=worker_id_prefix,
+                current_worker_id=self.worker_id,
+            )
+            if reset_count > 0:
+                logger.warning(f"🔄 Dead-worker recovery: reset {reset_count} tasks from previous instance")
+            else:
+                logger.info("✅ Dead-worker recovery: no orphaned tasks found")
+        except Exception as e:
+            logger.error(f"❌ Dead-worker recovery failed: {e}")
+
+        # 第二步：兜底——重置其它来源的超时任务（其他机器崩溃等情况）
+        try:
+            reset_count = self.task_db.reset_stale_tasks(timeout_minutes=10, max_retries=3)
+            if reset_count > 0:
+                logger.warning(f"🔄 Startup recovery: reset {reset_count} stale tasks back to pending")
+        except Exception as e:
+            logger.error(f"❌ Startup recovery failed: {e}")
+
         if self.enable_worker_loop:
             self.worker_thread = threading.Thread(target=self._worker_loop, daemon=True)
             self.worker_thread.start()
+            # 心跳线程：定期续租正在处理任务的 started_at，避免长任务（如大分片）
+            # 被 scheduler 的 reset_stale_tasks 误判为超时卡死而重置。
+            self.heartbeat_thread = threading.Thread(target=self._heartbeat_loop, daemon=True)
+            self.heartbeat_thread.start()
+            logger.info("💓 Heartbeat loop started")
+
+    def _heartbeat_loop(self):
+        """
+        心跳线程：周期性续租当前正在处理任务的 started_at。
+
+        scheduler 的 reset_stale_tasks 用 started_at 判断任务是否"超时卡死"。
+        只要 worker 还在跑这个任务，就定期刷新 started_at，避免被误判超时重置。
+        心跳间隔须显著小于 scheduler 的 --stale-task-timeout（默认 60 分钟）。
+        """
+        heartbeat_interval = 60  # 秒
+        while self.running:
+            try:
+                task_id = self.current_task_id
+                if task_id:
+                    self.task_db.update_heartbeat(task_id, self.worker_id)
+            except Exception as e:
+                logger.debug(f"💓 heartbeat update failed: {e}")
+            time.sleep(heartbeat_interval)
 
     def _worker_loop(self):
         logger.info(f"🔁 {self.worker_id} started task polling loop")
@@ -469,6 +536,12 @@ class MinerUWorkerAPI(ls.LitAPI):
                 elif file_ext in [".pdf", ".png", ".jpg", ".jpeg", ".docx"] and MINERU_PIPELINE_AVAILABLE:
                     options["parse_mode"] = "pipeline"
                     result = self._process_with_mineru(file_path, options)
+                elif file_ext in [".xlsx", ".pptx"]:
+                    # xlsx/pptx 用自研解析器（保留图片、xlsx 含外部引用不崩），替代 MarkItDown
+                    result = self._process_office(file_path, options)
+                elif file_ext == ".md":
+                    # Markdown 原生处理：提取内/外部图片
+                    result = self._process_markdown(file_path, options)
                 elif file_ext in [".doc", ".xls", ".ppt"]:
                     # 旧格式先用 LibreOffice 转为对应新格式，再走已有处理链
                     # .doc→.docx→MinerU原生  .xls→.xlsx→MarkItDown  .ppt→.pptx→MarkItDown
@@ -478,6 +551,9 @@ class MinerUWorkerAPI(ls.LitAPI):
                         if new_ext == ".docx" and MINERU_PIPELINE_AVAILABLE:
                             options["parse_mode"] = "pipeline"
                             result = self._process_with_mineru(new_path, options)
+                        elif new_ext in [".xlsx", ".pptx"]:
+                            # .xls→.xlsx / .ppt→.pptx 转换后走自研解析器
+                            result = self._process_office(new_path, options)
                         elif self.markitdown:
                             result = self._process_with_markitdown(new_path)
                         else:
@@ -720,6 +796,129 @@ class MinerUWorkerAPI(ls.LitAPI):
         normalize_output(output_dir)
         return {"result_path": str(output_dir), "content": result["markdown"]}
 
+    def _process_markdown(self, file_path: str, options: dict) -> dict:
+        """
+        处理 Markdown 文件，提取内/外部图片并上传 RustFS（不可用时降级本地保存）。
+
+        Returns:
+            {result_path, content, chunks, images, rustfs_urls}
+        """
+        from utils.markdown_image_extractor import (
+            process_markdown_images,
+            chunk_markdown_by_heading,
+        )
+
+        md_file = Path(file_path)
+        markdown_content = md_file.read_text(encoding="utf-8")
+
+        output_dir = Path(self.output_dir) / md_file.stem
+        output_dir.mkdir(parents=True, exist_ok=True)
+        images_dir = output_dir / "images"
+
+        try:
+            use_rustfs = (options or {}).get("use_rustfs")
+            if use_rustfs is False:
+                rustfs_client = None
+            else:
+                from storage import RustFSClient
+
+                rustfs_client = RustFSClient()
+        except Exception as e:
+            logger.warning(f"⚠️  RustFS not available: {e}")
+            rustfs_client = None
+
+        result = process_markdown_images(
+            markdown_content=markdown_content,
+            markdown_file_path=str(md_file),
+            output_dir=str(images_dir),
+            rustfs_client=rustfs_client,
+        )
+
+        structured_chunks = chunk_markdown_by_heading(
+            result["content"],
+            include_images=True,
+            image_info=result["images"],
+        )
+
+        result_file = output_dir / "result.md"
+        result_file.write_text(result["content"], encoding="utf-8")
+
+        chunks_file = output_dir / "chunks.json"
+        chunks_file.write_text(
+            json.dumps(structured_chunks, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+        logger.info(f"📝 Markdown processed: {len(result['images'])} images extracted")
+
+        return {
+            "result_path": str(output_dir),
+            "content": result["content"],
+            "chunks": structured_chunks,
+            "images": result["images"],
+            "rustfs_urls": result["rustfs_urls"],
+        }
+
+    def _process_office(self, file_path: str, options: dict) -> dict:
+        """
+        处理新格式 Office 文件 (xlsx/pptx)：用自研解析器提取表格/文本与图片，
+        图片可上传 RustFS（不可用时降级为本地保存）。
+
+        注：docx 走 MinerU Pipeline（质量更高），不经过此方法。
+
+        Returns:
+            {result_path, content, chunks, images, rustfs_urls}
+        """
+        from utils.office_to_markdown import office_to_markdown
+        from utils.markdown_image_extractor import chunk_markdown_by_heading
+
+        output_dir = Path(self.output_dir) / Path(file_path).stem
+        output_dir.mkdir(parents=True, exist_ok=True)
+        images_dir = output_dir / "images"
+
+        use_rustfs = (options or {}).get("use_rustfs", True)
+        rustfs_client = None
+        if use_rustfs is not False:
+            try:
+                from storage import RustFSClient
+
+                rustfs_client = RustFSClient()
+            except Exception as e:
+                logger.warning(f"⚠️  RustFS not available: {e}")
+
+        markdown_content, images = office_to_markdown(
+            file_path=file_path,
+            images_dir=str(images_dir),
+            rustfs_client=rustfs_client,
+        )
+
+        logger.info(f"📄 Office processed: {len(images)} images extracted")
+
+        result_file = output_dir / "result.md"
+        result_file.write_text(markdown_content, encoding="utf-8")
+
+        structured_chunks = chunk_markdown_by_heading(
+            markdown_content,
+            include_images=True,
+            image_info=images,
+        )
+
+        chunks_file = output_dir / "chunks.json"
+        chunks_file.write_text(
+            json.dumps(structured_chunks, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+        rustfs_urls = {img["src"]: img["rustfs_url"] for img in images if img.get("rustfs_url")}
+
+        return {
+            "result_path": str(output_dir),
+            "content": markdown_content,
+            "chunks": structured_chunks,
+            "images": images,
+            "rustfs_urls": rustfs_urls,
+        }
+
     def _process_with_markitdown(self, file_path: str) -> dict:
         if not self.markitdown:
             raise RuntimeError("MarkItDown not available")
@@ -788,14 +987,30 @@ class MinerUWorkerAPI(ls.LitAPI):
                 temp_input = temp_path / input_file.name
                 shutil.copy2(input_file, temp_input)
 
-                cmd = ["libreoffice", "--headless", "--convert-to", "pdf", "--outdir", str(temp_path), str(temp_input)]
-                subprocess.run(cmd, check=True, timeout=120, capture_output=True)
+                # 独立 UserInstallation：避免多 worker 并发时 LibreOffice profile 锁冲突导致失败/卡死
+                user_install = f"file://{temp_path}/libreoffice_profile"
+                cmd = [
+                    "libreoffice",
+                    "--headless",
+                    f"-env:UserInstallation={user_install}",
+                    "--convert-to",
+                    "pdf",
+                    "--outdir",
+                    str(temp_path),
+                    str(temp_input),
+                ]
+                # 超时 600s 支持大文件（约 500 页）
+                subprocess.run(cmd, check=True, timeout=600, capture_output=True, text=True)
 
                 temp_pdf = temp_path / f"{input_file.stem}.pdf"
                 if not temp_pdf.exists():
                     raise RuntimeError("PDF output missing")
                 shutil.move(str(temp_pdf), str(final_pdf))
                 return str(final_pdf)
+        except subprocess.TimeoutExpired:
+            raise RuntimeError(f"LibreOffice conversion timeout (>600s): {input_file.name}")
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError(f"LibreOffice conversion failed: {e.stderr or 'no stderr'}")
         except Exception as e:
             raise RuntimeError(f"Office conversion failed: {e}")
 
@@ -819,16 +1034,19 @@ class MinerUWorkerAPI(ls.LitAPI):
                 temp_input = temp_path / input_file.name
                 shutil.copy2(input_file, temp_input)
 
+                # 独立 UserInstallation：避免多 worker 并发时 LibreOffice profile 锁冲突
+                user_install = f"file://{temp_path}/libreoffice_profile"
                 cmd = [
                     "libreoffice",
                     "--headless",
+                    f"-env:UserInstallation={user_install}",
                     "--convert-to",
                     target_fmt,
                     "--outdir",
                     str(temp_path),
                     str(temp_input),
                 ]
-                subprocess.run(cmd, check=True, timeout=120, capture_output=True)
+                subprocess.run(cmd, check=True, timeout=600, capture_output=True, text=True)
 
                 temp_new = temp_path / f"{input_file.stem}.{target_fmt}"
                 if not temp_new.exists():
@@ -836,6 +1054,10 @@ class MinerUWorkerAPI(ls.LitAPI):
                 shutil.move(str(temp_new), str(final_new))
                 logger.info(f"✅ Converted {input_file.suffix} → .{target_fmt}: {final_new}")
                 return str(final_new)
+        except subprocess.TimeoutExpired:
+            raise RuntimeError(f"LibreOffice conversion timeout (>600s): {input_file.name}")
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError(f"LibreOffice {target_fmt} conversion failed: {e.stderr or 'no stderr'}")
         except Exception as e:
             raise RuntimeError(f"Old format conversion failed: {e}")
 
@@ -869,13 +1091,40 @@ class MinerUWorkerAPI(ls.LitAPI):
 
         threshold = int(os.getenv("PDF_SPLIT_THRESHOLD_PAGES", "500"))
         chunk_size = int(os.getenv("PDF_SPLIT_CHUNK_SIZE", "500"))
+        # 文件大小阈值（MB）：页数不多但体积很大的 PDF（如高清扫描件、整页大图）同样会撑爆
+        # 显存，超过此值即强制按大小拆分以防 OOM（仅按页数判断会漏掉这类文件）。
+        size_mb_threshold = int(os.getenv("PDF_SPLIT_SIZE_MB", "20"))
 
         try:
             pages = get_pdf_page_count(Path(file_path))
-            if pages <= threshold:
+            file_size_mb = Path(file_path).stat().st_size / (1024 * 1024)
+            logger.info(
+                f"📄 PDF: {pages} pages, {file_size_mb:.1f}MB "
+                f"(page threshold={threshold}, size threshold={size_mb_threshold}MB)"
+            )
+
+            need_split_by_pages = pages > threshold
+            need_split_by_size = file_size_mb > size_mb_threshold and pages > 1
+            if not need_split_by_pages and not need_split_by_size:
                 return False
 
-            logger.info(f"🔀 Splitting PDF ({pages} pages)...")
+            if need_split_by_size and not need_split_by_pages:
+                # 按大小触发时动态收缩 chunk_size，使每片体积约不超过阈值的 80%，控制单片内存
+                pages_per_mb = max(1, pages / file_size_mb)
+                target_chunk_mb = size_mb_threshold * 0.8
+                chunk_size = max(5, min(chunk_size, int(pages_per_mb * target_chunk_mb)))
+                logger.warning(
+                    f"⚠️  Large file ({file_size_mb:.1f}MB) detected, force splitting to "
+                    f"prevent OOM (chunk_size={chunk_size} pages)"
+                )
+
+            logger.info(f"🔀 Splitting PDF ({pages} pages, {file_size_mb:.1f}MB) into chunks of {chunk_size} pages...")
+            # 清理上一轮拆分可能残留的子任务（OOM 重启后重拆场景），
+            # 避免重复子任务污染 child_completed 计数与结果合并。
+            stale = self.task_db.delete_child_tasks(task_id)
+            if stale:
+                logger.warning(f"🧹 Cleared {stale} stale child task(s) before re-splitting {task_id}")
+            # 先初始化父任务：is_parent=1, child_count=0, child_completed=0（在创建任何子任务之前清零，无竞态）
             self.task_db.convert_to_parent_task(task_id, child_count=0)
             split_dir = Path(self.output_dir) / "splits" / task_id
             split_dir.mkdir(parents=True, exist_ok=True)
@@ -895,7 +1144,10 @@ class MinerUWorkerAPI(ls.LitAPI):
                     user_id=task.get("user_id"),
                 )
 
-            self.task_db.convert_to_parent_task(task_id, child_count=len(chunks))
+            # 注意：不再二次调用 convert_to_parent_task。
+            # child_count 已由上面每次 create_child_task 累加到 len(chunks)；
+            # 二次调用会重置 child_completed=0，在多 Worker 场景下可能把
+            # 已完成子任务的计数误清零，导致父任务永远无法触发合并。
             logger.info(f"✂️  Split into {len(chunks)} subtasks")
             return True
         except Exception as e:
@@ -904,8 +1156,23 @@ class MinerUWorkerAPI(ls.LitAPI):
 
     def _merge_parent_task_results(self, parent_task_id):
         parent_task = self.task_db.get_task_with_children(parent_task_id)
+        if not parent_task:
+            raise ValueError(f"Parent task {parent_task_id} not found")
         children = parent_task.get("children", [])
         if not children:
+            return
+
+        # 完整性闸门：必须所有子任务都已 completed 才能合并。
+        # 万一计数错乱/竞态导致提前触发合并，这里直接跳过——绝不在子任务尚未全部完成时
+        # 合并并删除分片文件，避免"假完成 / 结果残缺 + 残留子任务 FileNotFoundError"。
+        # 待剩余子任务完成后，on_child_task_completed 会再次触发合并。
+        incomplete = [c for c in children if c["status"] != "completed"]
+        if incomplete:
+            logger.warning(
+                f"⏸️  Parent task {parent_task_id} merge skipped: "
+                f"{len(incomplete)}/{len(children)} child task(s) not completed yet; "
+                f"will merge when the remaining children finish."
+            )
             return
 
         children.sort(key=lambda x: json.loads(x.get("options", "{}")).get("chunk_info", {}).get("start_page", 0))
@@ -978,7 +1245,7 @@ class MinerUWorkerAPI(ls.LitAPI):
         elif action == "poll":
             if self.enable_worker_loop:
                 return {"status": "skipped", "message": "Auto-loop active"}
-            task = self.task_db.pull_task()
+            task = self.task_db.get_next_task(worker_id=self.worker_id)
             if task:
                 try:
                     self._process_task(task)

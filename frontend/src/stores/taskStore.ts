@@ -130,6 +130,24 @@ export const useTaskStore = defineStore('task', () => {
     }
   }
 
+  /**
+   * 彻底删除任务（物理删除文件 + 数据库记录）
+   * 删除成功后从本地列表移除，并清空当前选中任务
+   */
+  async function deleteTask(taskId: string) {
+    try {
+      await taskApi.deleteTask(taskId)
+      tasks.value = tasks.value.filter(t => t.task_id !== taskId)
+      total.value = Math.max(0, total.value - 1)
+      if (currentTask.value?.task_id === taskId) {
+        currentTask.value = null
+      }
+    } catch (err: any) {
+      error.value = err.message || '删除任务失败'
+      throw err
+    }
+  }
+
   // =================================================================
   // 新增核心 Action：重试、暂停、恢复、清理
   // =================================================================
@@ -286,6 +304,7 @@ export const useTaskStore = defineStore('task', () => {
     fetchTaskStatus,
     fetchTasks,
     cancelTask,
+    deleteTask,
     retryTask,
     pauseTask,
     resumeTask,

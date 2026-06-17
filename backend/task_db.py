@@ -556,9 +556,185 @@ class TaskDB:
 
             return cursor.rowcount
 
-    def reset_stale_tasks(self, timeout_minutes: int = 60):
-        """重置超时的 processing 任务为 pending"""
+    def reset_tasks_from_dead_worker(self, worker_id_prefix: str, current_worker_id: str) -> int:
+        """
+        重置属于已死亡 Worker 实例的 processing 任务。
+
+        Worker ID 格式: tianshu-{hostname}-{device}-{pid}
+        重启后 PID 变化，旧实例的任务会永远卡在 processing。
+        本方法通过前缀匹配（hostname+device 相同）找到候选任务，
+        再用 PID 存活检测过滤出真正已死亡 worker 的任务，
+        避免误伤同设备上并行运行的兄弟 worker 的在途任务。
+
+        Args:
+            worker_id_prefix: 当前设备的前缀，如 "tianshu-cb3e2d3f2604-cuda:0"
+            current_worker_id: 当前 Worker 自身 ID，排除在外避免重置自己的任务
+        """
+        import os as _os
+
+        dead_task_ids: list = []
+        dead_task_priorities: dict = {}
+        alive_skipped = 0
+        unparsable = 0
+        reset_count = 0
+
         with self.get_cursor() as cursor:
+            # 先取候选：前缀匹配、非自身、且仍在 processing
+            # 排除父任务（is_parent=1）：父任务的进度由子任务回调驱动，不应因 worker 重启
+            # 被重置后重新拆分（会重复拆分 + child_completed 计数错乱 + 提前合并删分片）
+            cursor.execute(
+                """
+                SELECT task_id, worker_id, priority FROM tasks
+                WHERE status = 'processing'
+                  AND worker_id LIKE ? || '-%'
+                  AND worker_id != ?
+                  AND (is_parent IS NULL OR is_parent = 0)
+                """,
+                (worker_id_prefix, current_worker_id),
+            )
+            candidates = cursor.fetchall()
+
+            for row in candidates:
+                wid = row["worker_id"] or ""
+                # 从尾部解析 PID（格式: tianshu-{hostname}-{device}-{pid}）
+                try:
+                    pid = int(wid.rsplit("-", 1)[-1])
+                except (ValueError, IndexError):
+                    # 无法解析 PID：保守起见当作遗留任务一起重置
+                    dead_task_ids.append(row["task_id"])
+                    dead_task_priorities[row["task_id"]] = row["priority"]
+                    unparsable += 1
+                    continue
+
+                # 前缀已限定 hostname，所有候选都在本机 → os.kill(pid, 0) 可用
+                try:
+                    _os.kill(pid, 0)
+                    # 进程存在 → 兄弟 worker 的活任务，跳过
+                    alive_skipped += 1
+                except ProcessLookupError:
+                    # 进程已不存在 → 真正遗留的死任务
+                    dead_task_ids.append(row["task_id"])
+                    dead_task_priorities[row["task_id"]] = row["priority"]
+                except PermissionError:
+                    # 进程存在但属于其他用户（通常不会发生于容器内）→ 保守跳过
+                    alive_skipped += 1
+                except Exception:
+                    # 任何其它异常 → 保守跳过，交给 reset_stale_tasks 兜底
+                    alive_skipped += 1
+
+            if not dead_task_ids:
+                if alive_skipped > 0:
+                    logger.info(
+                        f"✅ Dead-worker recovery: skipped {alive_skipped} tasks "
+                        f"belonging to live sibling workers under '{worker_id_prefix}'"
+                    )
+                return 0
+
+            # 用具体 task_id 做 UPDATE，避免再次条件扫描时误伤刚启动的兄弟 worker
+            placeholders = ",".join("?" * len(dead_task_ids))
+            cursor.execute(
+                f"""
+                UPDATE tasks
+                SET status = 'pending',
+                    worker_id = NULL,
+                    retry_count = retry_count + 1
+                WHERE task_id IN ({placeholders})
+                  AND status = 'processing'
+                """,
+                dead_task_ids,
+            )
+            reset_count = cursor.rowcount
+            if reset_count > 0:
+                extras = []
+                if alive_skipped:
+                    extras.append(f"skipped {alive_skipped} live sibling tasks")
+                if unparsable:
+                    extras.append(f"{unparsable} unparsable worker_ids reset")
+                suffix = f" ({', '.join(extras)})" if extras else ""
+                logger.warning(
+                    f"🔄 Dead worker recovery: reset {reset_count} tasks "
+                    f"from previous instances of '{worker_id_prefix}'{suffix}"
+                )
+
+        # 事务提交后再重新入队到 Redis：否则任务只在 SQLite 标 pending、不在 Redis 队列，
+        # 成为无人处理的孤儿。
+        for tid in dead_task_ids:
+            self._enqueue_to_redis(tid, dead_task_priorities.get(tid) or 0)
+
+        return reset_count
+
+    def reset_stale_tasks(self, timeout_minutes: int = 60, max_retries: int = 3):
+        """
+        重置超时的 processing 任务为 pending；超过最大重试次数的标记为 failed。
+
+        关键保证（避免"失败重试后仍失败却永久卡住"与"父任务死循环重拆"）：
+        - 子任务超时且 retry_count >= max_retries → 标 failed（不再无限重试卡死）
+        - 被超限标 failed 的子任务，其父任务联动标 failed（否则父任务永久卡 processing）
+        - 父任务本身排除在超时重置之外（避免被重置后重复拆分、child_completed 计数错乱、
+          提前合并删分片）；父任务的收尾交给 reap_stale_parent_tasks 兜底回收。
+        """
+        stale_tasks: list = []
+        reset_count = 0
+
+        with self.get_cursor() as cursor:
+            # 1. 找出"即将因超限被标 failed"的子任务的父任务，稍后联动标记父任务失败。
+            #    （这条标 failed 走直接 SQL，不触发 on_child_task_failed 回调，
+            #      不联动的话父任务会永久卡在 processing。）
+            cursor.execute(
+                """
+                SELECT DISTINCT parent_task_id FROM tasks
+                WHERE status = 'processing'
+                AND started_at < datetime('now', '-' || ? || ' minutes')
+                AND retry_count >= ?
+                AND parent_task_id IS NOT NULL
+                """,
+                (timeout_minutes, max_retries),
+            )
+            failed_parent_ids = [row["parent_task_id"] for row in cursor.fetchall()]
+
+            # 2. 超过重试次数的任务标 failed（父任务除外，父任务由子任务回调/兜底驱动）
+            cursor.execute(
+                """
+                UPDATE tasks
+                SET status = 'failed',
+                    completed_at = CURRENT_TIMESTAMP,
+                    error_message = 'Max retries exceeded (retry_count >= ' || ? || '). Task may cause worker OOM or crash.'
+                WHERE status = 'processing'
+                AND started_at < datetime('now', '-' || ? || ' minutes')
+                AND retry_count >= ?
+                AND (is_parent IS NULL OR is_parent = 0)
+                """,
+                (max_retries, timeout_minutes, max_retries),
+            )
+            failed_count = cursor.rowcount
+            if failed_count > 0:
+                logger.warning(f"⚠️  Marked {failed_count} tasks as failed (exceeded {max_retries} retries)")
+
+            # 3. 联动：被超限标 failed 的子任务，其父任务也标 failed
+            for _pid in failed_parent_ids:
+                cursor.execute(
+                    """
+                    UPDATE tasks
+                    SET status = 'failed',
+                        completed_at = CURRENT_TIMESTAMP,
+                        error_message = 'A subtask exceeded max retries and failed.'
+                    WHERE task_id = ? AND status = 'processing'
+                    """,
+                    (_pid,),
+                )
+
+            # 4. 其余超时任务（父任务除外）查出后重置为 pending 重试
+            cursor.execute(
+                """
+                SELECT task_id, priority FROM tasks
+                WHERE status = 'processing'
+                AND started_at < datetime('now', '-' || ? || ' minutes')
+                AND (is_parent IS NULL OR is_parent = 0)
+                """,
+                (timeout_minutes,),
+            )
+            stale_tasks = [(row["task_id"], row["priority"]) for row in cursor.fetchall()]
+
             cursor.execute(
                 """
                 UPDATE tasks
@@ -567,11 +743,128 @@ class TaskDB:
                     retry_count = retry_count + 1
                 WHERE status = 'processing'
                 AND started_at < datetime('now', '-' || ? || ' minutes')
-            """,
+                AND (is_parent IS NULL OR is_parent = 0)
+                """,
                 (timeout_minutes,),
             )
             reset_count = cursor.rowcount
-            return reset_count
+
+        # 事务提交后再 re-enqueue 到 Redis：
+        # Redis 模式下 worker 优先从 Redis 队列取任务，只改 SQLite 的 status 而不 re-enqueue
+        # 会让任务变成"SQLite=pending 但不在 Redis 队列"的孤儿，长期无人处理。
+        # （SQLite 模式下 _enqueue_to_redis 为 no-op。）
+        for task_id, priority in stale_tasks:
+            self._enqueue_to_redis(task_id, priority or 0)
+
+        return reset_count
+
+    def update_heartbeat(self, task_id: str, worker_id: str) -> bool:
+        """
+        心跳续租：刷新正在处理任务的 started_at。
+
+        worker 处理长任务（如大分片）期间定期调用，使 started_at 保持新鲜，
+        避免被 reset_stale_tasks 误判为"超时卡死"而重置（worker 与 scheduler
+        分属不同进程/容器，无法跨进程探活，故用心跳续租实现"还活着"的判定）。
+        只有任务仍是 processing 且属于该 worker 时才续租。
+        """
+        with self.get_cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE tasks
+                SET started_at = CURRENT_TIMESTAMP
+                WHERE task_id = ? AND worker_id = ? AND status = 'processing'
+                """,
+                (task_id, worker_id),
+            )
+            return cursor.rowcount > 0
+
+    def reap_stale_parent_tasks(self, timeout_minutes: int = 120) -> int:
+        """
+        父任务兜底回收。
+
+        父任务被排除在 reset_stale_tasks 之外（避免被重置后重复拆分），代价是
+        "拆分中途崩溃"或"子任务已终结却没合并"的父任务会永久卡在 processing。
+        本方法定期扫描超时父任务并按子任务真实状态收尾：
+          - 无子任务（拆分中途崩溃，子任务还没建成）        → 标 failed
+          - 仍有 pending/processing 子任务在推进            → 不动（视为正常长任务）
+          - 子任务全部 completed（只差合并没成功）          → 删旧子任务并还原为普通 pending 重处理
+          - 其余（存在 failed / cancelled 子任务）          → 标 failed
+
+        Args:
+            timeout_minutes: 父任务 processing 超过此时长才介入（应远大于单分片处理时长）
+        Returns:
+            int: 处理的父任务数
+        """
+        handled = 0
+        reset_parent_ids: list = []
+
+        with self.get_cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT task_id FROM tasks
+                WHERE is_parent = 1 AND status = 'processing'
+                AND started_at < datetime('now', '-' || ? || ' minutes')
+                """,
+                (timeout_minutes,),
+            )
+            parent_ids = [row["task_id"] for row in cursor.fetchall()]
+
+            for pid in parent_ids:
+                cursor.execute("SELECT status FROM tasks WHERE parent_task_id = ?", (pid,))
+                child_statuses = [row["status"] for row in cursor.fetchall()]
+                active = any(s in ("pending", "processing") for s in child_statuses)
+
+                if not child_statuses:
+                    # 拆分中途崩溃：父任务已标 is_parent 但子任务未建成
+                    cursor.execute(
+                        """
+                        UPDATE tasks SET status='failed', completed_at=CURRENT_TIMESTAMP,
+                            error_message='PDF split crashed before subtasks were created; please re-submit.'
+                        WHERE task_id=? AND status='processing'
+                        """,
+                        (pid,),
+                    )
+                    handled += cursor.rowcount
+                elif active:
+                    # 仍有 pending/processing 子任务在推进父任务，视为正常长任务，不处理
+                    continue
+                elif all(s == "completed" for s in child_statuses):
+                    # 子任务全部完成却没合并（合并步骤丢失）→ 删旧子任务并把父任务还原为普通
+                    # pending 任务，让 worker 重新拾取、重新拆分处理
+                    cursor.execute("DELETE FROM tasks WHERE parent_task_id = ?", (pid,))
+                    cursor.execute(
+                        """
+                        UPDATE tasks
+                        SET status='pending', is_parent=0, child_count=0, child_completed=0,
+                            worker_id=NULL, started_at=NULL, completed_at=NULL,
+                            error_message=NULL, retry_count=0
+                        WHERE task_id=?
+                        """,
+                        (pid,),
+                    )
+                    if cursor.rowcount > 0:
+                        reset_parent_ids.append(pid)
+                        handled += 1
+                else:
+                    # 无在途子任务，但非全部 completed（存在 failed / cancelled）→ 父任务标 failed
+                    cursor.execute(
+                        """
+                        UPDATE tasks SET status='failed', completed_at=CURRENT_TIMESTAMP,
+                            error_message='One or more subtasks failed or were cancelled.'
+                        WHERE task_id=? AND status='processing'
+                        """,
+                        (pid,),
+                    )
+                    handled += cursor.rowcount
+
+            if handled > 0:
+                logger.warning(f"🩺 Reaped {handled} stale parent task(s) (timeout: {timeout_minutes}m)")
+
+        # 事务提交后 re-enqueue（SQLite 模式为 no-op；Redis 模式下需要）
+        for pid in reset_parent_ids:
+            self._enqueue_to_redis(pid, 0)
+
+        return handled
 
     # -------------------------------------------------------------------------
     # 新增功能：清理失败任务 (包含物理文件删除)
@@ -626,17 +919,24 @@ class TaskDB:
         return task_id
 
     def convert_to_parent_task(self, task_id: str, child_count: int = 0):
-        """将普通任务转换为父任务"""
+        """将普通任务转换为父任务
+
+        [修复] 同时把 child_completed 清零：
+            当 Worker OOM 重启导致父任务被重置为 pending 并被重新拆分时，
+            若不清零 child_completed，旧的完成计数会残留，
+            进而在新一轮拆分中提前满足 "child_completed >= child_count"，
+            触发提前合并、删除尚未处理完的分片，导致结果残缺却显示 completed。
+        """
         with self.get_cursor() as cursor:
             cursor.execute(
                 """
                 UPDATE tasks
-                SET is_parent = 1, child_count = ?, status = 'processing'
+                SET is_parent = 1, child_count = ?, child_completed = 0, status = 'processing'
                 WHERE task_id = ?
                 """,
                 (child_count, task_id),
             )
-        logger.info(f"🔄 Converted task {task_id} to parent task with {child_count} children")
+        logger.info(f"🔄 Converted task {task_id} to parent task with {child_count} children (child_completed reset to 0)")
 
     def create_child_task(
         self,
@@ -811,6 +1111,26 @@ class TaskDB:
                 (parent_task_id,),
             )
             return [dict(row) for row in cursor.fetchall()]
+
+    def delete_child_tasks(self, parent_task_id: str) -> int:
+        """删除某父任务下的所有子任务记录及其分片文件。
+
+        [修复] 用于「重新拆分」前清理上一轮残留的子任务：
+            Worker OOM 重启 -> 父任务被重置为 pending -> 被重新拆分时，
+            上一轮的子任务记录仍残留在库中。若不清理，重拆会产生重复子任务，
+            导致 child_completed 计数错乱、合并时读取到陈旧/已删除的分片结果。
+        返回删除的子任务数量。
+        """
+        with self.get_cursor() as cursor:
+            cursor.execute(
+                "SELECT task_id, file_path, result_path FROM tasks WHERE parent_task_id = ?",
+                (parent_task_id,),
+            )
+            rows = cursor.fetchall()
+            for row in rows:
+                self._delete_task_files(row)
+            cursor.execute("DELETE FROM tasks WHERE parent_task_id = ?", (parent_task_id,))
+            return cursor.rowcount
 
     # ========================================================================
     # 新增功能：重试、清理、暂停、恢复、清理缓存

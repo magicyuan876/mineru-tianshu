@@ -111,6 +111,15 @@ export async function cancelTask(taskId: string): Promise<ApiResponse> {
 }
 
 /**
+ * 彻底删除任务（物理删除上传源文件、输出目录及数据库记录）
+ * 对应后端 DELETE /api/v1/tasks/{task_id}
+ */
+export async function deleteTask(taskId: string): Promise<ApiResponse> {
+  const response = await apiClient.delete<ApiResponse>(`/api/v1/tasks/${taskId}`)
+  return response.data
+}
+
+/**
  * 获取任务列表 (支持分页、搜索、筛选)
  */
 export async function listTasks(params: TaskQueryParams): Promise<TaskListResponse> {

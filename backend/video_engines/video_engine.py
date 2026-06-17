@@ -321,7 +321,11 @@ class VideoProcessingEngine:
             if result.get("json_data"):
                 json_data = result["json_data"]
                 json_data["type"] = "video"
-                source = json_data.setdefault("source", {})
+                # SenseVoice 产出的 json_data 不含 "source" 键，直接下标赋值会 KeyError。
+                # 这里确保 source 为 dict 后再写入（已有则保留原内容）。
+                if not isinstance(json_data.get("source"), dict):
+                    json_data["source"] = {}
+                source = json_data["source"]
                 source.setdefault("filename", video_path.name)
                 source["file_type"] = "video"
                 source["video_format"] = video_path.suffix[1:]

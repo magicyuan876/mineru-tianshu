@@ -168,6 +168,10 @@ class TaskScheduler:
                                 logger.warning(
                                     f"⚠️  Reset {reset_count} stale tasks (timeout: {self.stale_task_timeout}m)"
                                 )
+                            # 父任务兜底回收（超时阈值取 stale 的 4 倍，父任务生命周期更长）
+                            reaped = self.db.reap_stale_parent_tasks(self.stale_task_timeout * 4)
+                            if reaped > 0:
+                                logger.warning(f"🩺 Reaped {reaped} stale parent task(s)")
                         except Exception as e:
                             logger.error(f"Failed to reset stale tasks: {e}")
 
