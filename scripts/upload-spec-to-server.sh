@@ -10,7 +10,8 @@ set -e
 SERVER_USER="${1}"
 SERVER_HOST="${2}"
 SERVER_PATH="${3}"
-FILE_SPEC="${4}"  # 指定要上传的文件: backend, frontend, rustfs, models, config
+FILE_SPEC="${4}"  # 指定要上传的文件: backend, frontend, rustfs, redis, models, config
+PLATFORM="${PLATFORM:-amd64}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOCAL_DIR="$(dirname "${SCRIPT_DIR}")/docker-images"
 
@@ -51,9 +52,10 @@ show_usage() {
     echo "  file_spec     File specification (required)"
     echo ""
     echo "File Specification:"
-    echo "  backend       后端镜像 (tianshu-backend-amd64.tar.gz)"
-    echo "  frontend      前端镜像 (tianshu-frontend-amd64.tar.gz)"
-    echo "  rustfs        RustFS 镜像 (rustfs-amd64.tar.gz)"
+    echo "  backend       后端镜像 (tianshu-backend-\${PLATFORM}.tar.gz)"
+    echo "  frontend      前端镜像 (tianshu-frontend-\${PLATFORM}.tar.gz)"
+    echo "  rustfs        RustFS 镜像 (rustfs-\${PLATFORM}.tar.gz)"
+    echo "  redis         Redis 镜像 (redis-\${PLATFORM}.tar.gz)"
     echo "  models        模型文件 (models-offline.tar.gz)"
     echo "  config        配置文件 (.env.example, docker-compose.yml 等)"
     echo ""
@@ -85,7 +87,7 @@ check_arguments() {
 
     # 验证 file_spec
     case "$FILE_SPEC" in
-        backend|frontend|rustfs|models|config)
+        backend|frontend|rustfs|redis|models|config)
             ;;
         *)
             log_error "无效的文件规格: $FILE_SPEC"
@@ -104,13 +106,16 @@ get_file_info() {
 
     case "$file_spec" in
         backend)
-            echo "tianshu-backend-amd64.tar.gz"
+            echo "tianshu-backend-${PLATFORM}.tar.gz"
             ;;
         frontend)
-            echo "tianshu-frontend-amd64.tar.gz"
+            echo "tianshu-frontend-${PLATFORM}.tar.gz"
             ;;
         rustfs)
-            echo "rustfs-amd64.tar.gz"
+            echo "rustfs-${PLATFORM}.tar.gz"
+            ;;
+        redis)
+            echo "redis-${PLATFORM}.tar.gz"
             ;;
         models)
             echo "models-offline.tar.gz"
@@ -138,7 +143,7 @@ upload_file() {
         [ -f "${LOCAL_DIR}/docker-compose.yml" ] && config_files="${config_files} ${LOCAL_DIR}/docker-compose.yml"
         [ -f "${LOCAL_DIR}/docker-compose.offline.yml" ] && config_files="${config_files} ${LOCAL_DIR}/docker-compose.offline.yml"
         [ -f "${LOCAL_DIR}/deploy-offline.sh" ] && config_files="${config_files} ${LOCAL_DIR}/deploy-offline.sh"
-        [ -d "${LOCAL_DIR}/mcp_config.example.json" ] && config_files="${config_files} ${LOCAL_DIR}/mcp_config.example.json"
+        [ -f "${LOCAL_DIR}/mcp_config.example.json" ] && config_files="${config_files} ${LOCAL_DIR}/mcp_config.example.json"
 
         if [ -z "$config_files" ]; then
             log_error "没有找到配置文件！"
@@ -177,7 +182,7 @@ server_operations() {
 
     # 如果是镜像文件，询问是否加载并重启
     case "$file_spec" in
-        backend|frontend|rustfs)
+        backend|frontend|rustfs|redis)
             echo ""
             read -p "是否在服务器上重新加载镜像？(y/n) " -n 1 -r
             echo
@@ -212,6 +217,9 @@ EOF
                         rustfs)
                             services="rustfs"
                             ;;
+                        redis)
+                            services="redis"
+                            ;;
                     esac
 
                     # shellcheck disable=SC2087
@@ -240,8 +248,7 @@ EOF
             log_warning "模型文件已上传，需要重新部署才能生效："
             echo "  1. 删除现有的离线模型目录（OFFLINE_MODELS_PATH，默认 ./models-offline）"
             echo "  2. 解压新的 models-offline.tar.gz"
-            echo "  3. 删除 Docker 卷中的 .models_initialized 标记"
-            echo "  4. 重启 worker 服务"
+            echo "  3. 重启 worker 服务"
             echo ""
             read -p "是否执行上述操作？(y/n) " -n 1 -r
             echo
@@ -267,7 +274,6 @@ EOF
                             tar xzf models-offline.tar.gz -C "\$OFFLINE_MODELS_PATH"
                             ;;
                     esac
-                    docker-compose exec -T worker rm -f /root/.cache/.models_initialized
                     docker-compose restart worker
                     echo "✓ 模型更新完成"
 EOF

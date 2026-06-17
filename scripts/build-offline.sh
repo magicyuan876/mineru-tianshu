@@ -149,7 +149,7 @@ main() {
     log_success "Frontend image built successfully"
     echo ""
 
-    # 6. 拉取 RustFS 镜像（明确指定 amd64 平台）
+    # 6. 拉取 RustFS 镜像（按 PLATFORM 指定平台）
     log_info "📥 Pulling RustFS image (platform: linux/$PLATFORM)..."
     docker pull --platform "linux/$PLATFORM" rustfs/rustfs:latest
     log_success "RustFS image pulled successfully"

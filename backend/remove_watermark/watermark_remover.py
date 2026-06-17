@@ -7,6 +7,7 @@
 import cv2
 import os
 import numpy as np
+import torch
 from PIL import Image
 from pathlib import Path
 from typing import List, Tuple, Optional, Union
@@ -19,12 +20,64 @@ try:
 except ImportError:
     ULTRALYTICS_AVAILABLE = False
 
-try:
-    from simple_lama_inpainting import SimpleLama
+LAMA_AVAILABLE = True
 
-    LAMA_AVAILABLE = True
-except ImportError:
-    LAMA_AVAILABLE = False
+
+class LocalLamaInpainter:
+    """Minimal LaMa TorchScript runner for offline deployments."""
+
+    def __init__(self, model_path: str, device: str):
+        if not Path(model_path).exists():
+            raise FileNotFoundError(f"lama torchscript model not found: {model_path}")
+
+        self.device = torch.device(device if torch.cuda.is_available() or not device.startswith("cuda") else "cpu")
+        self.model = torch.jit.load(model_path, map_location=self.device)
+        self.model.eval()
+        self.model.to(self.device)
+
+    @staticmethod
+    def _ceil_modulo(value: int, modulo: int) -> int:
+        if value % modulo == 0:
+            return value
+        return (value // modulo + 1) * modulo
+
+    @classmethod
+    def _prepare_image(cls, image: Image.Image) -> tuple[torch.Tensor, tuple[int, int]]:
+        image_array = np.array(image.convert("RGB")).astype(np.float32) / 255.0
+        height, width = image_array.shape[:2]
+        image_array = np.transpose(image_array, (2, 0, 1))
+        image_array = cls._pad_to_modulo(image_array)
+        tensor = torch.from_numpy(image_array).unsqueeze(0)
+        return tensor, (height, width)
+
+    @classmethod
+    def _prepare_mask(cls, mask: Image.Image) -> torch.Tensor:
+        mask_array = np.array(mask.convert("L")).astype(np.float32) / 255.0
+        mask_array = mask_array[np.newaxis, ...]
+        mask_array = cls._pad_to_modulo(mask_array)
+        tensor = torch.from_numpy((mask_array > 0).astype(np.float32)).unsqueeze(0)
+        return tensor
+
+    @classmethod
+    def _pad_to_modulo(cls, array: np.ndarray, modulo: int = 8) -> np.ndarray:
+        _, height, width = array.shape
+        out_height = cls._ceil_modulo(height, modulo)
+        out_width = cls._ceil_modulo(width, modulo)
+        return np.pad(array, ((0, 0), (0, out_height - height), (0, out_width - width)), mode="symmetric")
+
+    def __call__(self, image: Image.Image, mask: Image.Image) -> Image.Image:
+        image_tensor, (height, width) = self._prepare_image(image)
+        mask_tensor = self._prepare_mask(mask)
+        image_tensor = image_tensor.to(self.device)
+        mask_tensor = mask_tensor.to(self.device)
+
+        with torch.inference_mode():
+            inpainted = self.model(image_tensor, mask_tensor)
+
+        result = inpainted[0].permute(1, 2, 0).detach().cpu().numpy()
+        result = result[:height, :width]
+        result = np.clip(result * 255, 0, 255).astype(np.uint8)
+        return Image.fromarray(result)
 
 
 class WatermarkRemover:
@@ -42,6 +95,7 @@ class WatermarkRemover:
     # 默认使用 HuggingFace 上的 YOLO11x 水印检测模型
     DEFAULT_MODEL_ID = "corzent/yolo11x_watermark_detection"
     DEFAULT_LOCAL_MODEL = "/app/models/YOLO11/best.pt"
+    DEFAULT_LAMA_MODEL = "/app/models/big-lama.pt"
 
     def __init__(self, model_path: Optional[str] = None, device: str = "cuda", use_lama: bool = True):
         """
@@ -154,7 +208,8 @@ class WatermarkRemover:
         logger.info("📥 Loading LaMa...")
 
         try:
-            self.lama = SimpleLama()
+            model_path = os.getenv("LAMA_MODEL") or self.DEFAULT_LAMA_MODEL
+            self.lama = LocalLamaInpainter(model_path, self.device)
             logger.info("✅ LaMa loaded")
         except Exception as e:
             logger.warning(f"Failed to load LaMa: {e}")

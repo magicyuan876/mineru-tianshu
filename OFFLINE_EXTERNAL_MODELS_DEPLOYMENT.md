@@ -12,22 +12,22 @@
 
 本方案以当前目标为准：**采用外置模型目录路线，不采用 all-in-one 含模型镜像路线**。
 
-本文档是实施方案，不表示当前仓库脚本已经全部支持。涉及 `--verify-only`、完整模型清单下载、标准缓存目录产出等命令，均以完成第 8 节和第 11 节 P0 改造后为准。
+本文档对应当前 `feat/offline-external-models` 分支实现。构建脚本、部署脚本、compose 挂载、模型下载脚本和启动校验已按本文档落地；最终生产上线仍需在目标离线 GPU 服务器执行第 10 节验收。
 
-## 2. 当前问题核实
+## 2. 改造前问题与处理结果
 
-现有离线部署框架是对的：下载模型、构建镜像、导出镜像、传输、加载、解压、启动。但离线链路还没有真正打通。
+原有离线部署框架方向是对的：下载模型、构建镜像、导出镜像、传输、加载、解压、启动。但改造前离线链路没有真正打通。以下问题已在当前分支处理，仍需通过第 10 节的目标服务器断网验收确认。
 
 ### 2.1 离线开关不完整
 
-当前 `docker-compose.offline.yml` 设置了：
+改造前 `docker-compose.offline.yml` 设置了：
 
 ```yaml
 HF_OFFLINE=1
 HF_ENDPOINT=https://hf-mirror.com
 ```
 
-问题：
+问题与处理：
 
 - `HF_OFFLINE` 不是 HuggingFace Hub 和 Transformers 的完整离线控制。
 - `HF_ENDPOINT=https://hf-mirror.com` 会让断网环境继续尝试访问公网镜像。
@@ -36,7 +36,7 @@ HF_ENDPOINT=https://hf-mirror.com
 
 ### 2.2 模型产物路径与运行路径不一致
 
-当前 `backend/download_models.py` 主要产出：
+改造前 `backend/download_models.py` 主要产出：
 
 ```text
 models-offline/
@@ -61,7 +61,7 @@ models-offline/
 /root/.config/Ultralytics
 ```
 
-当前 `scripts/init-models.sh` 又期望第三套旧布局：
+改造前 `scripts/init-models.sh` 又期望第三套旧布局：
 
 ```text
 /models-external/huggingface/hub
@@ -73,9 +73,9 @@ models-offline/
 
 结果是：模型已下载，但没有落到引擎实际查找的位置，断网运行仍会触发下载或失败。
 
-实施后，音频代码应显式优先使用 `/app/models` 下的 FunASR 本地目录，例如 `SenseVoiceSmall`、`speech_fsmn_vad_zh-cn-16k-common-pytorch`、`Paraformer`、`punc_ct-transformer_zh-cn-common-vocab272727-pytorch`、`speech_campplus_sv_zh-cn_16k-common`。这样 `download_models.py` 产出的顶层目录可以直接被容器消费，不再依赖 ModelScope 缓存兼容布局。
+当前实现中，音频代码已显式优先使用 `/app/models` 下的 FunASR 本地目录，例如 `SenseVoiceSmall`、`speech_fsmn_vad_zh-cn-16k-common-pytorch`、`Paraformer`、`punc_ct-transformer_zh-cn-common-vocab272727-pytorch`、`speech_campplus_sv_zh-cn_16k-common`。这样 `download_models.py` 产出的顶层目录可以直接被容器消费，不再依赖 ModelScope 缓存兼容布局。
 
-去水印也应优先使用 `/app/models/YOLO11/best.pt`，并保留 `watermark_models/yolo11x_watermark.pt` 作为兼容缓存副本。离线模式下若二者都不存在，应明确失败，不能回退到 HuggingFace 下载。
+当前实现中，去水印已优先使用 `/app/models/YOLO11/best.pt`，并保留 `watermark_models/yolo11x_watermark.pt` 作为兼容缓存副本。离线模式下若二者都不存在，会明确失败，不回退到 HuggingFace 下载。
 
 ### 2.3 `mineru.json` 路径失效
 
@@ -91,17 +91,17 @@ models-offline/
 }
 ```
 
-如果离线部署只把模型挂到 `/models-external`，而没有同步或挂载到 `/app/models`，该配置会指向空目录。MinerU 可能回退默认行为并尝试联网下载。
+改造前如果离线部署只把模型挂到 `/models-external`，而没有同步或挂载到 `/app/models`，该配置会指向空目录。当前实现已统一把外置模型目录挂载到 `/app/models`，并在启动时复制 `/app/models/mineru.json` 到 `/root/mineru.json`。
 
 ### 2.4 下载清单不完整
 
-当前清单仍有多项 `auto_download` 或缺失项，真离线下会出问题：
+改造前清单仍有多项 `auto_download` 或缺失项，真离线下会出问题：
 
 - PaddleOCR-VL 需要的 `PP-DocLayoutV3`。
-- 当前本地 PaddleOCR-VL worker 传入的模型名是 `PaddleOCR-VL-1.5`，但下载脚本产出的目录是 `PaddleOCR-VL-1.5-0.9B`；若不统一命名，本地模式会查找 `/root/.paddlex/official_models/PaddleOCR-VL-1.5` 并触发下载。
+- 改造前本地 PaddleOCR-VL worker 传入的模型名是 `PaddleOCR-VL-1.5`，但下载脚本产出的目录是 `PaddleOCR-VL-1.5-0.9B`；若不统一命名，本地模式会查找 `/root/.paddlex/official_models/PaddleOCR-VL-1.5` 并触发下载。
 - PaddleX 若触发 PP-StructureV3 相关链路，需要一批 official models。
 - FunASR 基础识别和说话人分离需要 `fsmn-vad`、`ct-punc`、`campplus` 等子模型。
-- 去水印功能需要 `ultralytics`、`simple-lama-inpainting`、YOLO 权重、LaMa 权重、Ultralytics 字体/配置。
+- 去水印功能需要 `ultralytics`、项目内置 LaMa TorchScript runner、YOLO 权重、LaMa 权重、Ultralytics 字体/配置。
 - `models-offline/` 未加入 `.dockerignore`，构建上下文可能被大模型污染。
 
 ## 3. 最终架构
@@ -260,7 +260,7 @@ models-offline/
 | 项 | 来源 | 目标路径 | 必需 |
 |---|---|---|---|
 | `ultralytics` | Python 依赖 | 镜像内 | 启用去水印必需 |
-| `simple-lama-inpainting` | Python 依赖 | 镜像内 | 启用 LaMa 必需 |
+| LaMa TorchScript runner | 项目内置轻量 runner | 镜像内 | 启用 LaMa 必需 |
 | YOLO11x `best.pt` | HuggingFace `corzent/yolo11x_watermark_detection` | `/app/models/YOLO11/best.pt`；兼容副本 `/root/.cache/watermark_models/yolo11x_watermark.pt` | 启用去水印必需 |
 | LaMa `big-lama.pt` | simple-lama release 或可用镜像源 | `/app/models/big-lama.pt` | 启用 LaMa 必需 |
 | Arial.ttf | Ultralytics 资源 | `/root/.config/Ultralytics/Arial.ttf` | 建议固化 |
@@ -437,22 +437,22 @@ docker-images/
 
 ### 8.6 `scripts/build-offline.sh`
 
-改造点：
+当前实现：
 
 - 继续构建无模型 `tianshu-backend:latest`。
 - 下载模型到 `${OFFLINE_MODELS_PATH:-./models-offline}`。
 - 打包 `models-offline.tar.gz`。
 - 导出 compose 中所有可能启用的第三方镜像。
-- 支持 `PLATFORM`，不要在部署脚本中写死 `amd64`。
+- 支持 `PLATFORM`，镜像 tar 文件使用 `tianshu-backend-${PLATFORM}.tar.gz` 等平台后缀。
 
 ### 8.7 `scripts/deploy-offline.sh`
 
-改造点：
+当前实现：
 
 - 支持通过 `.env` 或环境变量设置 `OFFLINE_MODELS_PATH`，把 `models-offline.tar.gz` 解压到指定宿主机目录。
 - 启动前运行模型完整性检查。
-- 文件名按 `PLATFORM` 或自动发现，而不是写死 `*-amd64.tar.gz`。
-- 如果用户启用 Redis profile，检查 Redis 镜像 tar 是否存在。
+- 文件名按 `PLATFORM` 生成，默认 `amd64`。
+- Redis 镜像 tar 存在则加载；缺失时明确提示 redis profile 不可用。
 - 不在部署阶段联网拉取任何镜像。
 
 ## 9. 构建流程
@@ -460,8 +460,6 @@ docker-images/
 ### 9.1 联网准备机
 
 ```bash
-# 以下命令以完成 P0 脚本改造为前提。
-
 # 1. 下载模型到外置目录
 python3 backend/download_models.py --output ./models-offline --strict
 
@@ -574,7 +572,7 @@ docker compose -f docker-compose.offline.yml exec worker test -f /app/models/YOL
 
 ## 11. 优先级计划
 
-### P0 必须完成
+### 已完成的 P0 改造
 
 - `.dockerignore` 排除 `models-offline/`。
 - `docker-compose.offline.yml` 挂载路径统一到真实运行路径。
@@ -586,12 +584,12 @@ docker compose -f docker-compose.offline.yml exec worker test -f /app/models/YOL
 - FunASR 模型落到 `/app/models` 顶层目录，并由音频代码显式使用本地模型路径。
 - YOLO 权重落到当前代码默认缓存路径，或修改去水印代码默认使用 `/app/models/YOLO11/best.pt`。
 
-### P1 建议完成
+### 已完成的 P1 改造
 
 - `download_models.py --verify-only --strict`。
 - `manifest.json` 增加模型大小、来源、校验结果。
 - `deploy-offline.sh` 自动校验模型目录。
-- Redis/vLLM 镜像按 profile 选择性导出。
+- Redis 镜像随离线包导出；当前离线 compose 未定义 vLLM 服务，默认不导出 vLLM 镜像。
 
 ### P2 可后续优化
 
@@ -599,7 +597,34 @@ docker compose -f docker-compose.offline.yml exec worker test -f /app/models/YOL
 - CPU 离线构建与部署脚本单独补齐。
 - 增加一键断网验收脚本。
 
-## 12. 决策记录
+## 12. 已核实的构建结果与剩余风险
+
+### 12.1 本地构建核实
+
+- 前端镜像构建成功：`frontend/Dockerfile`。
+- 后端 `linux/amd64` 镜像构建成功：`backend/Dockerfile.offline`。
+- Apple Silicon / arm64 默认构建不作为目标路径；`paddlepaddle-gpu==3.2.0` 未提供该环境可用的 arm64 GPU wheel，需使用 `--platform linux/amd64` 构建生产 GPU 镜像。
+
+### 12.2 依赖核实
+
+已在构建出的后端镜像内验证：
+
+- `paddlex.create_pipeline` 可导入。
+- `paddleocr.PaddleOCRVL` 可导入。
+- `cv2` 使用 `4.11.0`，`numpy` 使用 `1.26.4`。
+- `ultralytics` 可导入。
+- `torch`、`transformers`、`funasr` 可导入。
+
+`pip check` 仍可能报告：
+
+```text
+paddlepaddle-gpu 3.2.0 requires nvidia-nccl-cu12==2.25.1
+torch 2.6.0+cu126 requires nvidia-nccl-cu12==2.21.5
+```
+
+这是 PaddlePaddle GPU 与 PyTorch CUDA wheel 对 NCCL Python 包的精确版本约束互斥。不能通过单纯 pin 一个版本同时满足两边元数据。当前镜像以实际 import 和目标 GPU 运行验收为准；生产验收必须覆盖 PaddleOCR-VL、MinerU、Torch/FunASR 和去水印路径。
+
+## 13. 决策记录
 
 - 采用外置模型目录，不采用含模型 all-in-one 镜像。
 - 标准模型源目录默认为 `./models-offline`，可通过 `OFFLINE_MODELS_PATH` 指定宿主机外置目录。

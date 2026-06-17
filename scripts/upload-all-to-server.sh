@@ -10,6 +10,7 @@ set -e
 SERVER_USER="${1:-serverName}"
 SERVER_HOST="${2:-100.200.300.400}"
 SERVER_PATH="${3:-~/serverDir}"
+PLATFORM="${PLATFORM:-amd64}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOCAL_DIR="$(dirname "${SCRIPT_DIR}")/docker-images"
 TEMP_DIR="${SCRIPT_DIR}/.upload_temp"
@@ -48,6 +49,9 @@ show_usage() {
     echo "  server_user   Server username (default: gpu)"
     echo "  server_host   Server hostname or IP (default: 192.168.100.27)"
     echo "  server_path   Remote directory path (default: ~/tianshu-mineru)"
+    echo ""
+    echo "Environment:"
+    echo "  PLATFORM      Image platform suffix (default: amd64)"
     echo ""
     echo "Examples:"
     echo "  $0"
@@ -95,6 +99,7 @@ prepare_upload() {
     log_info "准备上传文件..."
 
     # 创建临时目录
+    rm -rf "${TEMP_DIR}"
     mkdir -p "${TEMP_DIR}"
 
     # 复制必要的文件到临时目录
@@ -115,28 +120,35 @@ prepare_upload() {
         exit 1
     fi
 
-    if [ -f "${LOCAL_DIR}/rustfs-amd64.tar.gz" ]; then
-        cp "${LOCAL_DIR}/rustfs-amd64.tar.gz" "${TEMP_DIR}/"
-        log_info "    - rustfs-amd64.tar.gz"
+    if [ -f "${LOCAL_DIR}/rustfs-${PLATFORM}.tar.gz" ]; then
+        cp "${LOCAL_DIR}/rustfs-${PLATFORM}.tar.gz" "${TEMP_DIR}/"
+        log_info "    - rustfs-${PLATFORM}.tar.gz"
     else
-        log_error "rustfs-amd64.tar.gz 不存在！"
+        log_error "rustfs-${PLATFORM}.tar.gz 不存在！"
         exit 1
     fi
 
-    if [ -f "${LOCAL_DIR}/tianshu-backend-amd64.tar.gz" ]; then
-        cp "${LOCAL_DIR}/tianshu-backend-amd64.tar.gz" "${TEMP_DIR}/"
-        log_info "    - tianshu-backend-amd64.tar.gz"
+    if [ -f "${LOCAL_DIR}/tianshu-backend-${PLATFORM}.tar.gz" ]; then
+        cp "${LOCAL_DIR}/tianshu-backend-${PLATFORM}.tar.gz" "${TEMP_DIR}/"
+        log_info "    - tianshu-backend-${PLATFORM}.tar.gz"
     else
-        log_error "tianshu-backend-amd64.tar.gz 不存在！"
+        log_error "tianshu-backend-${PLATFORM}.tar.gz 不存在！"
         exit 1
     fi
 
-    if [ -f "${LOCAL_DIR}/tianshu-frontend-amd64.tar.gz" ]; then
-        cp "${LOCAL_DIR}/tianshu-frontend-amd64.tar.gz" "${TEMP_DIR}/"
-        log_info "    - tianshu-frontend-amd64.tar.gz"
+    if [ -f "${LOCAL_DIR}/tianshu-frontend-${PLATFORM}.tar.gz" ]; then
+        cp "${LOCAL_DIR}/tianshu-frontend-${PLATFORM}.tar.gz" "${TEMP_DIR}/"
+        log_info "    - tianshu-frontend-${PLATFORM}.tar.gz"
     else
-        log_error "tianshu-frontend-amd64.tar.gz 不存在！"
+        log_error "tianshu-frontend-${PLATFORM}.tar.gz 不存在！"
         exit 1
+    fi
+
+    if [ -f "${LOCAL_DIR}/redis-${PLATFORM}.tar.gz" ]; then
+        cp "${LOCAL_DIR}/redis-${PLATFORM}.tar.gz" "${TEMP_DIR}/"
+        log_info "    - redis-${PLATFORM}.tar.gz"
+    else
+        log_warning "redis-${PLATFORM}.tar.gz 不存在；离线 redis profile 将不可用"
     fi
 
     log_success "文件准备完成"
@@ -199,6 +211,7 @@ main() {
     echo "  本地目录: ${LOCAL_DIR}"
     echo "  服务器: ${SERVER_USER}@${SERVER_HOST}"
     echo "  远程路径: ${SERVER_PATH}"
+    echo "  平台: ${PLATFORM}"
     echo ""
 
     # 清理本地目录
