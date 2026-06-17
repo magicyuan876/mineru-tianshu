@@ -58,7 +58,7 @@ models-offline/
 /root/.cache/modelscope
 /root/.cache/huggingface
 /root/.cache/torch
-/root/.config/Ultralytics
+/app/data/Ultralytics
 ```
 
 改造前 `scripts/init-models.sh` 又期望第三套旧布局：
@@ -149,7 +149,7 @@ ${OFFLINE_MODELS_PATH:-./models-offline}/
 /root/.cache/huggingface            # HuggingFace 缓存
 /root/.cache/torch                  # Torch Hub / LaMa 兜底缓存
 /root/.cache/watermark_models       # 当前 WatermarkRemover 默认 YOLO 缓存
-/root/.config/Ultralytics           # Ultralytics 配置和字体
+/app/data/Ultralytics               # Ultralytics 运行时配置和字体，可写
 ```
 
 关键原则：
@@ -265,7 +265,7 @@ models-offline/
 | LaMa TorchScript runner | 项目内置轻量 runner | 镜像内 | 启用 LaMa 必需 |
 | YOLO11x `best.pt` | HuggingFace `corzent/yolo11x_watermark_detection` | `/app/models/YOLO11/best.pt`；兼容副本 `/root/.cache/watermark_models/yolo11x_watermark.pt` | 启用去水印必需 |
 | LaMa `big-lama.pt` | simple-lama release 或可用镜像源 | `/app/models/big-lama.pt` | 启用 LaMa 必需 |
-| Arial.ttf | Ultralytics 资源 | `/root/.config/Ultralytics/Arial.ttf` | 建议固化 |
+| Arial.ttf | Ultralytics 资源 | 源目录 `/app/models/ultralytics_cfg/Arial.ttf`，运行目录 `/app/data/Ultralytics/Arial.ttf` | 建议固化 |
 
 `WatermarkRemover` 默认优先使用 `/app/models/YOLO11/best.pt`，兼容副本 `watermark_models/yolo11x_watermark.pt` 用于旧缓存路径兜底。
 
@@ -282,7 +282,6 @@ volumes:
   - ${OFFLINE_MODELS_PATH:-./models-offline}/huggingface_cache:/root/.cache/huggingface:ro
   - ${OFFLINE_MODELS_PATH:-./models-offline}/torch_cache:/root/.cache/torch:ro
   - ${OFFLINE_MODELS_PATH:-./models-offline}/watermark_models:/root/.cache/watermark_models:ro
-  - ${OFFLINE_MODELS_PATH:-./models-offline}/ultralytics_cfg:/root/.config/Ultralytics:ro
 ```
 
 部署时可在 `.env` 中设置：
@@ -338,7 +337,8 @@ environment:
   - LAMA_MODEL=/app/models/big-lama.pt
 
   # Ultralytics
-  - YOLO_CONFIG_DIR=/root/.config
+  - YOLO_CONFIG_DIR=/app/data
+  - ULTRALYTICS_CONFIG_DIR=/app/data/Ultralytics
   - YOLO_OFFLINE=True
 ```
 
@@ -350,7 +350,7 @@ HF_ENDPOINT=${HF_ENDPOINT:-https://hf-mirror.com}
 
 离线模式下要么置空，要么完全删除。
 
-Ultralytics 会把 `YOLO_CONFIG_DIR` 当作配置父目录，并在其下使用 `Ultralytics/` 子目录；因此 `YOLO_CONFIG_DIR=/root/.config` 对应实际配置目录 `/root/.config/Ultralytics`。
+Ultralytics 会把 `YOLO_CONFIG_DIR` 当作配置父目录，并在其下使用 `Ultralytics/` 子目录；因此 `YOLO_CONFIG_DIR=/app/data` 对应实际配置目录 `/app/data/Ultralytics`。运行时该目录必须可写，启动脚本会从 `/app/models/ultralytics_cfg` 复制离线预置的 `settings.json` 和字体到可写目录，避免 Ultralytics 版本变更时尝试重置只读配置失败。
 
 `YOLO_OFFLINE` 是否被当前安装的 Ultralytics 版本识别需要实测，不能作为唯一防线。更可靠的做法是预置字体和 settings 文件，并在断网验收中确认没有外联。
 
@@ -401,6 +401,10 @@ docker-images/
 ```text
 /app/models/mineru.json
 /app/models/PDF-Extract-Kit-1.0/models
+/app/models/PDF-Extract-Kit-1.0/models/Layout/PP-DocLayoutV2/model.safetensors
+/app/models/PDF-Extract-Kit-1.0/models/MFR/unimernet_hf_small_2503/model.safetensors
+/app/models/PDF-Extract-Kit-1.0/models/OCR/paddleocr_torch/ch_PP-OCRv5_det_infer.pth
+/app/models/PDF-Extract-Kit-1.0/models/OCR/paddleocr_torch/ch_PP-OCRv5_rec_infer.pth
 /app/models/MinerU2.5-2509-1.2B
 /root/.paddlex/official_models/PaddleOCR-VL-1.5-0.9B
 /root/.paddlex/official_models/PaddleOCR-VL-1.5
@@ -555,6 +559,10 @@ docker compose -f docker-compose.offline.yml up -d
 ```bash
 docker compose -f docker-compose.offline.yml exec worker test -f /app/models/mineru.json
 docker compose -f docker-compose.offline.yml exec worker test -d /app/models/PDF-Extract-Kit-1.0/models
+docker compose -f docker-compose.offline.yml exec worker test -f /app/models/PDF-Extract-Kit-1.0/models/Layout/PP-DocLayoutV2/model.safetensors
+docker compose -f docker-compose.offline.yml exec worker test -f /app/models/PDF-Extract-Kit-1.0/models/MFR/unimernet_hf_small_2503/model.safetensors
+docker compose -f docker-compose.offline.yml exec worker test -f /app/models/PDF-Extract-Kit-1.0/models/OCR/paddleocr_torch/ch_PP-OCRv5_det_infer.pth
+docker compose -f docker-compose.offline.yml exec worker test -f /app/models/PDF-Extract-Kit-1.0/models/OCR/paddleocr_torch/ch_PP-OCRv5_rec_infer.pth
 docker compose -f docker-compose.offline.yml exec worker test -d /app/models/MinerU2.5-2509-1.2B
 docker compose -f docker-compose.offline.yml exec worker test -d /root/.paddlex/official_models/PaddleOCR-VL-1.5-0.9B
 docker compose -f docker-compose.offline.yml exec worker test -d /root/.paddlex/official_models/PaddleOCR-VL-1.5

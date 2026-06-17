@@ -45,7 +45,12 @@ MODELS = {
         "model_id": "OpenDataLab/PDF-Extract-Kit-1.0",
         "target_dir": "PDF-Extract-Kit-1.0",
         "required": True,
-        "verify": ["models/Layout/PP-DocLayoutV2", "models/MFR/unimernet_hf_small_2503", "models/OCR/paddleocr_torch"],
+        "verify": [
+            "models/Layout/PP-DocLayoutV2/model.safetensors",
+            "models/MFR/unimernet_hf_small_2503/model.safetensors",
+            "models/OCR/paddleocr_torch/ch_PP-OCRv5_det_infer.pth",
+            "models/OCR/paddleocr_torch/ch_PP-OCRv5_rec_infer.pth",
+        ],
     },
     "mineru_vlm": {
         "name": "MinerU 2.5 VLM (1.2B)",

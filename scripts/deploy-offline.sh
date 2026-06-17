@@ -166,6 +166,10 @@ check_models() {
     local required_paths=(
         "$OFFLINE_MODELS_PATH/mineru.json"
         "$OFFLINE_MODELS_PATH/PDF-Extract-Kit-1.0/models"
+        "$OFFLINE_MODELS_PATH/PDF-Extract-Kit-1.0/models/Layout/PP-DocLayoutV2/model.safetensors"
+        "$OFFLINE_MODELS_PATH/PDF-Extract-Kit-1.0/models/MFR/unimernet_hf_small_2503/model.safetensors"
+        "$OFFLINE_MODELS_PATH/PDF-Extract-Kit-1.0/models/OCR/paddleocr_torch/ch_PP-OCRv5_det_infer.pth"
+        "$OFFLINE_MODELS_PATH/PDF-Extract-Kit-1.0/models/OCR/paddleocr_torch/ch_PP-OCRv5_rec_infer.pth"
         "$OFFLINE_MODELS_PATH/MinerU2.5-2509-1.2B"
         "$OFFLINE_MODELS_PATH/paddlex_cache/official_models/PaddleOCR-VL-1.5-0.9B"
         "$OFFLINE_MODELS_PATH/paddlex_cache/official_models/PP-DocLayoutV3"

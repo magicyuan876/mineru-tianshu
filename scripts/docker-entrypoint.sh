@@ -101,6 +101,25 @@ setup_mineru_config() {
 }
 
 # ============================================================================
+# Ultralytics config initialization
+# ============================================================================
+setup_ultralytics_config() {
+    log_info "Setting up Ultralytics configuration..."
+
+    CONFIG_SRC="/app/models/ultralytics_cfg"
+    CONFIG_DEST="${ULTRALYTICS_CONFIG_DIR:-/app/data/Ultralytics}"
+
+    mkdir -p "$CONFIG_DEST"
+
+    if [ -d "$CONFIG_SRC" ]; then
+        cp -n "$CONFIG_SRC"/* "$CONFIG_DEST"/ 2> /dev/null || true
+        log_success "Ultralytics config prepared at ${CONFIG_DEST}"
+    else
+        log_warning "$CONFIG_SRC not found. Ultralytics may create default settings."
+    fi
+}
+
+# ============================================================================
 # Model initialization
 # ============================================================================
 initialize_models() {
@@ -250,6 +269,7 @@ main() {
 
     # ✅ 在初始化目录后，执行配置分发
     setup_mineru_config
+    setup_ultralytics_config
 
     initialize_database
 

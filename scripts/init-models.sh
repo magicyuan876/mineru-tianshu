@@ -58,6 +58,10 @@ main() {
 
     require_path "/app/models/mineru.json" "MinerU config" || failed=1
     require_path "/app/models/PDF-Extract-Kit-1.0/models" "MinerU pipeline models" || failed=1
+    require_path "/app/models/PDF-Extract-Kit-1.0/models/Layout/PP-DocLayoutV2/model.safetensors" "MinerU layout checkpoint" || failed=1
+    require_path "/app/models/PDF-Extract-Kit-1.0/models/MFR/unimernet_hf_small_2503/model.safetensors" "MinerU MFR checkpoint" || failed=1
+    require_path "/app/models/PDF-Extract-Kit-1.0/models/OCR/paddleocr_torch/ch_PP-OCRv5_det_infer.pth" "MinerU OCR detection checkpoint" || failed=1
+    require_path "/app/models/PDF-Extract-Kit-1.0/models/OCR/paddleocr_torch/ch_PP-OCRv5_rec_infer.pth" "MinerU OCR recognition checkpoint" || failed=1
     require_path "/app/models/MinerU2.5-2509-1.2B" "MinerU VLM model" || failed=1
     require_path "/root/.paddlex/official_models/PaddleOCR-VL-1.5-0.9B" "PaddleOCR-VL 1.5 model" || failed=1
     require_path "/root/.paddlex/official_models/PP-DocLayoutV3" "PaddleOCR-VL layout model" || failed=1
@@ -72,8 +76,8 @@ main() {
     optional_path "/app/models/speech_campplus_sv_zh-cn_16k-common" "CAM++ speaker model"
     optional_path "/app/models/YOLO11/best.pt" "YOLO watermark model"
     optional_path "/app/models/big-lama.pt" "LaMa inpainting model"
-    optional_path "/root/.config/Ultralytics/Arial.ttf" "Ultralytics Arial.ttf"
-    optional_path "/root/.config/Ultralytics/settings.json" "Ultralytics settings"
+    optional_path "${ULTRALYTICS_CONFIG_DIR:-/app/data/Ultralytics}/Arial.ttf" "Ultralytics Arial.ttf"
+    optional_path "${ULTRALYTICS_CONFIG_DIR:-/app/data/Ultralytics}/settings.json" "Ultralytics settings"
 
     if [ "$failed" -ne 0 ]; then
         log_error "Offline model validation failed. Please rebuild or re-extract models-offline.tar.gz."

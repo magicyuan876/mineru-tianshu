@@ -258,11 +258,16 @@ docker compose -f docker-compose.offline.yml exec worker nvidia-smi
 ```bash
 docker compose -f docker-compose.offline.yml exec worker test -f /app/models/mineru.json
 docker compose -f docker-compose.offline.yml exec worker test -d /app/models/PDF-Extract-Kit-1.0/models
+docker compose -f docker-compose.offline.yml exec worker test -f /app/models/PDF-Extract-Kit-1.0/models/Layout/PP-DocLayoutV2/model.safetensors
+docker compose -f docker-compose.offline.yml exec worker test -f /app/models/PDF-Extract-Kit-1.0/models/MFR/unimernet_hf_small_2503/model.safetensors
+docker compose -f docker-compose.offline.yml exec worker test -f /app/models/PDF-Extract-Kit-1.0/models/OCR/paddleocr_torch/ch_PP-OCRv5_det_infer.pth
+docker compose -f docker-compose.offline.yml exec worker test -f /app/models/PDF-Extract-Kit-1.0/models/OCR/paddleocr_torch/ch_PP-OCRv5_rec_infer.pth
 docker compose -f docker-compose.offline.yml exec worker test -d /app/models/MinerU2.5-2509-1.2B
 docker compose -f docker-compose.offline.yml exec worker test -d /root/.paddlex/official_models/PaddleOCR-VL-1.5-0.9B
 docker compose -f docker-compose.offline.yml exec worker test -d /root/.paddlex/official_models/PP-DocLayoutV3
 docker compose -f docker-compose.offline.yml exec worker test -d /app/models/SenseVoiceSmall
 docker compose -f docker-compose.offline.yml exec worker test -d /app/models/speech_fsmn_vad_zh-cn-16k-common-pytorch
+docker compose -f docker-compose.offline.yml exec worker test -f /app/data/Ultralytics/settings.json
 ```
 
 ### 7.3 离线检查
@@ -310,7 +315,40 @@ python3 backend/download_models.py --output ./models-offline --verify-only --str
 
 校验通过后重新构建或重新打包 `models-offline.tar.gz`，再传到离线服务器。
 
-### 8.3 容器无法访问 GPU
+### 8.3 MinerU 提示 unimernet_hf_small_2503 缺少权重
+
+报错示例：
+
+```text
+Error no file named pytorch_model.bin, model.safetensors ... found in directory /app/models/PDF-Extract-Kit-1.0/models/MFR/unimernet_hf_small_2503
+```
+
+这是外置模型目录不完整，不是镜像内模型路径问题。可以在服务器上手动补齐：
+
+```bash
+test -f "$OFFLINE_MODELS_PATH/PDF-Extract-Kit-1.0/models/MFR/unimernet_hf_small_2503/model.safetensors" && echo ok
+
+python3 backend/download_models.py \
+  --output "$OFFLINE_MODELS_PATH" \
+  --models mineru_pipeline \
+  --strict
+
+python3 backend/download_models.py \
+  --output "$OFFLINE_MODELS_PATH" \
+  --models mineru_pipeline \
+  --verify-only \
+  --strict
+
+docker compose -f docker-compose.offline.yml restart worker
+```
+
+如果离线服务器不能联网，也可以从完整的 `models-offline.tar.gz` 或准备机模型目录中只补拷贝这个文件到：
+
+```text
+$OFFLINE_MODELS_PATH/PDF-Extract-Kit-1.0/models/MFR/unimernet_hf_small_2503/model.safetensors
+```
+
+### 8.4 容器无法访问 GPU
 
 先确认宿主机 GPU 正常：
 
@@ -324,7 +362,7 @@ nvidia-smi
 docker compose -f docker-compose.offline.yml logs -f worker
 ```
 
-### 8.4 RustFS 图片无法外部访问
+### 8.5 RustFS 图片无法外部访问
 
 检查 `.env` 中的 `RUSTFS_PUBLIC_URL`，它必须是客户端能访问的地址：
 

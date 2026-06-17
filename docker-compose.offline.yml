@@ -112,7 +112,6 @@ services:
       - ${OFFLINE_MODELS_PATH:-./models-offline}/huggingface_cache:/root/.cache/huggingface:ro
       - ${OFFLINE_MODELS_PATH:-./models-offline}/torch_cache:/root/.cache/torch:ro
       - ${OFFLINE_MODELS_PATH:-./models-offline}/watermark_models:/root/.cache/watermark_models:ro
-      - ${OFFLINE_MODELS_PATH:-./models-offline}/ultralytics_cfg:/root/.config/Ultralytics:ro
       # 上传文件(统一使用 /app/data 路径)
       - ./data/uploads:/app/data/uploads:rw
       # 输出结果
@@ -183,7 +182,8 @@ services:
       - PADDLE_HOME=/root/.paddleocr
       - TORCH_HOME=/root/.cache/torch
       - LAMA_MODEL=/app/models/big-lama.pt
-      - YOLO_CONFIG_DIR=/root/.config
+      - YOLO_CONFIG_DIR=/app/data
+      - ULTRALYTICS_CONFIG_DIR=/app/data/Ultralytics
       - YOLO_OFFLINE=True
 
       # Redis 队列配置（可选 - 解决 SQLite 并发瓶颈）
@@ -231,7 +231,6 @@ services:
       - ${OFFLINE_MODELS_PATH:-./models-offline}/huggingface_cache:/root/.cache/huggingface:ro
       - ${OFFLINE_MODELS_PATH:-./models-offline}/torch_cache:/root/.cache/torch:ro
       - ${OFFLINE_MODELS_PATH:-./models-offline}/watermark_models:/root/.cache/watermark_models:ro
-      - ${OFFLINE_MODELS_PATH:-./models-offline}/ultralytics_cfg:/root/.config/Ultralytics:ro
       # 上传文件(读写，需要创建 converted_pdfs 目录用于 Office 转 PDF)
       - ./data/uploads:/app/data/uploads:rw
       # 输出结果
@@ -284,7 +283,8 @@ services:
       - PADDLE_HOME=/root/.paddleocr
       - TORCH_HOME=/root/.cache/torch
       - LAMA_MODEL=/app/models/big-lama.pt
-      - YOLO_CONFIG_DIR=/root/.config
+      - YOLO_CONFIG_DIR=/app/data
+      - ULTRALYTICS_CONFIG_DIR=/app/data/Ultralytics
       - YOLO_OFFLINE=True
 
       # PDF 拆分配置(Worker 中执行)
