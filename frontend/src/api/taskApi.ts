@@ -43,6 +43,11 @@ export async function submitTask(request: SubmitTaskRequest): Promise<SubmitTask
     formData.append('convert_office_to_pdf', String(request.convert_office_to_pdf))
   }
 
+  // 任务级 RustFS 开关 (三态: 不传=跟随环境变量; true=强制上传; false=保留本地)
+  if (request.use_rustfs !== undefined) {
+    formData.append('use_rustfs', String(request.use_rustfs))
+  }
+
   // MinerU 调试/输出选项
   if (request.draw_layout_bbox !== undefined) formData.append('draw_layout_bbox', String(request.draw_layout_bbox))
   if (request.draw_span_bbox !== undefined) formData.append('draw_span_bbox', String(request.draw_span_bbox))

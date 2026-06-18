@@ -253,6 +253,18 @@
                    </div>
                 </div>
 
+                <div v-if="showImageStorageOption">
+                   <label class="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-2">{{ $t('task.imageStorage') }}</label>
+                   <div class="bg-white border border-gray-200 rounded p-3">
+                      <select v-model="config.use_rustfs" class="w-full form-input-sm">
+                         <option :value="undefined">{{ $t('task.imageStorageDefault') }}</option>
+                         <option :value="true">{{ $t('task.imageStorageUpload') }}</option>
+                         <option :value="false">{{ $t('task.imageStorageLocal') }}</option>
+                      </select>
+                      <p class="mt-1.5 text-xs text-gray-500">{{ imageStorageHint }}</p>
+                   </div>
+                </div>
+
                 <div v-if="config.backend === 'video' || config.backend === 'sensevoice'">
                    <label class="block text-xs font-bold text-blue-600 uppercase tracking-wide mb-2">{{ $t('task.mediaParams') }}</label>
                    <div class="bg-blue-50 border border-blue-100 rounded p-3 space-y-2">
@@ -486,6 +498,10 @@ const defaultConfig = {
 
   // 预处理
   convert_office_to_pdf: false,
+
+  // 图片存储: 任务级 RustFS 开关 (undefined=跟随系统配置; true=上传对象存储; false=保留本地)
+  use_rustfs: undefined as boolean | undefined,
+
   remove_watermark: false,
   watermark_conf_threshold: 0.35,
   watermark_dilation: 10,
@@ -543,6 +559,14 @@ const isMinerUBackend = computed(() => mineruBackends.includes(config.backend))
 const isHttpClientBackend = computed(() => ['vlm-http-client', 'hybrid-http-client'].includes(config.backend))
 
 const showLanguageOption = computed(() => isMinerUBackend.value || ['paddleocr-vl', 'paddleocr-vl-vllm', 'sensevoice', 'auto'].includes(config.backend))
+
+// 图片存储开关: 仅对会产出图片的文档类后端显示
+const showImageStorageOption = computed(() => isMinerUBackend.value || ['paddleocr-vl', 'paddleocr-vl-vllm', 'auto'].includes(config.backend))
+const imageStorageHint = computed(() => {
+  if (config.use_rustfs === true) return t('task.imageStorageUploadHint')
+  if (config.use_rustfs === false) return t('task.imageStorageLocalHint')
+  return t('task.imageStorageDefaultHint')
+})
 
 // 动态 Hint
 const currentBackendHint = computed(() => {

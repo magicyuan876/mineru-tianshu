@@ -226,6 +226,10 @@ export interface SubmitTaskRequest {
   // Office 转换参数
   convert_office_to_pdf?: boolean
 
+  // 任务级 RustFS 对象存储开关
+  // undefined=跟随 RUSTFS_ENABLED 环境变量(向后兼容); true=强制上传图片到对象存储; false=保留图片在本地
+  use_rustfs?: boolean
+
   // PaddleOCR 专属参数
   useDocOrientationClassify?: boolean
   useDocUnwarping?: boolean
