@@ -47,6 +47,7 @@ Options:
   -c, --concurrency N   Worker processes per GPU (default: keep .env value, else 1)
   -g, --gpus N          GPUs exposed to the worker (default: detected on first run)
       --vram GB         Per-worker VRAM budget (default: per-GPU VRAM / concurrency)
+      --mem GB          Worker memory ceiling (default: min(8G x workers, 25% of host RAM))
       --no-build        Skip the image build step
       --skip-checks     Skip Docker / NVIDIA dependency checks
   -h, --help            Show this help
@@ -68,10 +69,17 @@ ACTION="deploy"
 OPT_CONCURRENCY=""
 OPT_GPUS=""
 OPT_VRAM=""
+OPT_MEM=""
 DO_BUILD=1
 DO_CHECKS=1
 ENV_CREATED=0
+
 MIN_VRAM_PER_WORKER=6
+# Host RAM budgeted per worker process, and the share of the host the worker
+# container is allowed to reach at most. Both only shape the cgroup ceiling.
+RAM_PER_WORKER_GB=8
+MAX_RAM_PERCENT=25
+MIN_MEM_LIMIT_GB=16
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -89,6 +97,10 @@ while [ $# -gt 0 ]; do
             ;;
         --vram)
             OPT_VRAM="${2:-}"
+            shift 2
+            ;;
+        --mem)
+            OPT_MEM="${2:-}"
             shift 2
             ;;
         --no-build)
@@ -174,6 +186,18 @@ detect_min_vram_gb() {
         echo 0
     else
         echo $((mib / 1024))
+    fi
+}
+
+detect_total_ram_gb() {
+    local kb=""
+    if [ -r /proc/meminfo ]; then
+        kb=$(awk '/^MemTotal:/ {print $2; exit}' /proc/meminfo || true)
+    fi
+    if [ -z "$kb" ]; then
+        echo 0
+    else
+        echo $((kb / 1024 / 1024))
     fi
 }
 
@@ -347,12 +371,47 @@ tune_env() {
             ;;
     esac
 
-    # --- Worker memory sanity ----------------------------------------------
-    if [ "$concurrency" -gt 1 ]; then
-        local mem_limit
-        mem_limit=$(get_env_key WORKER_MEMORY_LIMIT)
-        log_warning "WORKER_MEMORY_LIMIT is ${mem_limit:-16G} for ${concurrency} worker processes."
-        log_warning "Budget roughly 8-10G per worker; raise it in .env if the worker gets OOM-killed."
+    # --- Worker memory ceiling ---------------------------------------------
+    # WORKER_MEMORY_LIMIT is a cgroup hard cap, NOT a reservation: the container
+    # only consumes the pages it actually touches. It exists so a runaway worker
+    # cannot take the host down, so it has to scale with the worker count - the
+    # stock 16G is below what the workers of a single GPU need past concurrency 1,
+    # and the worker is the only service in the stack that is capped at all.
+    local total_ram
+    local workers
+    local mem_limit_gb=""
+    total_ram=$(detect_total_ram_gb)
+    workers=$((gpu_count * concurrency))
+
+    if [ -n "$OPT_MEM" ]; then
+        mem_limit_gb="$OPT_MEM"
+    elif [ "$total_ram" -gt 0 ]; then
+        local want=$((workers * RAM_PER_WORKER_GB))
+        local cap=$((total_ram * MAX_RAM_PERCENT / 100))
+        if [ "$want" -le "$cap" ]; then
+            mem_limit_gb="$want"
+        else
+            mem_limit_gb="$cap"
+            log_warning "${workers} workers would like ${want}G but the ${MAX_RAM_PERCENT}% host share is ${cap}G."
+            log_warning "Capping there. Lower --concurrency, or raise it explicitly with --mem."
+        fi
+        if [ "$mem_limit_gb" -lt "$MIN_MEM_LIMIT_GB" ]; then
+            mem_limit_gb="$MIN_MEM_LIMIT_GB"
+        fi
+    fi
+
+    if [ -n "$mem_limit_gb" ]; then
+        local mem_res_gb=$((mem_limit_gb / 4))
+        if [ "$mem_res_gb" -lt 8 ]; then
+            mem_res_gb=8
+        fi
+        set_env_key WORKER_MEMORY_LIMIT "${mem_limit_gb}G"
+        set_env_key WORKER_MEMORY_RESERVATION "${mem_res_gb}G"
+        log_success "WORKER_MEMORY_LIMIT = ${mem_limit_gb}G (host has ${total_ram}G, ${workers} worker process(es))"
+        log_info "That is a ceiling, not a reservation - measure real usage with: docker stats tianshu-worker"
+    else
+        log_warning "Could not read host RAM - WORKER_MEMORY_LIMIT left at $(get_env_key WORKER_MEMORY_LIMIT)."
+        log_warning "Budget roughly ${RAM_PER_WORKER_GB}G per worker (${workers} running) or pass --mem."
     fi
 }
 
@@ -466,6 +525,7 @@ show_info() {
     echo "  API docs: http://${server_ip}:${api_port}/docs"
     echo "  Engine:   MinerU pipeline (submit tasks with backend=\"pipeline\")"
     echo "  Capacity: ${gpu_count} GPU x ${concurrency} worker = $((gpu_count * concurrency)) concurrent task(s)"
+    echo "  Budgets:  $(get_env_key MINERU_VIRTUAL_VRAM_SIZE)G VRAM per worker, $(get_env_key WORKER_MEMORY_LIMIT) RAM ceiling (not reserved)"
     echo ""
     echo "  Logs:     $0 logs"
     echo "  Status:   $0 status"
