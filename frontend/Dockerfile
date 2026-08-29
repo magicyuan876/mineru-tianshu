@@ -70,8 +70,13 @@ server {
 
     # API 代理（包括静态文件）
     # /api/v1/files/output/* 会被代理到后端的静态文件服务
+    #
+    # ⚠️ proxy_pass 末尾不能加斜杠：加了斜杠 nginx 会把 location 匹配的 /api/ 前缀
+    # 替换掉，后端收到的是 /v1/xxx，而 FastAPI 的路由挂在 /api/v1 前缀下 → 全部 404。
+    # 前端生产构建的 VITE_API_BASE_URL=/api（frontend/.env.production），请求路径为
+    # /api/v1/xxx，必须原样透传给后端。
     location /api/ {
-        proxy_pass http://backend:8000/;
+        proxy_pass http://backend:8000;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
