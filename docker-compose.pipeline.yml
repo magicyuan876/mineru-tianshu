@@ -1,0 +1,53 @@
+# Tianshu (天枢) - Pipeline-only override
+#
+# 只跑 MinerU pipeline 引擎的精简部署，在 docker-compose.yml 之上做增量覆盖。
+#
+# 用法（推荐直接用脚本）:
+#   ./scripts/deploy-pipeline.sh
+#
+# 手动用法:
+#   docker compose -f docker-compose.yml -f docker-compose.pipeline.yml up -d
+#
+# 相对默认部署的差异:
+#   1. 不启动 vllm-paddleocr（默认会常驻占用 60% 显存，pipeline 用不到）
+#   2. init-models 只下载 PDF-Extract-Kit，不下 MinerU-VLM / PaddleOCR-VL（省 ~4GB）
+#   3. worker 去掉 vLLM 相关参数
+#   4. 并发数（MAX_CONCURRENT_TASKS）与显存预算（MINERU_VIRTUAL_VRAM_SIZE）改为从 .env 读取
+
+services:
+  # ============================================================================
+  # PaddleOCR-VL 的 vLLM 常驻服务 —— pipeline 模式不需要，挪到 profile 后默认不启动
+  # 需要时: docker compose ... --profile vllm up -d vllm-paddleocr
+  # ============================================================================
+  vllm-paddleocr:
+    profiles: ["vllm"]
+
+  # ============================================================================
+  # 只下载 pipeline 需要的模型（PDF-Extract-Kit-1.0）
+  # mineru.json 仍会正常生成，vlm 路径留空目录不影响 pipeline
+  # ============================================================================
+  init-models:
+    entrypoint:
+      ["python", "download_models.py", "--output", "/app/models", "--models", "mineru_pipeline"]
+
+  # ============================================================================
+  # Worker：去掉 vLLM 参数 + 打开并发/显存预算配置
+  #
+  # 并发模型:
+  #   实际并发任务数 = GPU_COUNT × MAX_CONCURRENT_TASKS
+  #   - GPU_COUNT           控制容器能看到几张卡，LitServe 每卡起一组进程（自动 GPU 隔离）
+  #   - MAX_CONCURRENT_TASKS 控制每张卡上起几个 worker 进程（litserve workers_per_device）
+  #
+  # 注意:
+  #   - 不要给本服务设置 CUDA_VISIBLE_DEVICES，否则 devices 会以字符串形式传给 LitServer，
+  #     应保持 "auto" 由 LitServe 自行枚举可见 GPU。
+  #   - MINERU_VIRTUAL_VRAM_SIZE 是「每个 worker 进程」的显存预算（GB）。同卡多进程时必须
+  #     显式下调，否则每个进程都按整卡显存规划 batch，会 OOM。
+  #   - base 文件挂载的 /var/run/docker.sock 在 pipeline 模式下不会被使用（VLLMController
+  #     仅在配置了 vLLM api-list 时才触发）。如需收紧权限，可自行从 docker-compose.yml 移除。
+  # ============================================================================
+  worker:
+    command: ["worker", "python", "litserve_worker.py"]
+    environment:
+      - MAX_CONCURRENT_TASKS=${MAX_CONCURRENT_TASKS:-1}
+      - MINERU_VIRTUAL_VRAM_SIZE=${MINERU_VIRTUAL_VRAM_SIZE:-8}
