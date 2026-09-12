@@ -363,6 +363,15 @@ class MinerUWorkerAPI(ls.LitAPI):
                 logger.error(f"❌ Worker loop error: {e}")
                 time.sleep(self.poll_interval)
 
+    def _enqueue_webhook(self, task_id: str, event: str):
+        """任务终态触发 webhook 通知入队；任何失败只记日志，不影响任务主流程"""
+        try:
+            from webhook.dispatcher import enqueue_task_event
+
+            enqueue_task_event(self.task_db, task_id, event)
+        except Exception as e:
+            logger.warning(f"⚠️ Webhook 通知入队失败（任务 {task_id}，事件 {event}）: {e}")
+
     def _process_task(self, task: dict):
         """处理任务"""
         task_id = task["task_id"]
@@ -486,6 +495,10 @@ class MinerUWorkerAPI(ls.LitAPI):
                 ),
             )
 
+            # 单任务完成触发 webhook；子任务不触发，由父任务合并完成后统一通知
+            if not parent_task_id:
+                self._enqueue_webhook(task_id, "task.completed")
+
             # 7. 合并子任务
             if parent_task_id:
                 parent_id_to_merge = self.task_db.on_child_task_completed(task_id)
@@ -494,12 +507,15 @@ class MinerUWorkerAPI(ls.LitAPI):
                         self._merge_parent_task_results(parent_id_to_merge)
                     except Exception as e:
                         self.task_db.update_task_status(parent_id_to_merge, "failed", error_message=str(e))
+                        self._enqueue_webhook(parent_id_to_merge, "task.failed")
 
         except Exception as e:
             error_msg = f"{type(e).__name__}: {str(e)}"
             self.task_db.update_task_status(task_id, "failed", error_message=error_msg)
             if parent_task_id:
                 self.task_db.on_child_task_failed(task_id, error_msg)
+            else:
+                self._enqueue_webhook(task_id, "task.failed")
             raise
 
     # -------------------------------------------------------------------------
@@ -989,6 +1005,7 @@ class MinerUWorkerAPI(ls.LitAPI):
 
         normalize_output(parent_out)
         self.task_db.update_task_status(parent_task_id, "completed", result_path=str(parent_out))
+        self._enqueue_webhook(parent_task_id, "task.completed")
         self._cleanup_child_task_files(children)
 
     def _cleanup_child_task_files(self, children):

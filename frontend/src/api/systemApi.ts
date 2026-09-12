@@ -8,6 +8,11 @@ import type {
   EnginesResponse,
   ImageCaptionConfigResponse,
   ImageCaptionTestResult,
+  WebhookConfigResponse,
+  WebhookTestResult,
+  WebhookDeliveriesResponse,
+  AuditLogQuery,
+  AuditLogsResponse,
 } from './types'
 import apiClient from './client'
 
@@ -73,5 +78,39 @@ export async function uploadSystemLogo(
       'Content-Type': 'multipart/form-data',
     },
   })
+  return response.data
+}
+
+/**
+ * 查询审计日志（仅管理员）
+ */
+export async function getAuditLogs(params: AuditLogQuery = {}): Promise<AuditLogsResponse> {
+  const response = await apiClient.get('/api/v1/admin/audit-logs', { params })
+  return response.data
+}
+
+/**
+ * 获取 Webhook 通知配置（管理员）
+ */
+export async function getWebhookConfig(): Promise<WebhookConfigResponse> {
+  const response = await apiClient.get('/api/v1/auth/system/config/webhook')
+  return response.data
+}
+
+/**
+ * 测试 Webhook 投递（管理员，使用当前已保存的配置）
+ */
+export async function testWebhookConnection(): Promise<WebhookTestResult> {
+  const response = await apiClient.post('/api/v1/auth/system/config/webhook/test')
+  return response.data
+}
+
+/**
+ * 查询 Webhook 投递记录（管理员）
+ */
+export async function getWebhookDeliveries(
+  params: { page?: number; page_size?: number; status?: string } = {}
+): Promise<WebhookDeliveriesResponse> {
+  const response = await apiClient.get('/api/v1/auth/system/webhook/deliveries', { params })
   return response.data
 }

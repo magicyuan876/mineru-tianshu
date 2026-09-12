@@ -335,6 +335,308 @@
         </div>
       </form>
     </div>
+
+    <!-- Webhook 通知配置 -->
+    <div v-if="!loading" class="mt-6 bg-white rounded-lg shadow-md p-6">
+      <h2 class="text-lg font-semibold text-gray-900 mb-1">{{ $t('webhook.title') }}</h2>
+      <p class="mb-6 text-sm text-gray-600">{{ $t('webhook.description') }}</p>
+
+      <form @submit.prevent="handleWebhookSubmit" class="space-y-6">
+        <!-- 启用开关 -->
+        <div>
+          <label class="flex items-center">
+            <input
+              v-model="webhookForm.enabled"
+              type="checkbox"
+              class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+            />
+            <span class="ml-2 text-sm font-medium text-gray-700">
+              {{ $t('webhook.enabled') }}
+            </span>
+          </label>
+          <p class="mt-1 ml-6 text-xs text-gray-500">{{ $t('webhook.enabledHelp') }}</p>
+        </div>
+
+        <!-- 回调地址 -->
+        <div>
+          <label for="webhook_url" class="block text-sm font-medium text-gray-700 mb-2">
+            {{ $t('webhook.url') }}
+          </label>
+          <input
+            id="webhook_url"
+            v-model="webhookForm.url"
+            type="text"
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            :placeholder="$t('webhook.urlPlaceholder')"
+          />
+        </div>
+
+        <!-- 签名密钥 -->
+        <div>
+          <label for="webhook_secret" class="block text-sm font-medium text-gray-700 mb-2">
+            {{ $t('webhook.secret') }}
+          </label>
+          <input
+            id="webhook_secret"
+            v-model="webhookForm.secret"
+            type="password"
+            autocomplete="new-password"
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            :placeholder="$t('webhook.secretPlaceholder')"
+          />
+        </div>
+
+        <!-- 订阅事件 -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">{{ $t('webhook.events') }}</label>
+          <label class="flex items-center mb-1">
+            <input
+              v-model="webhookForm.events"
+              value="task.completed"
+              type="checkbox"
+              class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+            />
+            <span class="ml-2 text-sm text-gray-700">{{ $t('webhook.eventCompleted') }}</span>
+          </label>
+          <label class="flex items-center">
+            <input
+              v-model="webhookForm.events"
+              value="task.failed"
+              type="checkbox"
+              class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+            />
+            <span class="ml-2 text-sm text-gray-700">{{ $t('webhook.eventFailed') }}</span>
+          </label>
+        </div>
+
+        <!-- 超时 / 最大重试次数 -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label for="webhook_timeout" class="block text-sm font-medium text-gray-700 mb-2">
+              {{ $t('webhook.timeout') }}
+            </label>
+            <input
+              id="webhook_timeout"
+              v-model.number="webhookForm.timeout"
+              type="number"
+              min="1"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+          <div>
+            <label for="webhook_max_attempts" class="block text-sm font-medium text-gray-700 mb-2">
+              {{ $t('webhook.maxAttempts') }}
+            </label>
+            <input
+              id="webhook_max_attempts"
+              v-model.number="webhookForm.max_attempts"
+              type="number"
+              min="1"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+            <p class="mt-1 text-xs text-gray-500">{{ $t('webhook.maxAttemptsHelp') }}</p>
+          </div>
+        </div>
+
+        <!-- 按钮组 -->
+        <div class="flex justify-between pt-4 border-t border-gray-200">
+          <button
+            type="button"
+            @click="handleTestWebhook"
+            :disabled="webhookTesting || webhookSaving"
+            class="px-4 py-2 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <span v-if="webhookTesting">{{ $t('webhook.testing') }}</span>
+            <span v-else>{{ $t('webhook.testConnection') }}</span>
+          </button>
+          <button
+            type="submit"
+            class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            :disabled="webhookSaving || webhookTesting"
+          >
+            <span v-if="webhookSaving">{{ $t('webhook.saving') }}</span>
+            <span v-else>{{ $t('webhook.save') }}</span>
+          </button>
+        </div>
+      </form>
+
+      <!-- 最近投递记录 -->
+      <div class="mt-8 pt-4 border-t border-gray-200">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-semibold text-gray-900">{{ $t('webhook.deliveriesTitle') }}</h3>
+          <button
+            type="button"
+            @click="loadWebhookDeliveries"
+            class="px-3 py-1 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+          >
+            {{ $t('webhook.refresh') }}
+          </button>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{{ $t('webhook.colTime') }}</th>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{{ $t('webhook.colEvent') }}</th>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{{ $t('webhook.colTask') }}</th>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{{ $t('webhook.colUrl') }}</th>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{{ $t('webhook.colStatus') }}</th>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{{ $t('webhook.colAttempts') }}</th>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{{ $t('webhook.colError') }}</th>
+              </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+              <tr v-if="webhookDeliveries.length === 0">
+                <td colspan="7" class="px-4 py-8 text-center text-sm text-gray-500">
+                  {{ $t('webhook.deliveriesEmpty') }}
+                </td>
+              </tr>
+              <tr v-for="d in webhookDeliveries" :key="d.delivery_id">
+                <td class="px-4 py-2 text-sm text-gray-600 whitespace-nowrap">{{ d.created_at }}</td>
+                <td class="px-4 py-2 text-sm text-gray-900 whitespace-nowrap">{{ d.event }}</td>
+                <td class="px-4 py-2 text-sm text-gray-600">{{ d.task_id ? d.task_id.slice(0, 8) : '-' }}</td>
+                <td class="px-4 py-2 text-sm text-gray-600 max-w-xs truncate">{{ d.url }}</td>
+                <td class="px-4 py-2 text-sm">
+                  <span
+                    class="px-2 py-0.5 rounded-full text-xs font-medium"
+                    :class="webhookStatusClass(d.status)"
+                  >
+                    {{ formatWebhookStatus(d.status) }}
+                  </span>
+                </td>
+                <td class="px-4 py-2 text-sm text-gray-600">{{ d.attempts }}</td>
+                <td class="px-4 py-2 text-sm text-gray-600 max-w-xs truncate">{{ d.last_error || '-' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- 审计日志 -->
+    <div v-if="!loading" class="mt-6 bg-white rounded-lg shadow-md p-6">
+      <h2 class="text-lg font-semibold text-gray-900 mb-1">{{ $t('auditLog.title') }}</h2>
+      <p class="mb-6 text-sm text-gray-600">{{ $t('auditLog.description') }}</p>
+
+      <!-- 筛选条 -->
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">{{ $t('auditLog.filterAction') }}</label>
+          <select
+            v-model="auditFilters.action"
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="">{{ $t('auditLog.all') }}</option>
+            <option v-for="action in auditActionOptions" :key="action" :value="action">
+              {{ $t(`auditLog.actions.${action}`) }}
+            </option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">{{ $t('auditLog.filterResult') }}</label>
+          <select
+            v-model="auditFilters.result"
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="">{{ $t('auditLog.all') }}</option>
+            <option value="success">{{ $t('auditLog.success') }}</option>
+            <option value="failure">{{ $t('auditLog.failure') }}</option>
+            <option value="denied">{{ $t('auditLog.denied') }}</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">{{ $t('auditLog.filterStart') }}</label>
+          <input
+            v-model="auditFilters.start"
+            type="date"
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">{{ $t('auditLog.filterEnd') }}</label>
+          <input
+            v-model="auditFilters.end"
+            type="date"
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        </div>
+      </div>
+      <div class="flex justify-end space-x-3 mb-4">
+        <button
+          type="button"
+          @click="resetAuditFilters"
+          class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+        >
+          {{ $t('auditLog.reset') }}
+        </button>
+        <button
+          type="button"
+          @click="loadAuditLogs(1)"
+          class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+        >
+          {{ $t('auditLog.search') }}
+        </button>
+      </div>
+
+      <!-- 日志表格 -->
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{{ $t('auditLog.colTime') }}</th>
+              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{{ $t('auditLog.colUser') }}</th>
+              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{{ $t('auditLog.colAction') }}</th>
+              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{{ $t('auditLog.colResource') }}</th>
+              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{{ $t('auditLog.colResult') }}</th>
+              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{{ $t('auditLog.colIp') }}</th>
+            </tr>
+          </thead>
+          <tbody class="bg-white divide-y divide-gray-200">
+            <tr v-if="auditLogs.length === 0">
+              <td colspan="6" class="px-4 py-8 text-center text-sm text-gray-500">{{ $t('auditLog.empty') }}</td>
+            </tr>
+            <tr v-for="log in auditLogs" :key="log.id">
+              <td class="px-4 py-2 text-sm text-gray-600 whitespace-nowrap">{{ log.created_at }}</td>
+              <td class="px-4 py-2 text-sm text-gray-900">{{ log.username || $t('auditLog.anonymous') }}</td>
+              <td class="px-4 py-2 text-sm text-gray-900">{{ formatAuditAction(log.action) }}</td>
+              <td class="px-4 py-2 text-sm text-gray-600">{{ formatAuditResource(log) }}</td>
+              <td class="px-4 py-2 text-sm">
+                <span
+                  class="px-2 py-0.5 rounded-full text-xs font-medium"
+                  :class="auditResultClass(log.result)"
+                >
+                  {{ formatAuditResult(log.result) }}
+                </span>
+              </td>
+              <td class="px-4 py-2 text-sm text-gray-600">{{ log.ip || '-' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 分页 -->
+      <div class="flex items-center justify-between mt-4">
+        <span class="text-sm text-gray-600">{{ $t('auditLog.total', { total: auditTotal }) }}</span>
+        <div class="flex space-x-2">
+          <button
+            type="button"
+            @click="loadAuditLogs(auditPage - 1)"
+            :disabled="auditPage <= 1"
+            class="px-3 py-1 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {{ $t('auditLog.prevPage') }}
+          </button>
+          <button
+            type="button"
+            @click="loadAuditLogs(auditPage + 1)"
+            :disabled="auditPage * auditPageSize >= auditTotal"
+            class="px-3 py-1 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {{ $t('auditLog.nextPage') }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -347,9 +649,17 @@ import {
   uploadSystemLogo,
   getImageCaptionConfig,
   testImageCaptionConnection,
+  getWebhookConfig,
+  testWebhookConnection,
+  getWebhookDeliveries,
+  getAuditLogs,
   type SystemConfig,
   type SystemConfigUpdateRequest,
   type ImageCaptionConfig,
+  type WebhookConfig,
+  type WebhookDeliveryItem,
+  type AuditLogItem,
+  type AuditLogQuery,
 } from '@/api'
 import { toast } from '@/utils/toast'
 import LoadingSpinner from '@/components/LoadingSpinner.vue'
@@ -643,8 +953,231 @@ function handleImageError(event: Event) {
   toast.error(t('systemConfig.logoLoadError'))
 }
 
+// ==================== 审计日志 ====================
+
+// 与后端埋点动作保持一致，用于筛选下拉
+const auditActionOptions = [
+  'auth.login',
+  'auth.login_failed',
+  'auth.logout',
+  'auth.register',
+  'auth.change_password',
+  'api_key.create',
+  'api_key.delete',
+  'config.update',
+  'task.delete',
+  'task.clear_failed',
+  'task.clear_cache',
+  'admin.cleanup',
+  'admin.reset_stale',
+]
+
+const auditLogs = ref<AuditLogItem[]>([])
+const auditTotal = ref(0)
+const auditPage = ref(1)
+const auditPageSize = 50
+
+const auditFilters = ref({
+  action: '',
+  result: '',
+  start: '',
+  end: '',
+})
+
+/**
+ * 加载审计日志
+ */
+async function loadAuditLogs(page: number) {
+  try {
+    const query: AuditLogQuery = { page, page_size: auditPageSize }
+    if (auditFilters.value.action) query.action = auditFilters.value.action
+    if (auditFilters.value.result) query.result = auditFilters.value.result
+    // 后端按 datetime('now') 的 UTC 字符串比较，日期补全天界
+    if (auditFilters.value.start) query.start = `${auditFilters.value.start} 00:00:00`
+    if (auditFilters.value.end) query.end = `${auditFilters.value.end} 23:59:59`
+
+    const response = await getAuditLogs(query)
+    auditLogs.value = response.data.items
+    auditTotal.value = response.data.total
+    auditPage.value = response.data.page
+  } catch (error: any) {
+    console.error('Failed to load audit logs:', error)
+    toast.error(t('auditLog.loadError'))
+  }
+}
+
+/**
+ * 重置筛选条件并重新加载
+ */
+function resetAuditFilters() {
+  auditFilters.value = { action: '', result: '', start: '', end: '' }
+  loadAuditLogs(1)
+}
+
+/**
+ * 动作标识翻译，未知动作原样展示
+ */
+function formatAuditAction(action: string): string {
+  const key = `auditLog.actions.${action}`
+  const translated = t(key)
+  return translated === key ? action : translated
+}
+
+/**
+ * 资源列展示：类型 + ID
+ */
+function formatAuditResource(log: AuditLogItem): string {
+  if (!log.resource_type) return '-'
+  return log.resource_id ? `${log.resource_type}: ${log.resource_id}` : log.resource_type
+}
+
+function formatAuditResult(result: string): string {
+  if (result === 'success') return t('auditLog.success')
+  if (result === 'failure') return t('auditLog.failure')
+  if (result === 'denied') return t('auditLog.denied')
+  return result
+}
+
+function auditResultClass(result: string): string {
+  if (result === 'success') return 'bg-green-100 text-green-800'
+  if (result === 'failure') return 'bg-red-100 text-red-800'
+  return 'bg-yellow-100 text-yellow-800'
+}
+
+// ==================== Webhook 通知 ====================
+
+const webhookSaving = ref(false)
+const webhookTesting = ref(false)
+
+const webhookOriginal = ref<WebhookConfig>({
+  enabled: false,
+  url: '',
+  secret: '',
+  events: ['task.completed', 'task.failed'],
+  timeout: 10,
+  max_attempts: 8,
+})
+
+const webhookForm = ref<WebhookConfig>({ ...webhookOriginal.value })
+
+const webhookDeliveries = ref<WebhookDeliveryItem[]>([])
+
+/**
+ * 加载 Webhook 配置
+ */
+async function loadWebhookConfig() {
+  try {
+    const response = await getWebhookConfig()
+    webhookOriginal.value = { ...response.config }
+    webhookForm.value = { ...response.config }
+  } catch (error: any) {
+    console.error('Failed to load webhook config:', error)
+    toast.error(t('webhook.loadError'))
+  }
+}
+
+/**
+ * 保存 Webhook 配置（只提交变更过的字段；secret 保持掩码值时不提交）
+ */
+async function handleWebhookSubmit() {
+  try {
+    webhookSaving.value = true
+
+    const form = webhookForm.value
+    const original = webhookOriginal.value
+    const updates: SystemConfigUpdateRequest = {}
+    if (form.enabled !== original.enabled) {
+      updates.webhook_enabled = form.enabled
+    }
+    if (form.url !== original.url) {
+      updates.webhook_url = form.url
+    }
+    if (form.secret !== original.secret) {
+      updates.webhook_secret = form.secret
+    }
+    if (form.events.join(',') !== original.events.join(',')) {
+      updates.webhook_events = form.events.join(',')
+    }
+    if (form.timeout !== original.timeout) {
+      updates.webhook_timeout = form.timeout
+    }
+    if (form.max_attempts !== original.max_attempts) {
+      updates.webhook_max_attempts = form.max_attempts
+    }
+
+    if (Object.keys(updates).length === 0) {
+      toast.success(t('webhook.noChanges'))
+      return
+    }
+
+    await updateSystemConfig(updates)
+    webhookOriginal.value = { ...form }
+
+    toast.success(t('webhook.saveSuccess'))
+  } catch (error: any) {
+    console.error('Failed to update webhook config:', error)
+    toast.error(error.response?.data?.detail || t('webhook.saveError'))
+  } finally {
+    webhookSaving.value = false
+  }
+}
+
+/**
+ * 测试 Webhook 投递（使用已保存的配置，先保存表单再测）
+ */
+async function handleTestWebhook() {
+  try {
+    webhookTesting.value = true
+
+    const result = await testWebhookConnection()
+
+    if (result.success) {
+      toast.success(t('webhook.testSuccess', { code: result.status_code }))
+    } else {
+      toast.error(result.error || `${t('webhook.testFailed')} (HTTP ${result.status_code ?? '-'})`)
+    }
+  } catch (error: any) {
+    console.error('Failed to test webhook connection:', error)
+    toast.error(error.response?.data?.detail || t('webhook.testError'))
+  } finally {
+    webhookTesting.value = false
+  }
+}
+
+/**
+ * 加载最近 20 条投递记录
+ */
+async function loadWebhookDeliveries() {
+  try {
+    const response = await getWebhookDeliveries({ page: 1, page_size: 20 })
+    webhookDeliveries.value = response.data.items
+  } catch (error: any) {
+    console.error('Failed to load webhook deliveries:', error)
+    toast.error(t('webhook.deliveriesLoadError'))
+  }
+}
+
+function formatWebhookStatus(status: string): string {
+  const map: Record<string, string> = {
+    delivered: t('webhook.statusDelivered'),
+    pending: t('webhook.statusPending'),
+    failed: t('webhook.statusFailed'),
+    dead: t('webhook.statusDead'),
+  }
+  return map[status] || status
+}
+
+function webhookStatusClass(status: string): string {
+  if (status === 'delivered') return 'bg-green-100 text-green-800'
+  if (status === 'dead' || status === 'failed') return 'bg-red-100 text-red-800'
+  return 'bg-yellow-100 text-yellow-800'
+}
+
 onMounted(() => {
   loadConfig()
   loadImageCaptionConfig()
+  loadWebhookConfig()
+  loadWebhookDeliveries()
+  loadAuditLogs(1)
 })
 </script>

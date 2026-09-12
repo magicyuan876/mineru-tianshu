@@ -127,6 +127,7 @@ class TaskScheduler:
         health_check_counter = 0
         stale_task_counter = 0
         cleanup_counter = 0
+        webhook_counter = 0
 
         async with aiohttp.ClientSession() as session:
             while self.running:
@@ -182,6 +183,18 @@ class TaskScheduler:
                     except Exception as e:
                         logger.error(f"Failed to resync Redis queue: {e}")
 
+                    # 3.6 Webhook 到期投递：约每 30 秒扫一次 pending 队列，
+                    # 单条失败仅影响该 delivery，不能拖垮调度器主循环
+                    webhook_counter += 1
+                    if webhook_counter * self.monitor_interval >= 30:
+                        webhook_counter = 0
+                        try:
+                            from webhook.dispatcher import process_pending_deliveries
+
+                            await asyncio.to_thread(process_pending_deliveries)
+                        except Exception as e:
+                            logger.error(f"Failed to process webhook deliveries: {e}")
+
                     # 4. 定期清理旧任务文件
                     cleanup_counter += 1
                     # 每24小时清理一次
@@ -196,6 +209,19 @@ class TaskScheduler:
                                     logger.info(f"✅ Cleaned up {record_count} old tasks")
                             except Exception as e:
                                 logger.error(f"Failed to cleanup old tasks: {e}")
+
+                        # 过期审计日志清理（保留期走 system_config 的 audit_retention_days，读取端默认 90 天）
+                        try:
+                            from auth.system_config import SystemConfig
+                            from auth.audit import cleanup_expired_audit_logs
+
+                            raw_retention = SystemConfig().get_config("audit_retention_days")
+                            retention_days = int(raw_retention) if raw_retention else 90
+                            deleted_logs = cleanup_expired_audit_logs(retention_days)
+                            if deleted_logs > 0:
+                                logger.info(f"🧹 Cleaned up {deleted_logs} audit logs older than {retention_days} days")
+                        except Exception as e:
+                            logger.error(f"Failed to cleanup expired audit logs: {e}")
 
                     # 等待下一次监控
                     await asyncio.sleep(self.monitor_interval)

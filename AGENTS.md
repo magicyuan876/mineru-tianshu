@@ -55,6 +55,7 @@ mineru-tianshu/
 │   ├── format_engines/        # 插件化格式引擎（FASTA、GenBank 为参考实现）
 │   ├── remove_watermark/      # 水印去除（YOLO11x + LaMa）
 │   ├── image_caption/         # 图片描述（多模态大模型，OpenAI 兼容接口，配置存 system_config 表）
+│   ├── webhook/               # Webhook 任务通知（投递表 + HMAC 签名 + SSRF 防护，调度器周期投递）
 │   ├── output_normalizer/     # 输出标准化（统一 result.md/result.json/images/）
 │   ├── storage/               # RustFS S3 客户端（图片上传、URL 替换）
 │   ├── utils/                 # 工具函数
@@ -174,6 +175,11 @@ npm run build     # tsc && vite build → dist/
 ### 格式引擎插件系统
 
 新增文档格式：继承 `backend/format_engines/base.py` 的 `FormatEngine`，设置 `SUPPORTED_EXTENSIONS` / `FORMAT_NAME` / `FORMAT_DESCRIPTION`，实现 `parse()` 返回 `{format, markdown, json_content, metadata, summary}`，然后在 `format_engines/__init__.py` 中注册。注册后同时支持显式 `backend` 值和 `auto` 检测，并出现在 `GET /api/v1/engines` 中。FASTA 和 GenBank 是参考实现。
+
+### Webhook 与审计日志
+
+- **Webhook**：任务进入终态（completed/failed）时，`litserve_worker.py` 调用 `webhook.dispatcher.enqueue_task_event` 写入 `webhook_deliveries` 表（子任务不触发，父任务在合并完成后触发一次）；`task_scheduler` 每约 30 秒扫描到期投递并投递（指数退避，上限由 `webhook_max_attempts` 控制）。回调只含任务元数据（不含解析结果），签名头为 `X-Tianshu-Signature: sha256=HMAC(secret, "{timestamp}.{body}")`；所有 URL 投递前过 SSRF 校验（禁内网/回环/保留地址，httpx 固定 `trust_env=False` 防代理绕过）。全局配置在系统配置页（`webhook_*` 键），任务级在提交时传 `webhook_url` 表单参数。触发与投递全程 fire-and-forget，绝不能影响任务主流程。
+- **审计日志**：`auth/audit.py::record_audit`（fire-and-forget）记录认证事件、配置变更（只记键名不记值）、任务高危操作到 `audit_logs` 表；查询走 `GET /api/v1/admin/audit-logs`（仅管理员）；保留期 `audit_retention_days`（默认 90 天）由调度器每日清理。
 
 ### 认证
 

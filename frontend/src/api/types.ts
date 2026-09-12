@@ -373,6 +373,59 @@ export interface SystemConfigUpdateRequest {
   image_caption_max_images?: number
   image_caption_concurrency?: number
   image_caption_timeout?: number
+  webhook_enabled?: boolean
+  webhook_url?: string
+  webhook_secret?: string
+  webhook_events?: string
+  webhook_timeout?: number
+  webhook_max_attempts?: number
+}
+
+// Webhook 通知配置
+export interface WebhookConfig {
+  enabled: boolean
+  url: string
+  secret: string
+  events: string[]
+  timeout: number
+  max_attempts: number
+}
+
+// Webhook 配置响应
+export interface WebhookConfigResponse {
+  success: boolean
+  config: WebhookConfig
+}
+
+// Webhook 测试投递结果
+export interface WebhookTestResult {
+  success: boolean
+  status_code?: number
+  error?: string
+}
+
+// Webhook 投递记录
+export interface WebhookDeliveryItem {
+  delivery_id: string
+  task_id: string | null
+  event: string
+  url: string
+  status: string
+  attempts: number
+  last_error: string | null
+  created_at: string
+  delivered_at: string | null
+}
+
+// Webhook 投递记录分页响应
+export interface WebhookDeliveriesResponse {
+  success: boolean
+  data: {
+    items: WebhookDeliveryItem[]
+    total: number
+    page: number
+    page_size: number
+  }
 }
 
 // 图片描述（多模态大模型）配置
@@ -398,4 +451,43 @@ export interface ImageCaptionTestResult {
   success: boolean
   message: string
   latency_ms: number
+}
+
+// ==================== 审计日志类型 ====================
+
+// 审计日志条目
+export interface AuditLogItem {
+  id: number
+  created_at: string
+  user_id: string | null
+  username: string | null
+  action: string
+  resource_type: string | null
+  resource_id: string | null
+  detail: string | null
+  ip: string | null
+  user_agent: string | null
+  result: string
+}
+
+// 审计日志查询参数
+export interface AuditLogQuery {
+  user_id?: string
+  action?: string
+  result?: string
+  start?: string
+  end?: string
+  page?: number
+  page_size?: number
+}
+
+// 审计日志分页响应
+export interface AuditLogsResponse {
+  success: boolean
+  data: {
+    items: AuditLogItem[]
+    total: number
+    page: number
+    page_size: number
+  }
 }
