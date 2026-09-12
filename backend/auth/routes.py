@@ -5,7 +5,7 @@ MinerU Tianshu - Authentication Routes
 提供用户注册、登录、API Key 管理、SSO 等接口
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Request, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Query, status, Request, UploadFile, File
 from fastapi.responses import RedirectResponse
 from typing import List
 from datetime import datetime, timedelta
@@ -33,6 +33,7 @@ from .dependencies import (
 )
 from .sso import get_sso_config, create_sso_provider, OIDC_AVAILABLE
 from .system_config import SystemConfig
+from .audit import record_audit
 from storage.rustfs_client import get_rustfs_client
 
 # 创建路由
@@ -40,7 +41,7 @@ router = APIRouter(prefix="/api/v1/auth", tags=["Authentication"])
 
 
 @router.post("/register", response_model=User, status_code=status.HTTP_201_CREATED)
-async def register(user_data: RegisterRequest, auth_db: AuthDB = Depends(get_auth_db)):
+async def register(user_data: RegisterRequest, request: Request, auth_db: AuthDB = Depends(get_auth_db)):
     """
     用户注册
 
@@ -82,10 +83,18 @@ async def register(user_data: RegisterRequest, auth_db: AuthDB = Depends(get_aut
             )
         )
         logger.info(f"✅ User registered: {user.username} ({user.email})")
+        record_audit("auth.register", user=user, request=request, resource_type="user", resource_id=user.user_id)
         return user
     except ValueError as e:
         # 不回显具体冲突字段，防止账号枚举
         logger.warning(f"⚠️ Registration failed for username '{user_data.username}': {e}")
+        record_audit(
+            "auth.register",
+            request=request,
+            resource_type="user",
+            detail={"username": user_data.username},
+            result="failure",
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Registration failed, please try different credentials",
@@ -93,7 +102,7 @@ async def register(user_data: RegisterRequest, auth_db: AuthDB = Depends(get_aut
 
 
 @router.post("/login", response_model=Token)
-async def login(credentials: UserLogin, auth_db: AuthDB = Depends(get_auth_db)):
+async def login(credentials: UserLogin, request: Request, auth_db: AuthDB = Depends(get_auth_db)):
     """
     用户登录
 
@@ -102,6 +111,14 @@ async def login(credentials: UserLogin, auth_db: AuthDB = Depends(get_auth_db)):
     user = auth_db.authenticate_user(credentials.username, credentials.password)
 
     if not user:
+        # 只记用户名，绝不记密码
+        record_audit(
+            "auth.login_failed",
+            request=request,
+            resource_type="user",
+            detail={"username": credentials.username},
+            result="failure",
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
@@ -109,8 +126,14 @@ async def login(credentials: UserLogin, auth_db: AuthDB = Depends(get_auth_db)):
         )
 
     if not user.is_active:
+        record_audit(
+            "auth.login_failed",
+            request=request,
+            resource_type="user",
+            detail={"username": credentials.username, "reason": "account_disabled"},
+            result="denied",
+        )
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User account is disabled")
-
     # 生成 JWT Token（携带当前令牌代次，改密后旧令牌失效）
     access_token = create_access_token(
         user_id=user.user_id,
@@ -121,6 +144,7 @@ async def login(credentials: UserLogin, auth_db: AuthDB = Depends(get_auth_db)):
     )
 
     logger.info(f"✅ User logged in: {user.username}")
+    record_audit("auth.login", user=user, request=request, resource_type="user", resource_id=user.user_id)
 
     return Token(access_token=access_token, token_type="bearer", expires_in=JWT_EXPIRE_MINUTES * 60)
 
@@ -147,6 +171,9 @@ async def logout(
                 auth_db.revoke_token(jti, current_user.user_id, datetime.utcfromtimestamp(exp))
                 logger.info(f"✅ Token revoked on logout: {current_user.username} (jti: {jti[:8]}...)")
 
+    record_audit(
+        "auth.logout", user=current_user, request=request, resource_type="user", resource_id=current_user.user_id
+    )
     return {"success": True}
 
 
@@ -193,6 +220,7 @@ async def update_current_user(
 @router.post("/me/change-password")
 async def change_password(
     password_data: PasswordChange,
+    request: Request,
     current_user: User = Depends(get_current_active_user),
     auth_db: AuthDB = Depends(get_auth_db),
 ):
@@ -210,11 +238,26 @@ async def change_password(
 
         if success:
             logger.info(f"✅ Password changed: {current_user.username}")
+            record_audit(
+                "auth.change_password",
+                user=current_user,
+                request=request,
+                resource_type="user",
+                resource_id=current_user.user_id,
+            )
             return {"success": True, "message": "Password changed successfully"}
         else:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to change password")
 
     except ValueError as e:
+        record_audit(
+            "auth.change_password",
+            user=current_user,
+            request=request,
+            resource_type="user",
+            resource_id=current_user.user_id,
+            result="failure",
+        )
         error_message = str(e)
         if "Incorrect old password" in error_message:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Incorrect old password")
@@ -230,6 +273,7 @@ async def change_password(
 @router.post("/apikeys", response_model=APIKeyResponse, status_code=status.HTTP_201_CREATED)
 async def create_api_key(
     key_data: APIKeyCreate,
+    request: Request,
     current_user: User = Depends(require_permission(Permission.APIKEY_CREATE)),
     auth_db: AuthDB = Depends(get_auth_db),
 ):
@@ -246,6 +290,16 @@ async def create_api_key(
     )
 
     logger.info(f"✅ API Key created: {key_info['prefix']}... for user {current_user.username}")
+
+    # 只记 key 名称与权限范围，绝不记 key 本体
+    record_audit(
+        "api_key.create",
+        user=current_user,
+        request=request,
+        resource_type="api_key",
+        resource_id=key_info["key_id"],
+        detail={"name": key_data.name, "scopes": key_data.scopes},
+    )
 
     return APIKeyResponse(
         key_id=key_info["key_id"],
@@ -274,6 +328,7 @@ async def list_api_keys(
 @router.delete("/apikeys/{key_id}")
 async def delete_api_key(
     key_id: str,
+    request: Request,
     current_user: User = Depends(require_permission(Permission.APIKEY_DELETE)),
     auth_db: AuthDB = Depends(get_auth_db),
 ):
@@ -288,6 +343,13 @@ async def delete_api_key(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="API Key not found")
 
     logger.info(f"✅ API Key deleted: {key_id} by user {current_user.username}")
+    record_audit(
+        "api_key.delete",
+        user=current_user,
+        request=request,
+        resource_type="api_key",
+        resource_id=key_id,
+    )
     return {"success": True, "message": "API Key deleted successfully"}
 
 
@@ -529,6 +591,7 @@ async def get_system_config():
 @router.post("/system/config")
 async def update_system_config(
     config_data: dict,
+    request: Request,
     current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """
@@ -562,16 +625,23 @@ async def update_system_config(
         "image_caption_max_images",
         "image_caption_concurrency",
         "image_caption_timeout",
+        # Webhook 任务完成通知配置
+        "webhook_enabled",
+        "webhook_url",
+        "webhook_secret",
+        "webhook_events",
+        "webhook_timeout",
+        "webhook_max_attempts",
     }
     update_data = {}
 
     for key, value in config_data.items():
         if key in allowed_keys:
             # 掩码占位符表示前端未修改，跳过不更新
-            if key in {"image_caption_api_key", "registration_invite_code"} and value == "********":
+            if key in {"image_caption_api_key", "registration_invite_code", "webhook_secret"} and value == "********":
                 continue
             # 转换布尔值配置项为字符串
-            if key in {"show_github_star", "allow_registration", "image_caption_enabled"}:
+            if key in {"show_github_star", "allow_registration", "image_caption_enabled", "webhook_enabled"}:
                 update_data[key] = "true" if value else "false"
             else:
                 update_data[key] = str(value)
@@ -585,6 +655,15 @@ async def update_system_config(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update configuration")
 
     logger.info(f"✅ System config updated by {current_user.username}: {list(update_data.keys())}")
+
+    # 只记改了哪些配置键名，绝不记值（含 api_key、邀请码等敏感配置）
+    record_audit(
+        "config.update",
+        user=current_user,
+        request=request,
+        resource_type="config",
+        detail={"keys": sorted(update_data.keys())},
+    )
 
     # 返回更新后的配置
     updated_configs = config.get_all_configs()
@@ -700,6 +779,98 @@ async def test_image_caption_connection(
     success, message, latency_ms = await asyncio.to_thread(ImageCaptioner(config).test_connection)
     logger.info(f"🔍 Image caption connection test by {current_user.username}: {success} ({message})")
     return {"success": success, "message": message, "latency_ms": latency_ms}
+
+
+# ==================== Webhook 任务完成通知配置 (管理员) ====================
+
+
+@router.get("/system/config/webhook")
+async def get_webhook_config_endpoint(
+    current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
+):
+    """
+    获取 Webhook 通知配置 (管理员)
+
+    secret 属敏感信息，以掩码返回；公开接口 /system/config 不包含这些配置。
+    """
+    from webhook.config import WEBHOOK_SECRET_MASK, get_webhook_config
+
+    config = get_webhook_config()
+    config["secret"] = WEBHOOK_SECRET_MASK if config["secret"] else ""
+    return {"success": True, "config": config}
+
+
+@router.post("/system/config/webhook/test")
+async def test_webhook_connection(
+    current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
+):
+    """
+    用当前保存的配置立即投递一条 webhook.test 事件 (管理员)
+
+    不走投递队列表，同步投递并返回结果；目标 URL 同样过 SSRF 校验。
+    """
+    import asyncio
+    import uuid
+    from datetime import datetime, timezone
+
+    from webhook.config import get_webhook_config
+    from webhook.delivery import post_webhook, validate_webhook_url
+
+    config = get_webhook_config()
+    if not config["url"]:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Webhook URL 未配置")
+
+    try:
+        validate_webhook_url(config["url"])
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Webhook URL 不合法: {e}")
+
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    payload = {
+        "event": "webhook.test",
+        "task_id": None,
+        "file_name": None,
+        "status": "test",
+        "error_message": None,
+        "created_at": now,
+        "completed_at": now,
+        "result_url": None,
+        "delivery_id": uuid.uuid4().hex,
+    }
+
+    def _deliver():
+        try:
+            code = post_webhook(config["url"], payload, secret=config["secret"], timeout=config["timeout"])
+            return {"success": 200 <= code < 300, "status_code": code}
+        except Exception as e:
+            return {"success": False, "error": f"{type(e).__name__}: {e}"}
+
+    result = await asyncio.to_thread(_deliver)
+    logger.info(f"🔍 Webhook connection test by {current_user.username}: {result}")
+    return result
+
+
+@router.get("/system/webhook/deliveries")
+async def list_webhook_deliveries(
+    page: int = 1,
+    page_size: int = 20,
+    status_filter: str = Query(None, alias="status"),
+    current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
+):
+    """
+    分页查询 Webhook 投递记录 (管理员)
+
+    page_size 上限 100，status_filter 可选（pending/delivered/failed/dead）。
+    """
+    import asyncio
+
+    from webhook.delivery import list_deliveries
+
+    if status_filter and status_filter not in {"pending", "delivered", "failed", "dead"}:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid status filter")
+
+    items, total = await asyncio.to_thread(list_deliveries, page, page_size, status_filter or None)
+    return {"success": True, "data": {"items": items, "total": total, "page": page, "page_size": page_size}}
 
 
 @router.post("/system/logo/upload")

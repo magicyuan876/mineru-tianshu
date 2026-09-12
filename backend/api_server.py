@@ -28,13 +28,16 @@ from starlette.types import ASGIApp, Receive, Scope, Send  # ✅ 用于底层中
 # 导入认证模块
 from auth import (
     User,
+    UserRole,
     Permission,
     get_current_active_user,
     require_permission,
+    require_role,
 )
 from auth.auth_db import AuthDB
 from auth.dependencies import get_current_user_flexible
 from auth.routes import router as auth_router
+from auth.audit import record_audit, query_audit_logs
 from task_db import TaskDB
 from utils import FilenameValidationError, ensure_within_directory, sanitize_filename
 
@@ -278,6 +281,7 @@ async def submit_task(
     remove_watermark: bool = Form(False, description="是否启用水印去除"),
     watermark_conf_threshold: float = Form(0.35, description="水印检测置信度阈值"),
     watermark_dilation: int = Form(10, description="水印掩码膨胀大小"),
+    webhook_url: Optional[str] = Form(None, description="任务级 Webhook 回调地址（任务终态时推送通知）"),
     current_user: User = Depends(require_permission(Permission.TASK_SUBMIT)),
 ):
     # 校验并净化文件名（路径穿越或不支持的类型直接 400）
@@ -285,6 +289,16 @@ async def submit_task(
         safe_name = sanitize_filename(file.filename or "")
     except FilenameValidationError as e:
         raise HTTPException(status_code=400, detail=f"Invalid file name: {e}")
+
+    # 任务级 webhook 地址先做 SSRF 校验，不合法直接拒绝提交
+    webhook_url = (webhook_url or "").strip()
+    if webhook_url:
+        from webhook.delivery import validate_webhook_url
+
+        try:
+            validate_webhook_url(webhook_url)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=f"Invalid webhook_url: {e}")
 
     try:
         # 落盘文件名完全由服务端生成（UUID + 白名单扩展名），不使用任何用户输入
@@ -327,6 +341,9 @@ async def submit_task(
             "watermark_conf_threshold": watermark_conf_threshold,
             "watermark_dilation": watermark_dilation,
         }
+
+        if webhook_url:
+            options["webhook_url"] = webhook_url
 
         options["upload_images"] = os.getenv("RUSTFS_ENABLED", "true").lower() == "true"
 
@@ -516,7 +533,7 @@ def get_task_status(
 
 
 @router.delete("/tasks/{task_id}", tags=["任务管理"])
-def delete_task(task_id: str, current_user: User = Depends(get_current_active_user)):
+def delete_task(task_id: str, request: Request, current_user: User = Depends(get_current_active_user)):
     """
     【重构】彻底删除任务及其本地文件
     不仅取消 pending 的任务，还会物理抹除文件和数据库记录。
@@ -539,17 +556,34 @@ def delete_task(task_id: str, current_user: User = Depends(get_current_active_us
         cursor.execute("DELETE FROM tasks WHERE task_id = ?", (task_id,))
 
     logger.info(f"🗑️ Task completely deleted: {task_id} by user {current_user.username}")
+    record_audit(
+        "task.delete",
+        user=current_user,
+        request=request,
+        resource_type="task",
+        resource_id=task_id,
+        detail={"file_name": task.get("file_name")},
+    )
     return {"success": True, "message": "Task and files completely deleted."}
 
 
 @router.delete("/tasks/failed/clear", tags=["任务管理"])
-def clear_failed_tasks_endpoint(current_user: User = Depends(require_permission(Permission.TASK_DELETE_ALL))):
+def clear_failed_tasks_endpoint(
+    request: Request, current_user: User = Depends(require_permission(Permission.TASK_DELETE_ALL))
+):
     """
     【重构】一键清理所有失败的任务，包含物理清除文件
     """
     deleted_count = db.clear_failed_tasks()
 
     logger.info(f"🧹 Cleared {deleted_count} failed tasks from DB and Disk by {current_user.username}.")
+    record_audit(
+        "task.clear_failed",
+        user=current_user,
+        request=request,
+        resource_type="task",
+        detail={"deleted_count": deleted_count},
+    )
     return {
         "success": True,
         "deleted_count": deleted_count,
@@ -644,7 +678,7 @@ def resume_task_endpoint(task_id: str, current_user: User = Depends(get_current_
 
 
 @router.post("/tasks/{task_id}/clear-cache", tags=["任务管理"])
-def clear_task_cache_endpoint(task_id: str, current_user: User = Depends(get_current_active_user)):
+def clear_task_cache_endpoint(task_id: str, request: Request, current_user: User = Depends(get_current_active_user)):
     """
     清理任务缓存：删除解析产物并标记 result_path 为已清理
     """
@@ -658,6 +692,14 @@ def clear_task_cache_endpoint(task_id: str, current_user: User = Depends(get_cur
 
     try:
         if db.clear_task_cache(task_id):
+            record_audit(
+                "task.clear_cache",
+                user=current_user,
+                request=request,
+                resource_type="task",
+                resource_id=task_id,
+                detail={"file_name": task.get("file_name")},
+            )
             return {"success": True, "message": "Task cache cleared, space freed"}
     except Exception as e:
         logger.error(f"❌ Failed to clear cache for task {task_id}: {e}")
@@ -740,11 +782,19 @@ def list_tasks(
 
 @router.post("/admin/cleanup", tags=["系统管理"])
 def cleanup_old_tasks(
+    request: Request,
     days: int = Query(7, description="清理N天前的任务"),
     current_user: User = Depends(require_permission(Permission.QUEUE_MANAGE)),
 ):
     deleted_count = db.cleanup_old_task_records(days)
     logger.info(f"🧹 Cleaned up {deleted_count} old tasks by {current_user.username}")
+    record_audit(
+        "admin.cleanup",
+        user=current_user,
+        request=request,
+        resource_type="task",
+        detail={"days": days, "deleted_count": deleted_count},
+    )
     return {
         "success": True,
         "deleted_count": deleted_count,
@@ -754,15 +804,59 @@ def cleanup_old_tasks(
 
 @router.post("/admin/reset-stale", tags=["系统管理"])
 def reset_stale_tasks(
+    request: Request,
     timeout_minutes: int = Query(60, description="超时时间（分钟）"),
     current_user: User = Depends(require_permission(Permission.QUEUE_MANAGE)),
 ):
     reset_count = db.reset_stale_tasks(timeout_minutes)
     logger.info(f"🔄 Reset {reset_count} stale tasks by {current_user.username}")
+    record_audit(
+        "admin.reset_stale",
+        user=current_user,
+        request=request,
+        resource_type="task",
+        detail={"timeout_minutes": timeout_minutes, "reset_count": reset_count},
+    )
     return {
         "success": True,
         "reset_count": reset_count,
         "message": f"Reset tasks processing for more than {timeout_minutes} minutes",
+    }
+
+
+@router.get("/admin/audit-logs", tags=["系统管理"])
+def list_audit_logs(
+    user_id: Optional[str] = Query(None, description="按用户ID筛选"),
+    action: Optional[str] = Query(None, description="按动作筛选，如 auth.login"),
+    result: Optional[str] = Query(None, description="按结果筛选: success/failure/denied"),
+    start: Optional[str] = Query(None, description="起始时间 (ISO 格式)"),
+    end: Optional[str] = Query(None, description="结束时间 (ISO 格式)"),
+    page: int = Query(1, ge=1, description="页码"),
+    page_size: int = Query(50, ge=1, le=200, description="每页数量"),
+    current_user: User = Depends(require_role(UserRole.ADMIN)),
+):
+    """
+    查询审计日志 (仅管理员)
+
+    返回内容不含密码、API Key 等敏感信息（写入端已脱敏）。
+    """
+    items, total = query_audit_logs(
+        user_id=user_id,
+        action=action,
+        result=result,
+        start=start,
+        end=end,
+        page=page,
+        page_size=page_size,
+    )
+    return {
+        "success": True,
+        "data": {
+            "items": items,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+        },
     }
 
 
