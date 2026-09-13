@@ -9,7 +9,6 @@ import type {
   ImageCaptionConfigResponse,
   ImageCaptionTestResult,
   WebhookConfigResponse,
-  WebhookTestResult,
   WebhookDeliveriesResponse,
   AuditLogQuery,
   AuditLogsResponse,
@@ -90,18 +89,10 @@ export async function getAuditLogs(params: AuditLogQuery = {}): Promise<AuditLog
 }
 
 /**
- * 获取 Webhook 通知配置（管理员）
+ * 获取 Webhook 投递策略（管理员）
  */
 export async function getWebhookConfig(): Promise<WebhookConfigResponse> {
   const response = await apiClient.get('/api/v1/auth/system/config/webhook')
-  return response.data
-}
-
-/**
- * 测试 Webhook 投递（管理员，使用当前已保存的配置）
- */
-export async function testWebhookConnection(): Promise<WebhookTestResult> {
-  const response = await apiClient.post('/api/v1/auth/system/config/webhook/test')
   return response.data
 }
 

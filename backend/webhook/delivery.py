@@ -72,6 +72,53 @@ def _ensure_table(conn):
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_pending ON webhook_deliveries (status, next_retry_at)"
     )
+    # 原地迁移：投递来源（task/api_key/global）与来源 Key
+    for ddl in (
+        "ALTER TABLE webhook_deliveries ADD COLUMN source TEXT NOT NULL DEFAULT 'global'",
+        "ALTER TABLE webhook_deliveries ADD COLUMN api_key_id TEXT",
+    ):
+        try:
+            conn.execute(ddl)
+        except sqlite3.OperationalError:
+            pass
+
+
+def _ensure_key_webhook_columns(conn):
+    """确保 api_keys 表存在 webhook 配置列
+
+    worker/scheduler 进程可能先于 API 进程触达新库，这里按项目原地迁移惯例自查，
+    与 auth_db 中的迁移幂等共存。
+    """
+    from auth.auth_db import API_KEY_WEBHOOK_COLUMNS
+
+    for ddl in API_KEY_WEBHOOK_COLUMNS.values():
+        try:
+            conn.execute(ddl)
+        except sqlite3.OperationalError:
+            pass
+
+
+def get_key_webhook(key_id: str) -> Optional[dict]:
+    """读取 Key 级 webhook 配置并归一化（与全局配置同形，供投递时取用）"""
+    conn = _get_conn()
+    try:
+        _ensure_key_webhook_columns(conn)
+        row = conn.execute("SELECT * FROM api_keys WHERE key_id = ?", (key_id,)).fetchone()
+    finally:
+        conn.close()
+    if not row:
+        return None
+    return {
+        "enabled": bool(row["webhook_enabled"]),
+        "url": (row["webhook_url"] or "").strip(),
+        "secret": row["webhook_secret"] or "",
+        "auth_type": row["webhook_auth_type"] or "none",
+        "auth_token": row["webhook_auth_token"] or "",
+        "auth_username": row["webhook_auth_username"] or "",
+        "auth_password": row["webhook_auth_password"] or "",
+        "auth_header_name": row["webhook_auth_header_name"] or "X-API-Key",
+        "auth_header_value": row["webhook_auth_header_value"] or "",
+    }
 
 
 def validate_webhook_url(url: str) -> None:
@@ -152,7 +199,9 @@ def post_webhook(url: str, payload: dict, secret: str = "", timeout: int = 10, a
     return resp.status_code
 
 
-def insert_delivery(task_id: Optional[str], event: str, url: str, payload: dict) -> str:
+def insert_delivery(
+    task_id: Optional[str], event: str, url: str, payload: dict, source: str = "global", api_key_id: str = None
+) -> str:
     """写入一条待投递记录，立即到期等待调度器扫描"""
     delivery_id = uuid.uuid4().hex
     payload = {**payload, "delivery_id": delivery_id}
@@ -162,10 +211,20 @@ def insert_delivery(task_id: Optional[str], event: str, url: str, payload: dict)
         conn.execute(
             """
             INSERT INTO webhook_deliveries
-                (delivery_id, task_id, event, url, payload, status, attempts, next_retry_at, created_at)
-            VALUES (?, ?, ?, ?, ?, 'pending', 0, ?, ?)
+                (delivery_id, task_id, event, url, payload, status, attempts, next_retry_at, created_at, source, api_key_id)
+            VALUES (?, ?, ?, ?, ?, 'pending', 0, ?, ?, ?, ?)
             """,
-            (delivery_id, task_id, event, url, json.dumps(payload, ensure_ascii=False), _now_str(), _now_str()),
+            (
+                delivery_id,
+                task_id,
+                event,
+                url,
+                json.dumps(payload, ensure_ascii=False),
+                _now_str(),
+                _now_str(),
+                source,
+                api_key_id,
+            ),
         )
         conn.commit()
     finally:
@@ -262,7 +321,7 @@ def list_deliveries(page: int = 1, page_size: int = 20, status_filter: Optional[
         total = conn.execute(f"SELECT COUNT(*) AS c FROM webhook_deliveries {where}", params).fetchone()["c"]
         rows = conn.execute(
             f"""
-            SELECT delivery_id, task_id, event, url, status, attempts, last_error, created_at, delivered_at
+            SELECT delivery_id, task_id, event, url, status, attempts, last_error, created_at, delivered_at, source
             FROM webhook_deliveries {where}
             ORDER BY created_at DESC LIMIT ? OFFSET ?
             """,

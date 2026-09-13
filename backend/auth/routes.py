@@ -22,6 +22,7 @@ from .models import (
     Token,
     APIKeyCreate,
     APIKeyResponse,
+    APIKeyWebhookUpdate,
     Permission,
 )
 from .auth_db import AuthDB
@@ -30,6 +31,7 @@ from .dependencies import (
     get_auth_db,
     get_current_active_user,
     require_permission,
+    require_role,
 )
 from .sso import get_sso_config, create_sso_provider, OIDC_AVAILABLE
 from .system_config import SystemConfig
@@ -353,6 +355,175 @@ async def delete_api_key(
     return {"success": True, "message": "API Key deleted successfully"}
 
 
+# ==================== Key 级 Webhook 回调配置 ====================
+
+# 敏感字段掩码：接口只回显掩码，前端发回掩码表示不修改
+_KEY_WEBHOOK_MASK = "********"
+
+
+def _serialize_key_webhook(row: dict) -> dict:
+    """Key 级 webhook 配置脱敏序列化（敏感字段只回显掩码）"""
+
+    def mask(value) -> str:
+        return _KEY_WEBHOOK_MASK if value else ""
+
+    return {
+        "enabled": bool(row.get("webhook_enabled")),
+        "url": row.get("webhook_url") or "",
+        "secret": mask(row.get("webhook_secret")),
+        "auth_type": row.get("webhook_auth_type") or "none",
+        "auth_token": mask(row.get("webhook_auth_token")),
+        "auth_username": row.get("webhook_auth_username") or "",
+        "auth_password": mask(row.get("webhook_auth_password")),
+        "auth_header_name": row.get("webhook_auth_header_name") or "X-API-Key",
+        "auth_header_value": mask(row.get("webhook_auth_header_value")),
+    }
+
+
+def _get_key_webhook_row(auth_db: AuthDB, key_id: str, current_user: User) -> dict:
+    """读取 Key 配置行并校验归属：非所有者且非管理员一律 404，不暴露 Key 存在性"""
+    row = auth_db.get_api_key_webhook(key_id)
+    if not row or (row["user_id"] != current_user.user_id and not current_user.has_role(UserRole.ADMIN)):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="API Key not found")
+    return row
+
+
+@router.get("/apikeys/{key_id}/webhook")
+async def get_api_key_webhook(
+    key_id: str,
+    current_user: User = Depends(require_permission(Permission.APIKEY_LIST_OWN)),
+    auth_db: AuthDB = Depends(get_auth_db),
+):
+    """
+    读取 Key 级 webhook 回调配置
+
+    使用该 Key 提交的任务进入终态时，向此地址推送通知（优先于全局 webhook）。
+    敏感字段只回显掩码。
+    """
+    row = _get_key_webhook_row(auth_db, key_id, current_user)
+    return {"success": True, "webhook": _serialize_key_webhook(row)}
+
+
+@router.put("/apikeys/{key_id}/webhook")
+async def update_api_key_webhook(
+    key_id: str,
+    body: APIKeyWebhookUpdate,
+    request: Request,
+    current_user: User = Depends(require_permission(Permission.APIKEY_CREATE)),
+    auth_db: AuthDB = Depends(get_auth_db),
+):
+    """
+    更新 Key 级 webhook 回调配置（Key 所有者自助，管理员可改任意 Key）
+
+    敏感字段传掩码或缺省表示保持原值，传空字符串表示清除。
+    """
+    row = _get_key_webhook_row(auth_db, key_id, current_user)
+
+    url = body.url.strip()
+    if body.enabled and not url:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Webhook URL is required when enabled")
+
+    def resolve(new, old):
+        # None（缺省）或掩码表示保持原值
+        return old if new is None or new == _KEY_WEBHOOK_MASK else new
+
+    config = {
+        "webhook_enabled": 1 if body.enabled else 0,
+        "webhook_url": url,
+        "webhook_secret": resolve(body.secret, row.get("webhook_secret")),
+        "webhook_auth_type": body.auth_type,
+        "webhook_auth_token": resolve(body.auth_token, row.get("webhook_auth_token")),
+        "webhook_auth_username": resolve(body.auth_username, row.get("webhook_auth_username")),
+        "webhook_auth_password": resolve(body.auth_password, row.get("webhook_auth_password")),
+        "webhook_auth_header_name": resolve(body.auth_header_name, row.get("webhook_auth_header_name")),
+        "webhook_auth_header_value": resolve(body.auth_header_value, row.get("webhook_auth_header_value")),
+    }
+
+    # 管理员可改任意 Key，普通用户限定自己的 Key
+    owner_scope = None if current_user.has_role(UserRole.ADMIN) else current_user.user_id
+    auth_db.update_api_key_webhook(key_id, config, user_id=owner_scope)
+
+    logger.info(f"✅ API Key webhook updated: {key_id} by user {current_user.username} (enabled={body.enabled})")
+    record_audit(
+        "api_key.webhook_update",
+        user=current_user,
+        request=request,
+        resource_type="api_key",
+        resource_id=key_id,
+        detail={"enabled": body.enabled, "url": url},
+    )
+    return {"success": True, "webhook": _serialize_key_webhook(auth_db.get_api_key_webhook(key_id))}
+
+
+@router.post("/apikeys/{key_id}/webhook/test")
+async def test_api_key_webhook(
+    key_id: str,
+    current_user: User = Depends(require_permission(Permission.APIKEY_CREATE)),
+    auth_db: AuthDB = Depends(get_auth_db),
+):
+    """
+    用该 Key 已保存的回调配置立即投递一条 webhook.test 事件
+
+    不走投递队列表，同步投递并返回结果；目标 URL 同样过 SSRF 校验。
+    """
+    import asyncio
+    import uuid
+    from datetime import datetime, timezone
+
+    from webhook.config import get_webhook_config
+    from webhook.delivery import get_key_webhook, post_webhook, validate_webhook_url
+
+    _get_key_webhook_row(auth_db, key_id, current_user)
+    key_cfg = get_key_webhook(key_id)
+    if not key_cfg or not key_cfg["url"]:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Webhook URL 未配置，请先保存")
+
+    try:
+        validate_webhook_url(key_cfg["url"])
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Webhook URL 不合法: {e}")
+
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    payload = {
+        "event": "webhook.test",
+        "task_id": None,
+        "file_name": None,
+        "status": "test",
+        "error_message": None,
+        "created_at": now,
+        "completed_at": now,
+        "result_url": None,
+        "delivery_id": uuid.uuid4().hex,
+    }
+
+    timeout = get_webhook_config()["timeout"]
+
+    def _deliver():
+        try:
+            code = post_webhook(key_cfg["url"], payload, secret=key_cfg["secret"], timeout=timeout, auth=key_cfg)
+            return {"success": 200 <= code < 300, "status_code": code}
+        except Exception as e:
+            return {"success": False, "error": f"{type(e).__name__}: {e}"}
+
+    result = await asyncio.to_thread(_deliver)
+    logger.info(f"🔍 API Key webhook test by {current_user.username} (key {key_id}): {result}")
+    return result
+
+
+@router.get("/admin/apikeys")
+async def list_all_api_keys(
+    current_user: User = Depends(require_role(UserRole.ADMIN)),
+    auth_db: AuthDB = Depends(get_auth_db),
+):
+    """
+    列出全部 API Key（仅管理员）
+
+    含归属用户名与 webhook 回调配置摘要，用于管理员掌握各对接方的回调配置情况。
+    """
+    keys = auth_db.list_all_api_keys()
+    return {"success": True, "count": len(keys), "api_keys": keys}
+
+
 # ==================== 用户管理 (需要管理员权限) ====================
 
 
@@ -625,20 +796,9 @@ async def update_system_config(
         "image_caption_max_images",
         "image_caption_concurrency",
         "image_caption_timeout",
-        # Webhook 任务完成通知配置
-        "webhook_enabled",
-        "webhook_url",
-        "webhook_secret",
-        "webhook_events",
+        # Webhook 投递策略（回调地址与密钥按 API Key 维度配置，见 Key 级端点）
         "webhook_timeout",
         "webhook_max_attempts",
-        # Webhook 出站请求鉴权
-        "webhook_auth_type",
-        "webhook_auth_token",
-        "webhook_auth_username",
-        "webhook_auth_password",
-        "webhook_auth_header_name",
-        "webhook_auth_header_value",
     }
     update_data = {}
 
@@ -650,16 +810,12 @@ async def update_system_config(
                 in {
                     "image_caption_api_key",
                     "registration_invite_code",
-                    "webhook_secret",
-                    "webhook_auth_token",
-                    "webhook_auth_password",
-                    "webhook_auth_header_value",
                 }
                 and value == "********"
             ):
                 continue
             # 转换布尔值配置项为字符串
-            if key in {"show_github_star", "allow_registration", "image_caption_enabled", "webhook_enabled"}:
+            if key in {"show_github_star", "allow_registration", "image_caption_enabled"}:
                 update_data[key] = "true" if value else "false"
             else:
                 update_data[key] = str(value)
@@ -799,7 +955,7 @@ async def test_image_caption_connection(
     return {"success": success, "message": message, "latency_ms": latency_ms}
 
 
-# ==================== Webhook 任务完成通知配置 (管理员) ====================
+# ==================== Webhook 投递策略配置 (管理员) ====================
 
 
 @router.get("/system/config/webhook")
@@ -807,68 +963,14 @@ async def get_webhook_config_endpoint(
     current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """
-    获取 Webhook 通知配置 (管理员)
+    获取 Webhook 投递策略 (管理员)
 
-    secret 属敏感信息，以掩码返回；公开接口 /system/config 不包含这些配置。
+    回调地址与密钥按 API Key 维度配置（见 /apikeys/{key_id}/webhook），
+    这里只返回全局投递策略（超时与最大重试次数）。
     """
-    from webhook.config import WEBHOOK_SECRET_MASK, get_webhook_config
-
-    config = get_webhook_config()
-    config["secret"] = WEBHOOK_SECRET_MASK if config["secret"] else ""
-    # 鉴权敏感字段同样只回显掩码；username/header_name 非敏感，明文回显
-    for key in ("auth_token", "auth_password", "auth_header_value"):
-        config[key] = WEBHOOK_SECRET_MASK if config[key] else ""
-    return {"success": True, "config": config}
-
-
-@router.post("/system/config/webhook/test")
-async def test_webhook_connection(
-    current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
-):
-    """
-    用当前保存的配置立即投递一条 webhook.test 事件 (管理员)
-
-    不走投递队列表，同步投递并返回结果；目标 URL 同样过 SSRF 校验。
-    """
-    import asyncio
-    import uuid
-    from datetime import datetime, timezone
-
     from webhook.config import get_webhook_config
-    from webhook.delivery import post_webhook, validate_webhook_url
 
-    config = get_webhook_config()
-    if not config["url"]:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Webhook URL 未配置")
-
-    try:
-        validate_webhook_url(config["url"])
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Webhook URL 不合法: {e}")
-
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
-    payload = {
-        "event": "webhook.test",
-        "task_id": None,
-        "file_name": None,
-        "status": "test",
-        "error_message": None,
-        "created_at": now,
-        "completed_at": now,
-        "result_url": None,
-        "delivery_id": uuid.uuid4().hex,
-    }
-
-    def _deliver():
-        try:
-            code = post_webhook(config["url"], payload, secret=config["secret"], timeout=config["timeout"], auth=config)
-            return {"success": 200 <= code < 300, "status_code": code}
-        except Exception as e:
-            return {"success": False, "error": f"{type(e).__name__}: {e}"}
-
-    result = await asyncio.to_thread(_deliver)
-    logger.info(f"🔍 Webhook connection test by {current_user.username}: {result}")
-    return result
+    return {"success": True, "config": get_webhook_config()}
 
 
 @router.get("/system/webhook/deliveries")

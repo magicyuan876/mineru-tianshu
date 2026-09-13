@@ -180,6 +180,14 @@ class TaskDB:
                 cursor.execute("ALTER TABLE tasks ADD COLUMN data TEXT")
                 logger.info("✅ data field added")
 
+            # 迁移：添加 api_key_id 字段（记录提交任务所用的 API Key，供 Key 级 webhook 路由）
+            try:
+                cursor.execute("SELECT api_key_id FROM tasks LIMIT 1")
+            except sqlite3.OperationalError:
+                logger.info("📊 Migrating database schema: adding api_key_id field")
+                cursor.execute("ALTER TABLE tasks ADD COLUMN api_key_id TEXT")
+                logger.info("✅ api_key_id field added")
+
     def create_task(
         self,
         file_name: str,
@@ -188,6 +196,7 @@ class TaskDB:
         options: dict = None,
         priority: int = 0,
         user_id: str = None,
+        api_key_id: str = None,
     ) -> str:
         """
         创建新任务
@@ -196,10 +205,10 @@ class TaskDB:
         with self.get_cursor() as cursor:
             cursor.execute(
                 """
-                INSERT INTO tasks (task_id, file_name, file_path, backend, options, priority, user_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO tasks (task_id, file_name, file_path, backend, options, priority, user_id, api_key_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
-                (task_id, file_name, file_path, backend, json.dumps(options or {}), priority, user_id),
+                (task_id, file_name, file_path, backend, json.dumps(options or {}), priority, user_id, api_key_id),
             )
 
         # 入队到 Redis（如果可用）

@@ -11,6 +11,10 @@ import type {
   APIKeyCreate,
   APIKeyResponse,
   APIKeyListResponse,
+  APIKeyWebhookConfig,
+  APIKeyWebhookResponse,
+  AdminAPIKeyListResponse,
+  WebhookTestResult,
 } from './types'
 
 /**
@@ -80,6 +84,41 @@ export async function getAPIKeys(): Promise<APIKeyListResponse> {
  */
 export async function deleteAPIKey(keyId: string): Promise<void> {
   await apiClient.delete(`/api/v1/auth/apikeys/${keyId}`)
+}
+
+/**
+ * 读取 Key 级 Webhook 回调配置（敏感字段为掩码）
+ */
+export async function getAPIKeyWebhook(keyId: string): Promise<APIKeyWebhookResponse> {
+  const response = await apiClient.get<APIKeyWebhookResponse>(`/api/v1/auth/apikeys/${keyId}/webhook`)
+  return response.data
+}
+
+/**
+ * 更新 Key 级 Webhook 回调配置（掩码/缺省表示保持原值）
+ */
+export async function updateAPIKeyWebhook(
+  keyId: string,
+  data: APIKeyWebhookConfig
+): Promise<APIKeyWebhookResponse> {
+  const response = await apiClient.put<APIKeyWebhookResponse>(`/api/v1/auth/apikeys/${keyId}/webhook`, data)
+  return response.data
+}
+
+/**
+ * 获取全部 API Key 列表（管理员，含归属用户与回调配置摘要）
+ */
+export async function getAllAPIKeys(): Promise<AdminAPIKeyListResponse> {
+  const response = await apiClient.get<AdminAPIKeyListResponse>('/api/v1/auth/admin/apikeys')
+  return response.data
+}
+
+/**
+ * 用该 Key 已保存的回调配置投递一条测试通知
+ */
+export async function testAPIKeyWebhook(keyId: string): Promise<WebhookTestResult> {
+  const response = await apiClient.post<WebhookTestResult>(`/api/v1/auth/apikeys/${keyId}/webhook/test`)
+  return response.data
 }
 
 /**

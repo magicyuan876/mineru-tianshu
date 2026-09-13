@@ -90,6 +90,7 @@ class User(BaseModel):
     created_at: datetime
     last_login: Optional[datetime] = None
     api_key_scopes: Optional[List[str]] = None  # API Key 作用域，None 表示不限
+    api_key_id: Optional[str] = None  # 通过 API Key 认证时记录所用 Key，供 Key 级 webhook 路由
 
     def has_permission(self, permission: Permission) -> bool:
         """检查用户是否拥有指定权限"""
@@ -200,6 +201,27 @@ class APIKeyCreate(BaseModel):
         invalid = [s for s in v if s not in valid]
         if invalid:
             raise ValueError(f"Invalid scopes: {invalid}")
+        return v
+
+
+class APIKeyWebhookUpdate(BaseModel):
+    """Key 级 webhook 回调配置（敏感字段回传掩码表示不修改）"""
+
+    enabled: bool = False
+    url: str = Field("", max_length=2000)
+    secret: Optional[str] = Field(None, max_length=200)
+    auth_type: str = "none"
+    auth_token: Optional[str] = Field(None, max_length=500)
+    auth_username: Optional[str] = Field(None, max_length=200)
+    auth_password: Optional[str] = Field(None, max_length=200)
+    auth_header_name: Optional[str] = Field(None, max_length=100)
+    auth_header_value: Optional[str] = Field(None, max_length=500)
+
+    @field_validator("auth_type")
+    @classmethod
+    def validate_auth_type(cls, v: str) -> str:
+        if v not in ("none", "bearer", "basic", "api_key"):
+            raise ValueError(f"Invalid auth_type: {v}")
         return v
 
 

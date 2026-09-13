@@ -178,7 +178,7 @@ npm run build     # tsc && vite build → dist/
 
 ### Webhook 与审计日志
 
-- **Webhook**：任务进入终态（completed/failed）时，`litserve_worker.py` 调用 `webhook.dispatcher.enqueue_task_event` 写入 `webhook_deliveries` 表（子任务不触发，父任务在合并完成后触发一次）；`task_scheduler` 每约 30 秒扫描到期投递并投递（指数退避，上限由 `webhook_max_attempts` 控制）。回调只含任务元数据（不含解析结果），签名头为 `X-Tianshu-Signature: sha256=HMAC(secret, "{timestamp}.{body}")`；所有 URL 投递前过 SSRF 校验（禁内网/回环/保留地址，httpx 固定 `trust_env=False` 防代理绕过）。可选出站鉴权：`webhook_auth_type`（none/bearer/basic/api_key），token/password/header_value 属敏感字段走掩码模式（回显 `********`，发回掩码不修改），api_key 头名只放行字母数字与 `-`。全局配置在系统配置页（`webhook_*` 键），任务级在提交时传 `webhook_url` 表单参数。触发与投递全程 fire-and-forget，绝不能影响任务主流程。
+- **Webhook**：任务进入终态（completed/failed）时，`litserve_worker.py` 调用 `webhook.dispatcher.enqueue_task_event` 写入 `webhook_deliveries` 表（子任务不触发，父任务在合并完成后触发一次）；`task_scheduler` 每约 30 秒扫描到期投递并投递（指数退避，上限由 `webhook_max_attempts` 控制）。回调只含任务元数据（不含解析结果），签名头为 `X-Tianshu-Signature: sha256=HMAC(secret, "{timestamp}.{body}")`；所有 URL 投递前过 SSRF 校验（禁内网/回环/保留地址，httpx 固定 `trust_env=False` 防代理绕过）。回调按两级路由：**Key 级**（`api_keys` 表的 `webhook_*` 列，`tasks.api_key_id` 记录提交所用的 Key，投递时实时读 Key 当前配置——Key 删除或回调关闭则在途记录置 dead；签名密钥与出站鉴权仅 Key 级携带）和**任务级**（提交时传 `webhook_url` 表单参数，不带密钥）。Key 级配置入口：用户自助 `GET/PUT /api/v1/auth/apikeys/{key_id}/webhook`（非所有者一律 404），管理员另有 `GET /api/v1/auth/admin/apikeys` 概览；测试投递走 `POST /apikeys/{key_id}/webhook/test`。出站鉴权 `auth_type`（none/bearer/basic/api_key），敏感字段走掩码模式（回显 `********`，发回掩码不修改）。全局仅保留投递策略（`webhook_timeout` / `webhook_max_attempts`）。触发与投递全程 fire-and-forget，绝不能影响任务主流程。
 - **审计日志**：`auth/audit.py::record_audit`（fire-and-forget）记录认证事件、配置变更（只记键名不记值）、任务高危操作到 `audit_logs` 表；查询走 `GET /api/v1/admin/audit-logs`（仅管理员）；保留期 `audit_retention_days`（默认 90 天）由调度器每日清理。
 
 ### 认证

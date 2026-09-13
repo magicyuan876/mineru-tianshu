@@ -75,6 +75,8 @@ export interface APIKeyInfo {
   created_at: string
   expires_at?: string
   last_used?: string
+  webhook_enabled?: boolean | number
+  webhook_url?: string
 }
 
 // API Key 列表响应
@@ -82,6 +84,35 @@ export interface APIKeyListResponse {
   success: boolean
   count: number
   api_keys: APIKeyInfo[]
+}
+
+// Key 级 Webhook 回调配置（敏感字段接口只回显掩码，发回掩码表示不修改）
+export interface APIKeyWebhookConfig {
+  enabled: boolean
+  url: string
+  secret: string
+  auth_type: 'none' | 'bearer' | 'basic' | 'api_key'
+  auth_token: string
+  auth_username: string
+  auth_password: string
+  auth_header_name: string
+  auth_header_value: string
+}
+
+export interface APIKeyWebhookResponse {
+  success: boolean
+  webhook: APIKeyWebhookConfig
+}
+
+// 管理员视角的全量 API Key 列表项（附归属用户）
+export interface AdminAPIKeyInfo extends APIKeyInfo {
+  username: string
+}
+
+export interface AdminAPIKeyListResponse {
+  success: boolean
+  count: number
+  api_keys: AdminAPIKeyInfo[]
 }
 
 // ==================== 任务相关类型 ====================
@@ -390,23 +421,13 @@ export interface SystemConfigUpdateRequest {
 // Webhook 鉴权方式
 export type WebhookAuthType = 'none' | 'bearer' | 'basic' | 'api_key'
 
-// Webhook 通知配置
+// Webhook 投递策略（回调地址与密钥按 API Key 维度配置）
 export interface WebhookConfig {
-  enabled: boolean
-  url: string
-  secret: string
-  events: string[]
   timeout: number
   max_attempts: number
-  auth_type: WebhookAuthType
-  auth_token: string
-  auth_username: string
-  auth_password: string
-  auth_header_name: string
-  auth_header_value: string
 }
 
-// Webhook 配置响应
+// Webhook 投递策略响应
 export interface WebhookConfigResponse {
   success: boolean
   config: WebhookConfig
@@ -430,6 +451,7 @@ export interface WebhookDeliveryItem {
   last_error: string | null
   created_at: string
   delivered_at: string | null
+  source: string
 }
 
 // Webhook 投递记录分页响应
