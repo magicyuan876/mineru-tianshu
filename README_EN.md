@@ -44,6 +44,13 @@ English | [简体中文](./README.md)
 
 ## 📝 Latest Updates
 
+### 2026-09-13 🚀 v2.1.0: Webhook Notifications, Audit Logs & UI Overhaul
+
+- ✅ **Webhook Task Notifications**: when a task completes or fails, an HMAC-signed callback is pushed to the integration (task metadata + result URL only, no parsed content); periodic delivery by the scheduler with exponential-backoff retries up to a dead-letter state, SSRF protection throughout, and queryable delivery records
+- ✅ **Per-API-Key Callbacks**: each integrating system self-configures its callback URL, signing secret and outbound auth (Bearer / Basic / custom header) on its own API key in "API Token Management", with test delivery; admins can review and manage all integrations from System Settings; ad-hoc scenarios can pass `webhook_url` per task at submission
+- ✅ **Audit Logs**: logins, config changes, API key and task-sensitive operations are all recorded (with IP/UA), with visual filtering in System Settings and automatic retention-based cleanup
+- ✅ **UI Overhaul**: settings center rebuilt with a navigation layout, globally adaptive fluid page widths and a well-organized top bar; the English interface is now fully translated with complete Chinese/English bilingual coverage
+
 ### 2026-09-12 🚀 v2.0.0 Stable: Multimodal Image Captioning, ZIP/EPUB Support & System Improvements
 
 - ✅ **Image Captioning (Multimodal LLM)**: images in parsing results can be automatically described by a multimodal LLM, written back to the Markdown image alt text and the JSON `img_caption` field; admins enable and configure the model from the system settings page (OpenAI-compatible API), with connection testing and concurrency control
@@ -248,6 +255,8 @@ MinerU Tianshu is an **Enterprise-grade AI Data Preprocessing Platform** that co
 - ✅ **User Auth**: JWT authentication, role-based access, API key management
 - ✅ **Task Management**: Drag-drop upload, batch processing, real-time tracking, Markdown/JSON preview
 - ✅ **Queue Management**: System monitoring, timeout reset, file cleanup
+- ✅ **Webhook Notifications**: Per-API-key callbacks, signed terminal-state pushes with retries
+- ✅ **Audit Logs**: Sensitive operations recorded with visual querying and automatic cleanup
 - ✅ **MCP Protocol**: Seamless AI assistant (Claude Desktop) integration
 - ✅ **Docker Deployment**: One-click deployment, GPU support, full containerization
 
