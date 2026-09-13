@@ -379,7 +379,16 @@ export interface SystemConfigUpdateRequest {
   webhook_events?: string
   webhook_timeout?: number
   webhook_max_attempts?: number
+  webhook_auth_type?: string
+  webhook_auth_token?: string
+  webhook_auth_username?: string
+  webhook_auth_password?: string
+  webhook_auth_header_name?: string
+  webhook_auth_header_value?: string
 }
+
+// Webhook 鉴权方式
+export type WebhookAuthType = 'none' | 'bearer' | 'basic' | 'api_key'
 
 // Webhook 通知配置
 export interface WebhookConfig {
@@ -389,6 +398,12 @@ export interface WebhookConfig {
   events: string[]
   timeout: number
   max_attempts: number
+  auth_type: WebhookAuthType
+  auth_token: string
+  auth_username: string
+  auth_password: string
+  auth_header_name: string
+  auth_header_value: string
 }
 
 // Webhook 配置响应

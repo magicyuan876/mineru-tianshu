@@ -386,6 +386,95 @@
           />
         </div>
 
+        <!-- 鉴权方式 -->
+        <div>
+          <label for="webhook_auth_type" class="block text-sm font-medium text-gray-700 mb-2">
+            {{ $t('webhook.authType') }}
+          </label>
+          <select
+            id="webhook_auth_type"
+            v-model="webhookForm.auth_type"
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="none">{{ $t('webhook.authNone') }}</option>
+            <option value="bearer">{{ $t('webhook.authBearer') }}</option>
+            <option value="basic">{{ $t('webhook.authBasic') }}</option>
+            <option value="api_key">{{ $t('webhook.authApiKey') }}</option>
+          </select>
+        </div>
+
+        <!-- Bearer Token -->
+        <div v-if="webhookForm.auth_type === 'bearer'">
+          <label for="webhook_auth_token" class="block text-sm font-medium text-gray-700 mb-2">
+            {{ $t('webhook.authToken') }}
+          </label>
+          <input
+            id="webhook_auth_token"
+            v-model="webhookForm.auth_token"
+            type="password"
+            autocomplete="new-password"
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            :placeholder="$t('webhook.authSecretPlaceholder')"
+          />
+        </div>
+
+        <!-- HTTP Basic -->
+        <div v-if="webhookForm.auth_type === 'basic'" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label for="webhook_auth_username" class="block text-sm font-medium text-gray-700 mb-2">
+              {{ $t('webhook.authUsername') }}
+            </label>
+            <input
+              id="webhook_auth_username"
+              v-model="webhookForm.auth_username"
+              type="text"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+          <div>
+            <label for="webhook_auth_password" class="block text-sm font-medium text-gray-700 mb-2">
+              {{ $t('webhook.authPassword') }}
+            </label>
+            <input
+              id="webhook_auth_password"
+              v-model="webhookForm.auth_password"
+              type="password"
+              autocomplete="new-password"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              :placeholder="$t('webhook.authSecretPlaceholder')"
+            />
+          </div>
+        </div>
+
+        <!-- API Key 自定义头 -->
+        <div v-if="webhookForm.auth_type === 'api_key'" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label for="webhook_auth_header_name" class="block text-sm font-medium text-gray-700 mb-2">
+              {{ $t('webhook.authHeaderName') }}
+            </label>
+            <input
+              id="webhook_auth_header_name"
+              v-model="webhookForm.auth_header_name"
+              type="text"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="X-API-Key"
+            />
+          </div>
+          <div>
+            <label for="webhook_auth_header_value" class="block text-sm font-medium text-gray-700 mb-2">
+              {{ $t('webhook.authHeaderValue') }}
+            </label>
+            <input
+              id="webhook_auth_header_value"
+              v-model="webhookForm.auth_header_value"
+              type="password"
+              autocomplete="new-password"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              :placeholder="$t('webhook.authSecretPlaceholder')"
+            />
+          </div>
+        </div>
+
         <!-- 订阅事件 -->
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-2">{{ $t('webhook.events') }}</label>
@@ -1056,6 +1145,12 @@ const webhookOriginal = ref<WebhookConfig>({
   events: ['task.completed', 'task.failed'],
   timeout: 10,
   max_attempts: 8,
+  auth_type: 'none',
+  auth_token: '',
+  auth_username: '',
+  auth_password: '',
+  auth_header_name: 'X-API-Key',
+  auth_header_value: '',
 })
 
 const webhookForm = ref<WebhookConfig>({ ...webhookOriginal.value })
@@ -1103,6 +1198,25 @@ async function handleWebhookSubmit() {
     }
     if (form.max_attempts !== original.max_attempts) {
       updates.webhook_max_attempts = form.max_attempts
+    }
+    if (form.auth_type !== original.auth_type) {
+      updates.webhook_auth_type = form.auth_type
+    }
+    // 敏感字段保持掩码值时不提交（后端同样跳过掩码占位符）
+    if (form.auth_token !== original.auth_token && form.auth_token !== '********') {
+      updates.webhook_auth_token = form.auth_token
+    }
+    if (form.auth_username !== original.auth_username) {
+      updates.webhook_auth_username = form.auth_username
+    }
+    if (form.auth_password !== original.auth_password && form.auth_password !== '********') {
+      updates.webhook_auth_password = form.auth_password
+    }
+    if (form.auth_header_name !== original.auth_header_name) {
+      updates.webhook_auth_header_name = form.auth_header_name
+    }
+    if (form.auth_header_value !== original.auth_header_value && form.auth_header_value !== '********') {
+      updates.webhook_auth_header_value = form.auth_header_value
     }
 
     if (Object.keys(updates).length === 0) {

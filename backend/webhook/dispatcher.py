@@ -67,7 +67,7 @@ def enqueue_task_event(task_db, task_id: str, event: str) -> None:
         logger.warning(f"⚠️ Webhook 入队失败（任务 {task_id}，事件 {event}）: {e}")
 
 
-def deliver_delivery(row: dict, secret: str, timeout: int, max_attempts: int) -> bool:
+def deliver_delivery(row: dict, secret: str, timeout: int, max_attempts: int, auth: dict = None) -> bool:
     """投递单条记录并按结果更新状态，返回是否投递成功"""
     delivery_id = row["delivery_id"]
     url = row["url"]
@@ -87,7 +87,7 @@ def deliver_delivery(row: dict, secret: str, timeout: int, max_attempts: int) ->
 
     attempts = int(row.get("attempts") or 0) + 1
     try:
-        status_code = delivery.post_webhook(url, payload, secret=secret, timeout=timeout)
+        status_code = delivery.post_webhook(url, payload, secret=secret, timeout=timeout, auth=auth)
         if 200 <= status_code < 300:
             delivery.mark_delivered(delivery_id)
             logger.info(f"✅ Webhook 投递成功（{delivery_id}，HTTP {status_code}）")
@@ -107,7 +107,7 @@ def process_pending_deliveries() -> None:
         rows = delivery.fetch_due_deliveries()
         for row in rows:
             try:
-                deliver_delivery(row, cfg["secret"], cfg["timeout"], cfg["max_attempts"])
+                deliver_delivery(row, cfg["secret"], cfg["timeout"], cfg["max_attempts"], auth=cfg)
             except Exception as e:
                 logger.error(f"❌ Webhook 投递循环单条异常（{row.get('delivery_id')}）: {e}")
     except Exception as e:

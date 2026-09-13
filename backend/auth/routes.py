@@ -632,13 +632,31 @@ async def update_system_config(
         "webhook_events",
         "webhook_timeout",
         "webhook_max_attempts",
+        # Webhook 出站请求鉴权
+        "webhook_auth_type",
+        "webhook_auth_token",
+        "webhook_auth_username",
+        "webhook_auth_password",
+        "webhook_auth_header_name",
+        "webhook_auth_header_value",
     }
     update_data = {}
 
     for key, value in config_data.items():
         if key in allowed_keys:
             # 掩码占位符表示前端未修改，跳过不更新
-            if key in {"image_caption_api_key", "registration_invite_code", "webhook_secret"} and value == "********":
+            if (
+                key
+                in {
+                    "image_caption_api_key",
+                    "registration_invite_code",
+                    "webhook_secret",
+                    "webhook_auth_token",
+                    "webhook_auth_password",
+                    "webhook_auth_header_value",
+                }
+                and value == "********"
+            ):
                 continue
             # 转换布尔值配置项为字符串
             if key in {"show_github_star", "allow_registration", "image_caption_enabled", "webhook_enabled"}:
@@ -797,6 +815,9 @@ async def get_webhook_config_endpoint(
 
     config = get_webhook_config()
     config["secret"] = WEBHOOK_SECRET_MASK if config["secret"] else ""
+    # 鉴权敏感字段同样只回显掩码；username/header_name 非敏感，明文回显
+    for key in ("auth_token", "auth_password", "auth_header_value"):
+        config[key] = WEBHOOK_SECRET_MASK if config[key] else ""
     return {"success": True, "config": config}
 
 
@@ -840,7 +861,7 @@ async def test_webhook_connection(
 
     def _deliver():
         try:
-            code = post_webhook(config["url"], payload, secret=config["secret"], timeout=config["timeout"])
+            code = post_webhook(config["url"], payload, secret=config["secret"], timeout=config["timeout"], auth=config)
             return {"success": 200 <= code < 300, "status_code": code}
         except Exception as e:
             return {"success": False, "error": f"{type(e).__name__}: {e}"}

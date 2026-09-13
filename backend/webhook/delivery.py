@@ -5,11 +5,13 @@ webhook_deliveries 表 CRUD、SSRF 校验与带签名的 HTTP 投递。
 与任务库共用同一个 SQLite 文件（DATABASE_PATH），PRAGMA 与 task_db._get_conn 保持一致。
 """
 
+import base64
 import hashlib
 import hmac
 import ipaddress
 import json
 import os
+import re
 import socket
 import sqlite3
 import time
@@ -102,7 +104,34 @@ def validate_webhook_url(url: str) -> None:
             raise ValueError("URL resolves to a non-public address")
 
 
-def post_webhook(url: str, payload: dict, secret: str = "", timeout: int = 10) -> int:
+def build_auth_headers(auth: dict) -> dict:
+    """按 auth_type 构造出站鉴权头；none 或配置不完整时不附加任何头
+
+    api_key 的自定义头名只放行字母数字和连字符，防止注入非法头名。
+    """
+    if not auth:
+        return {}
+    auth_type = auth.get("auth_type", "none")
+    if auth_type == "bearer":
+        token = (auth.get("auth_token") or "").strip()
+        return {"Authorization": f"Bearer {token}"} if token else {}
+    if auth_type == "basic":
+        username = auth.get("auth_username") or ""
+        password = auth.get("auth_password") or ""
+        if not (username or password):
+            return {}
+        encoded = base64.b64encode(f"{username}:{password}".encode("utf-8")).decode("ascii")
+        return {"Authorization": f"Basic {encoded}"}
+    if auth_type == "api_key":
+        name = (auth.get("auth_header_name") or "").strip()
+        value = (auth.get("auth_header_value") or "").strip()
+        if not value or not re.fullmatch(r"[A-Za-z0-9-]+", name):
+            return {}
+        return {name: value}
+    return {}
+
+
+def post_webhook(url: str, payload: dict, secret: str = "", timeout: int = 10, auth: dict = None) -> int:
     """同步投递一条 webhook，返回 HTTP 状态码；网络错误抛异常由调用方处理"""
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     timestamp = str(int(time.time()))
@@ -111,6 +140,7 @@ def post_webhook(url: str, payload: dict, secret: str = "", timeout: int = 10) -
         "X-Tianshu-Event": payload.get("event", ""),
         "X-Tianshu-Delivery": payload.get("delivery_id", ""),
         "X-Tianshu-Timestamp": timestamp,
+        **build_auth_headers(auth),
     }
     # 未配置密钥时省略签名头，签名串为 "{timestamp}.{body}"
     if secret:
