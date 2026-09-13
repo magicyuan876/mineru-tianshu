@@ -264,7 +264,7 @@ function translateOpenApiSpec(spec: any, lang: string): any {
 // 加载并翻译 OpenAPI 规范
 async function loadOpenApiSpec() {
   try {
-    const response = await fetch(`${window.location.origin}/api/openapi.json`)
+    const response = await fetch(`${window.location.origin}/api/v1/openapi.json`)
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`)
     }
@@ -272,7 +272,7 @@ async function loadOpenApiSpec() {
     openApiSpec.value = translateOpenApiSpec(spec, locale.value)
     isLoading.value = false
   } catch (error: any) {
-    loadError.value = `无法访问 OpenAPI 文档: ${error.message}`
+    loadError.value = `${t('apiDocs.openapiLoadError')}: ${error.message}`
     isLoading.value = false
     console.error('OpenAPI 文档加载失败:', error)
   }
@@ -325,15 +325,11 @@ const scalarConfig = computed(() => ({
     },
   },
 
-  // 服务器配置 - 提供前端代理和后端直连两种方式
+  // 服务器配置 - spec 的 paths 已含 /api/v1 前缀，经前端 nginx 原样转发
   servers: [
     {
-      url: window.location.origin + '/api',
-      description: '通过前端代理访问（推荐）',
-    },
-    {
-      url: `${window.location.protocol}//${window.location.hostname}:8000`,
-      description: '直接访问后端（用于 API 测试）',
+      url: window.location.origin,
+      description: t('apiDocs.serverProxyDesc'),
     },
   ],
 

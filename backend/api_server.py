@@ -46,6 +46,8 @@ app = FastAPI(
     title="MinerU Tianshu API",
     description="天枢 - 企业级 AI 数据预处理平台 | 支持文档、图片、音频、视频等多模态数据处理 | 企业级认证授权",
     version="2.0.0",
+    # OpenAPI 挂到 /api/v1 下，与 nginx 对 /api/ 的原样转发匹配（前端 Scalar 文档页消费）
+    openapi_url="/api/v1/openapi.json",
     # 不设置 servers，让 FastAPI 自动根据请求的 Host 生成
 )
 
@@ -357,6 +359,7 @@ async def submit_task(
                 options=options,
                 priority=priority,
                 user_id=current_user.user_id,
+                api_key_id=current_user.api_key_id,
             )
         )
 
