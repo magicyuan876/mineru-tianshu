@@ -6,8 +6,10 @@ import { defineStore } from 'pinia'
 import * as authApi from '@/api/authApi'
 import type { User, LoginRequest, RegisterRequest } from '@/api/types'
 import { showToast } from '@/utils/toast'
+import i18n from '@/locales'
 
 export const useAuthStore = defineStore('auth', () => {
+  const t = i18n.global.t
   // State
   const token = ref<string | null>(localStorage.getItem('auth_token'))
   const user = ref<User | null>(null)
@@ -33,13 +35,13 @@ export const useAuthStore = defineStore('auth', () => {
       // 获取用户信息
       await fetchCurrentUser()
 
-      showToast({ message: '登录成功', type: 'success' })
+      showToast({ message: t('auth.loginSuccess'), type: 'success' })
       return true
     } catch (error: any) {
       console.error('Login error:', error)
 
       // 处理不同类型的错误
-      let message = '登录失败，请稍后重试'
+      let message = t('auth.loginFailedRetry')
 
       if (error.response) {
         // 服务器返回错误响应
@@ -47,11 +49,11 @@ export const useAuthStore = defineStore('auth', () => {
         const detail = error.response.data?.detail
 
         if (status === 401) {
-          message = '用户名或密码错误'
+          message = t('auth.invalidCredentials')
         } else if (status === 403) {
-          message = detail || '账户已被禁用'
+          message = detail || t('auth.accountDisabled')
         } else if (status === 500) {
-          message = '服务器内部错误，请联系管理员'
+          message = t('auth.serverError')
           // 在控制台显示详细错误信息便于调试
           console.error('Server error details:', error.response.data)
         } else if (detail) {
@@ -59,7 +61,7 @@ export const useAuthStore = defineStore('auth', () => {
         }
       } else if (error.request) {
         // 请求已发送但没有收到响应
-        message = '无法连接到服务器，请检查网络连接'
+        message = t('auth.networkError')
       }
 
       showToast({ message, type: 'error' })
@@ -76,30 +78,30 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       loading.value = true
       await authApi.register(userData)
-      showToast({ message: '注册成功，请登录', type: 'success' })
+      showToast({ message: t('auth.registerSuccessLogin'), type: 'success' })
       return true
     } catch (error: any) {
       console.error('Register error:', error)
 
       // 处理不同类型的错误
-      let message = '注册失败，请稍后重试'
+      let message = t('auth.registerFailedRetry')
 
       if (error.response) {
         const status = error.response.status
         const detail = error.response.data?.detail
 
         if (status === 400) {
-          message = detail || '注册信息有误，请检查输入'
+          message = detail || t('auth.registerInvalidInput')
         } else if (status === 409) {
-          message = '用户名或邮箱已存在'
+          message = t('auth.userExists')
         } else if (status === 500) {
-          message = '服务器内部错误，请联系管理员'
+          message = t('auth.serverError')
           console.error('Server error details:', error.response.data)
         } else if (detail) {
           message = detail
         }
       } else if (error.request) {
-        message = '无法连接到服务器，请检查网络连接'
+        message = t('auth.networkError')
       }
 
       showToast({ message, type: 'error' })
@@ -124,7 +126,7 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = null
     user.value = null
     localStorage.removeItem('auth_token')
-    showToast({ message: '已退出登录', type: 'info' })
+    showToast({ message: t('auth.loggedOut'), type: 'info' })
   }
 
   /**
@@ -153,11 +155,11 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       loading.value = true
       user.value = await authApi.updateCurrentUser(data)
-      showToast({ message: '信息更新成功', type: 'success' })
+      showToast({ message: t('auth.profileUpdated'), type: 'success' })
       return true
     } catch (error: any) {
       console.error('Update profile error:', error)
-      const message = error.response?.data?.detail || '更新失败'
+      const message = error.response?.data?.detail || t('auth.updateFailed')
       showToast({ message, type: 'error' })
       return false
     } finally {
@@ -175,25 +177,25 @@ export const useAuthStore = defineStore('auth', () => {
         old_password: oldPassword,
         new_password: newPassword,
       })
-      showToast({ message: '密码修改成功', type: 'success' })
+      showToast({ message: t('auth.passwordChanged'), type: 'success' })
       return true
     } catch (error: any) {
       console.error('Change password error:', error)
 
-      let message = '密码修改失败'
+      let message = t('auth.passwordChangeFailed')
       if (error.response) {
         const status = error.response.status
         const detail = error.response.data?.detail
 
         if (status === 400 && detail?.includes('Incorrect old password')) {
-          message = '旧密码错误'
+          message = t('auth.wrongOldPassword')
         } else if (status === 403 && detail?.includes('SSO users')) {
-          message = 'SSO 用户不能修改密码'
+          message = t('auth.ssoCannotChangePassword')
         } else if (detail) {
           message = detail
         }
       } else if (error.request) {
-        message = '无法连接到服务器，请检查网络连接'
+        message = t('auth.networkError')
       }
 
       showToast({ message, type: 'error' })

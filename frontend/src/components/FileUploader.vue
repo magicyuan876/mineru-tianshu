@@ -35,7 +35,7 @@
         <div class="flex items-center flex-1 min-w-0">
           <FileText class="w-5 h-5 text-gray-400 flex-shrink-0" />
           <div class="ml-3 flex-1 min-w-0">
-            <p class="text-sm font-medium text-gray-900 truncate">{{ file.name }}</p>
+            <p class="text-sm font-medium text-gray-900 truncate" :title="file.name">{{ file.name }}</p>
             <p class="text-xs text-gray-500">{{ formatFileSize(file.size) }}</p>
           </div>
         </div>

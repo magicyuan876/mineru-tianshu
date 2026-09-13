@@ -5,55 +5,55 @@
         <button
           @click="expandAll"
           class="toolbar-btn"
-          title="展开所有"
+          :title="$t('jsonViewer.expandAll')"
         >
           <ChevronDown class="w-4 h-4" />
-          <span class="hidden sm:inline">展开所有</span>
+          <span class="hidden sm:inline">{{ $t('jsonViewer.expandAll') }}</span>
         </button>
         <button
           @click="collapseAll"
           class="toolbar-btn"
-          title="收起所有"
+          :title="$t('jsonViewer.collapseAll')"
         >
           <ChevronRight class="w-4 h-4" />
-          <span class="hidden sm:inline">收起所有</span>
+          <span class="hidden sm:inline">{{ $t('jsonViewer.collapseAll') }}</span>
         </button>
         <button
           @click="expandLevel(2)"
           class="toolbar-btn"
-          title="展开到第2层"
+          :title="$t('jsonViewer.expandLevel2Title')"
         >
           <Layers class="w-4 h-4" />
-          <span class="hidden sm:inline">展开2层</span>
+          <span class="hidden sm:inline">{{ $t('jsonViewer.expandLevel2') }}</span>
         </button>
         <div class="toolbar-divider"></div>
         <button
           @click="copyToClipboard"
           class="toolbar-btn"
           :class="{ 'text-green-600': copied }"
-          title="复制JSON"
+          :title="$t('jsonViewer.copyJson')"
         >
           <Check v-if="copied" class="w-4 h-4" />
           <Copy v-else class="w-4 h-4" />
-          <span class="hidden sm:inline">{{ copied ? '已复制' : '复制' }}</span>
+          <span class="hidden sm:inline">{{ copied ? $t('jsonViewer.copied') : $t('common.copy') }}</span>
         </button>
         <button
           @click="downloadJson"
           class="toolbar-btn"
-          title="下载JSON文件"
+          :title="$t('jsonViewer.downloadJson')"
         >
           <Download class="w-4 h-4" />
-          <span class="hidden sm:inline">下载</span>
+          <span class="hidden sm:inline">{{ $t('common.download') }}</span>
         </button>
         <div class="toolbar-divider"></div>
         <button
           @click="toggleRawView"
           class="toolbar-btn"
           :class="{ 'bg-primary-100 text-primary-700': showRaw }"
-          title="切换原始视图"
+          :title="$t('jsonViewer.toggleRaw')"
         >
           <Code class="w-4 h-4" />
-          <span class="hidden sm:inline">{{ showRaw ? '树形' : '原始' }}</span>
+          <span class="hidden sm:inline">{{ showRaw ? $t('jsonViewer.tree') : $t('jsonViewer.raw') }}</span>
         </button>
       </div>
       <div class="toolbar-right">
@@ -82,8 +82,11 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ChevronDown, ChevronRight, Copy, Check, Download, Layers, Code } from 'lucide-vue-next'
 import JsonNode from './JsonNode.vue'
+
+const { t } = useI18n()
 
 const props = defineProps<{
   data: any
@@ -110,10 +113,10 @@ const jsonData = computed(() => {
 const objectInfo = computed(() => {
   const data = jsonData.value
   if (Array.isArray(data)) {
-    return `数组 [${data.length} 项]`
+    return t('jsonViewer.arrayInfo', { count: data.length })
   } else if (typeof data === 'object' && data !== null) {
     const keys = Object.keys(data).length
-    return `对象 {${keys} 个键}`
+    return t('jsonViewer.objectInfo', { count: keys })
   }
   return typeof data
 })
@@ -192,7 +195,7 @@ async function copyToClipboard() {
     copied.value = true
     setTimeout(() => { copied.value = false }, 2000)
   } catch (err) {
-    alert('复制失败，请手动选择文本复制')
+    alert(t('jsonViewer.copyFailed'))
   }
 }
 

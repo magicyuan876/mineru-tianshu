@@ -6,6 +6,7 @@ import relativeTime from 'dayjs/plugin/relativeTime'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
 import 'dayjs/locale/zh-cn'
+import i18n from '@/locales'
 
 // 初始化 dayjs 插件
 dayjs.extend(relativeTime)
@@ -66,15 +67,15 @@ export function formatDuration(startTime: string | null, endTime: string | null)
   const seconds = end.diff(start, 'second')
 
   if (seconds < 60) {
-    return `${seconds}秒`
+    return i18n.global.t('format.durationSeconds', { s: seconds })
   } else if (seconds < 3600) {
     const minutes = Math.floor(seconds / 60)
     const secs = seconds % 60
-    return `${minutes}分${secs}秒`
+    return i18n.global.t('format.durationMinutes', { m: minutes, s: secs })
   } else {
     const hours = Math.floor(seconds / 3600)
     const minutes = Math.floor((seconds % 3600) / 60)
-    return `${hours}小时${minutes}分`
+    return i18n.global.t('format.durationHours', { h: hours, m: minutes })
   }
 }
 
@@ -85,7 +86,7 @@ export function formatDuration(startTime: string | null, endTime: string | null)
 export function formatBackendName(backend: string): string {
   const backendNames: Record<string, string> = {
     // 自动
-    'auto': 'Auto Detect (自动)',
+    'auto': i18n.global.t('format.backendAuto'),
 
     // MinerU 核心
     'pipeline': 'Pipeline (Standard)',

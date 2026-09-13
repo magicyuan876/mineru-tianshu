@@ -90,11 +90,13 @@
 <script setup lang="ts">
 import { reactive, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores'
 import { getSystemConfig, type SystemConfig } from '@/api'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const { t } = useI18n()
 
 const form = reactive({
   username: '',
@@ -135,7 +137,7 @@ async function loadSystemConfig() {
     allowRegistration.value = response.config.allow_registration !== false
 
     // 更新页面标题
-    document.title = `${systemConfig.value.system_name} - 登录`
+    document.title = `${systemConfig.value.system_name} - ${t('common.login')}`
   } catch (error) {
     console.error('Failed to load system config:', error)
     // 失败时 fail-closed，隐藏注册入口

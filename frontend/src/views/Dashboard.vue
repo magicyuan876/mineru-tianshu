@@ -1,10 +1,6 @@
 <template>
-  <div>
-    <!-- 页面标题 -->
-    <div class="mb-6 lg:mb-10">
-      <h1 class="text-2xl lg:text-3xl xl:text-4xl font-bold text-gray-900 tracking-tight">{{ $t('dashboard.title') }}</h1>
-      <p class="mt-2 lg:mt-3 text-base lg:text-lg text-gray-600">{{ $t('dashboard.systemStatus') }}</p>
-    </div>
+  <div class="w-full">
+    <PageHeader :title="$t('dashboard.title')" :description="$t('dashboard.systemStatus')" />
 
     <!-- 队列统计卡片 -->
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-6 lg:mb-8">
@@ -111,7 +107,7 @@
               <td class="px-6 py-4 whitespace-nowrap">
                 <div class="flex items-center">
                   <FileText class="w-5 h-5 text-gray-400 mr-2" />
-                  <div class="text-sm font-medium text-gray-900 truncate max-w-xs">
+                  <div class="text-sm font-medium text-gray-900 truncate max-w-xs" :title="task.file_name">
                     {{ task.file_name }}
                   </div>
                 </div>
@@ -128,7 +124,7 @@
                   class="text-primary-600 hover:text-primary-700 flex items-center"
                 >
                   <Eye class="w-4 h-4 mr-1" />
-                  查看
+                  {{ $t('common.view') }}
                 </router-link>
               </td>
             </tr>
@@ -139,7 +135,7 @@
 
       <div v-if="recentTasks.length > 0" class="mt-4 text-center">
         <router-link to="/tasks" class="text-sm text-primary-600 hover:text-primary-700">
-          查看全部任务 →
+          {{ $t('dashboard.viewAllTasks') }}
         </router-link>
       </div>
     </div>
@@ -154,6 +150,7 @@ import StatCard from '@/components/StatCard.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import LoadingSpinner from '@/components/LoadingSpinner.vue'
 import EngineInfo from '@/components/EngineInfo.vue'
+import PageHeader from '@/components/PageHeader.vue'
 import {
   Clock,
   Loader,

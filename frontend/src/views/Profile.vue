@@ -1,6 +1,6 @@
 <template>
-  <div class="max-w-4xl mx-auto">
-    <h1 class="text-3xl font-bold text-gray-900 mb-8">{{ $t('profile.title') }}</h1>
+  <div class="w-full">
+    <PageHeader :title="$t('profile.title')" />
 
     <!-- 用户信息卡片 -->
     <div class="bg-white rounded-lg shadow-md p-6 mb-6">
@@ -185,6 +185,7 @@ import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores'
 import { formatDate } from '@/utils/format'
 import APIKeyManager from '@/components/APIKeyManager.vue'
+import PageHeader from '@/components/PageHeader.vue'
 
 const { t } = useI18n()
 const authStore = useAuthStore()

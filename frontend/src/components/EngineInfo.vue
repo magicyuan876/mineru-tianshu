@@ -4,7 +4,7 @@
     <div class="flex items-center justify-between mb-4">
       <div class="flex items-center gap-2">
         <Cpu class="w-5 h-5 text-primary-600" />
-        <h2 class="text-base lg:text-lg font-semibold text-gray-900">引擎信息</h2>
+        <h2 class="text-base lg:text-lg font-semibold text-gray-900">{{ $t('engineInfo.title') }}</h2>
       </div>
       <button
         @click="refresh"
@@ -12,13 +12,13 @@
         class="text-sm text-primary-600 hover:text-primary-700 flex items-center gap-1 disabled:opacity-50"
       >
         <RefreshCw :class="{ 'animate-spin': loading }" class="w-4 h-4" />
-        刷新
+        {{ $t('common.refresh') }}
       </button>
     </div>
 
     <!-- 加载中 -->
     <div v-if="loading && !data" class="py-6 text-center text-gray-400 text-sm">
-      <LoadingSpinner text="加载中..." />
+      <LoadingSpinner :text="$t('common.loading')" />
     </div>
 
     <!-- 错误 -->
@@ -30,10 +30,10 @@
       <!-- 运行环境 -->
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
         <div class="bg-gray-50 rounded-lg p-3">
-          <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">运行环境</p>
+          <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">{{ $t('engineInfo.runtimeEnv') }}</p>
           <dl class="space-y-1">
             <div class="flex items-center justify-between">
-              <dt class="text-xs text-gray-600">平台</dt>
+              <dt class="text-xs text-gray-600">{{ $t('engineInfo.platform') }}</dt>
               <dd class="text-xs font-mono text-gray-800">{{ data.system_info.platform }}</dd>
             </div>
           </dl>
@@ -42,7 +42,7 @@
 
       <!-- 可用引擎 -->
       <div>
-        <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">可用引擎</p>
+        <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">{{ $t('engineInfo.availableEngines') }}</p>
         <div class="flex flex-wrap gap-2">
           <template v-for="(group, category) in engineGroups" :key="category">
             <div
@@ -60,7 +60,7 @@
             >
               <component :is="group.icon" class="w-3.5 h-3.5" />
               <span>{{ group.label }}</span>
-              <span class="opacity-60">不可用</span>
+              <span class="opacity-60">{{ $t('engineInfo.unavailable') }}</span>
             </div>
           </template>
         </div>
@@ -72,7 +72,7 @@
             class="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1"
           >
             <ChevronDown :class="{ 'rotate-180': showDetail }" class="w-3.5 h-3.5 transition-transform" />
-            {{ showDetail ? '收起详情' : '查看引擎详情' }}
+            {{ showDetail ? $t('engineInfo.collapseDetail') : $t('engineInfo.viewDetail') }}
           </button>
 
           <div v-if="showDetail" class="mt-3 space-y-2">
@@ -86,7 +86,7 @@
                 >
                   <div class="flex items-center gap-2 min-w-0">
                     <span class="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0"></span>
-                    <span class="text-xs text-gray-800 truncate">{{ engine.display_name }}</span>
+                    <span class="text-xs text-gray-800 truncate" :title="engine.display_name">{{ engine.display_name }}</span>
                   </div>
                   <span
                     v-if="engine.version && engine.version !== 'N/A'"
@@ -104,6 +104,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { getEnginesInfo } from '@/api/systemApi'
 import type { EnginesResponse } from '@/api/types'
 import LoadingSpinner from './LoadingSpinner.vue'
@@ -122,31 +123,32 @@ const loading = ref(false)
 const error = ref<string | null>(null)
 const data = ref<EnginesResponse | null>(null)
 const showDetail = ref(false)
+const { t } = useI18n()
 
 const engineGroups = computed(() => {
   if (!data.value) return {}
   const { engines } = data.value
   return {
     document: {
-      label: '文档解析',
+      label: t('engineInfo.groupDocument'),
       icon: FileText,
       engines: engines.document,
       style: 'bg-blue-50 text-blue-700 border-blue-200',
     },
     audio: {
-      label: '音频',
+      label: t('engineInfo.groupAudio'),
       icon: Mic,
       engines: engines.audio,
       style: 'bg-green-50 text-green-700 border-green-200',
     },
     video: {
-      label: '视频',
+      label: t('engineInfo.groupVideo'),
       icon: Video,
       engines: engines.video,
       style: 'bg-orange-50 text-orange-700 border-orange-200',
     },
     format: {
-      label: '格式解析',
+      label: t('engineInfo.groupFormat'),
       icon: Dna,
       engines: engines.format,
       style: 'bg-teal-50 text-teal-700 border-teal-200',
@@ -166,7 +168,7 @@ async function refresh() {
   try {
     data.value = await getEnginesInfo()
   } catch (e: any) {
-    error.value = e?.message || '获取引擎信息失败'
+    error.value = e?.message || t('engineInfo.loadFailed')
   } finally {
     loading.value = false
   }

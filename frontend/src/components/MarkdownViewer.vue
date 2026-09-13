@@ -1,13 +1,13 @@
 <template>
   <div class="markdown-viewer prose prose-sm max-w-none">
     <div v-if="loading" class="text-center py-8">
-      <LoadingSpinner text="加载中..." />
+      <LoadingSpinner :text="$t('common.loading')" />
     </div>
     <div v-else-if="error" class="text-center py-8 text-red-600">
       <p>{{ error }}</p>
     </div>
     <div v-else-if="!content" class="text-center py-8 text-gray-500">
-      <p>暂无内容</p>
+      <p>{{ $t('common.noData') }}</p>
     </div>
     <div v-else v-html="renderedContent" class="markdown-content"></div>
   </div>
@@ -15,6 +15,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { marked } from 'marked'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/github.css'
@@ -24,6 +25,7 @@ import LoadingSpinner from './LoadingSpinner.vue'
 import { useAuthStore } from '@/stores'
 
 const authStore = useAuthStore()
+const { t } = useI18n()
 
 // 文件服务接口需要鉴权，<img> 无法携带请求头，为内部文件链接追加 token 查询参数
 const withAuthToken = (html: string): string => {
@@ -117,7 +119,7 @@ const renderedContent = computed(() => {
     return withAuthToken(html)
   } catch (err) {
     console.error('Markdown parse error:', err)
-    return '<p class="text-red-600">Markdown 解析错误</p>'
+    return `<p class="text-red-600">${t('markdownViewer.parseError')}</p>`
   }
 })
 </script>

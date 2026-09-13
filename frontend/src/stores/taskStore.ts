@@ -6,8 +6,10 @@ import { ref, computed } from 'vue'
 import { taskApi } from '@/api'
 // ✅ 修复：导入 TaskStatus 类型
 import type { Task, SubmitTaskRequest, TaskQueryParams, TaskStatus } from '@/api/types'
+import i18n from '@/locales'
 
 export const useTaskStore = defineStore('task', () => {
+  const t = i18n.global.t
   // ----------------------------------------------------------------
   // State (状态)
   // ----------------------------------------------------------------
@@ -56,7 +58,7 @@ export const useTaskStore = defineStore('task', () => {
       total.value += 1
       return response
     } catch (err: any) {
-      error.value = err.message || '提交任务失败'
+      error.value = err.message || t('task.submitFailed')
       throw err
     } finally {
       loading.value = false
@@ -75,7 +77,7 @@ export const useTaskStore = defineStore('task', () => {
       total.value = response.total
       return response
     } catch (err: any) {
-      error.value = err.message || '获取任务列表失败'
+      error.value = err.message || t('task.fetchListFailed')
       throw err
     } finally {
       loading.value = false
@@ -109,7 +111,7 @@ export const useTaskStore = defineStore('task', () => {
       }
       return response
     } catch (err: any) {
-      error.value = err.message || '获取任务详情失败'
+      error.value = err.message || t('task.fetchDetailFailed')
       throw err
     } finally {
       loading.value = false
@@ -125,7 +127,7 @@ export const useTaskStore = defineStore('task', () => {
       // 本地状态更新
       updateLocalTaskStatus(taskId, 'cancelled')
     } catch (err: any) {
-      error.value = err.message || '取消任务失败'
+      error.value = err.message || t('task.cancelFailed')
       throw err
     }
   }
@@ -151,7 +153,7 @@ export const useTaskStore = defineStore('task', () => {
         currentTask.value.error_message = null
       }
     } catch (err: any) {
-      error.value = err.message || '重试任务失败'
+      error.value = err.message || t('task.retryFailed')
       throw err
     }
   }
@@ -164,7 +166,7 @@ export const useTaskStore = defineStore('task', () => {
       await taskApi.pauseTask(taskId)
       updateLocalTaskStatus(taskId, 'paused')
     } catch (err: any) {
-      error.value = err.message || '暂停任务失败'
+      error.value = err.message || t('task.pauseFailed')
       throw err
     }
   }
@@ -177,7 +179,7 @@ export const useTaskStore = defineStore('task', () => {
       await taskApi.resumeTask(taskId)
       updateLocalTaskStatus(taskId, 'pending')
     } catch (err: any) {
-      error.value = err.message || '恢复任务失败'
+      error.value = err.message || t('task.resumeFailed')
       throw err
     }
   }
@@ -193,7 +195,7 @@ export const useTaskStore = defineStore('task', () => {
       if (task) task.result_path = 'CLEARED'
       if (currentTask.value?.task_id === taskId) currentTask.value.result_path = 'CLEARED'
     } catch (err: any) {
-      error.value = err.message || '清理缓存失败'
+      error.value = err.message || t('task.clearCacheFailed')
       throw err
     }
   }
@@ -209,7 +211,7 @@ export const useTaskStore = defineStore('task', () => {
       // 更新总数 (防止分页数据不准)
       total.value = Math.max(0, total.value - res.deleted_count)
     } catch (err: any) {
-      error.value = err.message || '清理失败任务失败'
+      error.value = err.message || t('task.clearFailedFailed')
       throw err
     }
   }

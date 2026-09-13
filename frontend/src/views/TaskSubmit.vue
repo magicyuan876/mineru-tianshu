@@ -1,19 +1,17 @@
 <template>
-  <div class="max-w-5xl mx-auto px-4 py-6 animate-fade-in">
-    <div class="mb-6 flex justify-between items-end">
-      <div>
-        <h1 class="text-2xl font-bold text-gray-900 tracking-tight">{{ $t('task.submitTask') }}</h1>
-        <p class="mt-1 text-sm text-gray-500">{{ $t('task.processingOptions') }}</p>
-      </div>
-      <button
-        @click="resetConfig"
-        class="text-xs text-gray-500 hover:text-primary-600 underline transition-colors flex items-center"
-        :title="$t('task.resetConfig')"
-      >
-        <RotateCcw class="w-3 h-3 mr-1" />
-        {{ $t('common.reset') }}
-      </button>
-    </div>
+  <div class="w-full animate-fade-in">
+    <PageHeader :title="$t('task.submitTask')" :description="$t('task.processingOptions')">
+      <template #actions>
+        <button
+          @click="resetConfig"
+          class="text-xs text-gray-500 hover:text-primary-600 underline transition-colors flex items-center"
+          :title="$t('task.resetConfig')"
+        >
+          <RotateCcw class="w-3 h-3 mr-1" />
+          {{ $t('common.reset') }}
+        </button>
+      </template>
+    </PageHeader>
 
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
@@ -319,9 +317,9 @@
               <div class="flex items-center flex-1 min-w-0">
                 <FileText :class="['w-4 h-4 mr-3 flex-shrink-0', progress.success ? 'text-green-500' : progress.error ? 'text-red-500' : 'text-gray-400']" />
                 <div class="truncate">
-                   <p class="text-sm text-gray-700 truncate font-medium">{{ progress.fileName }}</p>
+                   <p class="text-sm text-gray-700 truncate font-medium" :title="progress.fileName">{{ progress.fileName }}</p>
                    <p v-if="progress.taskId" class="text-[10px] text-gray-400 font-mono tracking-tight">{{ progress.taskId }}</p>
-                   <p v-if="progress.errorMsg" class="text-[10px] text-red-500 truncate">{{ progress.errorMsg }}</p>
+                   <p v-if="progress.errorMsg" class="text-[10px] text-red-500 truncate" :title="progress.errorMsg">{{ progress.errorMsg }}</p>
                 </div>
               </div>
               <div class="flex items-center ml-3">
@@ -353,6 +351,7 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useTaskStore } from '@/stores'
 import FileUploader from '@/components/FileUploader.vue'
+import PageHeader from '@/components/PageHeader.vue'
 import {
   Upload, Loader, AlertCircle, X, FileText, CheckCircle, XCircle,
   Settings, ChevronDown, ChevronUp, Info, RotateCcw, ArrowRight,
@@ -535,7 +534,7 @@ async function submitTasks() {
   }
 
   if (isHttpClientBackend.value && !config.server_url) {
-    errorMessage.value = "请填写远程服务器地址 (Server URL)"
+    errorMessage.value = t('task.serverUrlRequired')
     return
   }
 

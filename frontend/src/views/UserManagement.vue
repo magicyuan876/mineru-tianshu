@@ -1,14 +1,15 @@
 <template>
-  <div class="max-w-7xl mx-auto">
-    <div class="flex justify-between items-center mb-8">
-      <h1 class="text-3xl font-bold text-gray-900">{{ $t('user.title') }}</h1>
-      <button
-        @click="showCreateDialog = true"
-        class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-      >
-        {{ $t('user.createUser') }}
-      </button>
-    </div>
+  <div class="w-full">
+    <PageHeader :title="$t('user.title')">
+      <template #actions>
+        <button
+          @click="showCreateDialog = true"
+          class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+        >
+          {{ $t('user.createUser') }}
+        </button>
+      </template>
+    </PageHeader>
 
     <!-- 加载状态 -->
     <div v-if="loading" class="flex justify-center py-12">
@@ -307,6 +308,7 @@ import { formatDate } from '@/utils/format'
 import { showToast } from '@/utils/toast'
 import LoadingSpinner from '@/components/LoadingSpinner.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import PageHeader from '@/components/PageHeader.vue'
 
 const { t } = useI18n()
 const authStore = useAuthStore()

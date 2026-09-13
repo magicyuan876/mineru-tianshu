@@ -212,7 +212,7 @@ async function loadSystemConfig() {
     allowRegistration.value = response.config.allow_registration !== false
 
     // 更新页面标题
-    document.title = `${systemConfig.value.system_name} - 注册`
+    document.title = `${systemConfig.value.system_name} - ${t('common.register')}`
   } catch (error) {
     console.error('Failed to load system config:', error)
     // 失败时 fail-closed，隐藏注册表单

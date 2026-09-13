@@ -1,10 +1,6 @@
 <template>
-  <div>
-    <!-- 页面标题 -->
-    <div class="mb-6">
-      <h1 class="text-2xl font-bold text-gray-900">{{ $t('queue.title') }}</h1>
-      <p class="mt-1 text-sm text-gray-600">{{ $t('queue.stats') }}</p>
-    </div>
+  <div class="w-full">
+    <PageHeader :title="$t('queue.title')" :description="$t('queue.stats')" />
 
     <div class="space-y-6">
       <!-- 队列统计卡片 -->
@@ -207,6 +203,7 @@ import { formatDateTime, formatRelativeTime } from '@/utils/format'
 const { t } = useI18n()
 import StatCard from '@/components/StatCard.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import PageHeader from '@/components/PageHeader.vue'
 import {
   Clock,
   Loader,

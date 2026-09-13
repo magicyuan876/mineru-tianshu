@@ -1,15 +1,7 @@
 <template>
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-fade-in">
-    <div class="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
-      <div>
-        <h1 class="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          <List class="w-7 h-7 text-primary-600" />
-          {{ $t('task.taskList') }}
-        </h1>
-        <p class="mt-1 text-sm text-gray-500">{{ $t('task.taskListDesc') }}</p>
-      </div>
-
-      <div class="flex flex-wrap items-center gap-3">
+  <div class="w-full animate-fade-in">
+    <PageHeader :title="$t('task.taskList')" :description="$t('task.taskListDesc')">
+      <template #actions>
         <label class="flex items-center cursor-pointer bg-white px-3 py-2 rounded-lg border border-gray-200 shadow-sm hover:bg-gray-50 transition-colors" :title="$t('common.autoRefreshLabel')">
           <input type="checkbox" v-model="autoRefresh" class="sr-only">
           <div class="relative w-8 h-4 transition-colors rounded-full" :class="autoRefresh ? 'bg-green-500' : 'bg-gray-300'">
@@ -41,8 +33,8 @@
           <Plus class="w-4 h-4 mr-1.5" />
           {{ $t('task.submitTask') }}
         </router-link>
-      </div>
-    </div>
+      </template>
+    </PageHeader>
 
     <div class="card mb-6 shadow-sm border-gray-100 bg-white/80 backdrop-blur-sm">
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-4">
@@ -347,8 +339,9 @@ import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import {
   Search, RefreshCw, Plus, FileText, Eye, FileQuestion,
   ChevronLeft, ChevronRight, Filter, Server, CheckSquare,
-  XCircle, Copy, Trash2, Play, Pause, RotateCw, Eraser, List, Clock, ChevronDown
+  XCircle, Copy, Trash2, Play, Pause, RotateCw, Eraser, Clock, ChevronDown
 } from 'lucide-vue-next'
+import PageHeader from '@/components/PageHeader.vue'
 import type { TaskStatus, Backend, Task } from '@/api/types'
 
 const { t } = useI18n()

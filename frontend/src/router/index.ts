@@ -3,6 +3,7 @@
  */
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore, useSystemStore } from '@/stores'
+import i18n from '@/locales'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -12,14 +13,14 @@ const router = createRouter({
       path: '/login',
       name: 'login',
       component: () => import('@/views/Login.vue'),
-      meta: { title: '登录', public: true }
+      meta: { titleKey: 'common.login', public: true }
     },
     // 注册页
     {
       path: '/register',
       name: 'register',
       component: () => import('@/views/Register.vue'),
-      meta: { title: '注册', public: true }
+      meta: { titleKey: 'common.register', public: true }
     },
     // 主应用
     {
@@ -31,55 +32,55 @@ const router = createRouter({
           path: '',
           name: 'dashboard',
           component: () => import('@/views/Dashboard.vue'),
-          meta: { title: '仪表盘' }
+          meta: { titleKey: 'nav.dashboard' }
         },
         {
           path: 'tasks',
           name: 'task-list',
           component: () => import('@/views/TaskList.vue'),
-          meta: { title: '任务列表' }
+          meta: { titleKey: 'nav.taskList' }
         },
         {
           path: 'tasks/submit',
           name: 'task-submit',
           component: () => import('@/views/TaskSubmit.vue'),
-          meta: { title: '提交任务' }
+          meta: { titleKey: 'nav.submitTask' }
         },
         {
           path: 'tasks/:id',
           name: 'task-detail',
           component: () => import('@/views/TaskDetail.vue'),
-          meta: { title: '任务详情' }
+          meta: { titleKey: 'task.taskDetail' }
         },
         {
           path: 'queue',
           name: 'queue-management',
           component: () => import('@/views/QueueManagement.vue'),
-          meta: { title: '队列管理' }
+          meta: { titleKey: 'nav.queueManagement' }
         },
         {
           path: 'profile',
           name: 'profile',
           component: () => import('@/views/Profile.vue'),
-          meta: { title: '个人资料' }
+          meta: { titleKey: 'common.profile' }
         },
         {
           path: 'users',
           name: 'user-management',
           component: () => import('@/views/UserManagement.vue'),
-          meta: { title: '用户管理', requiresAdmin: true }
+          meta: { titleKey: 'nav.userManagement', requiresAdmin: true }
         },
         {
           path: 'system-config',
           name: 'system-config',
           component: () => import('@/views/SystemConfig.vue'),
-          meta: { title: '系统配置', requiresAdmin: true }
+          meta: { titleKey: 'nav.systemConfig', requiresAdmin: true }
         },
         {
           path: 'api-docs',
           name: 'api-docs',
           component: () => import('@/views/ApiDocsScalar.vue'),
-          meta: { title: 'API 文档' }
+          meta: { titleKey: 'nav.apiDocs' }
         }
       ]
     },
@@ -97,8 +98,8 @@ router.beforeEach(async (to, _from, next) => {
   }
 
   // 设置页面标题
-  if (to.meta.title) {
-    systemStore.updatePageTitle(to.meta.title as string)
+  if (to.meta.titleKey) {
+    systemStore.updatePageTitle(i18n.global.t(to.meta.titleKey as string))
   } else {
     document.title = systemStore.config.system_name
   }

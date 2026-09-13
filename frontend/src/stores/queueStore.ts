@@ -5,8 +5,10 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { queueApi } from '@/api'
 import type { QueueStats } from '@/api/types'
+import i18n from '@/locales'
 
 export const useQueueStore = defineStore('queue', () => {
+  const t = i18n.global.t
   // 状态
   const stats = ref<QueueStats>({
     pending: 0,
@@ -95,7 +97,7 @@ export const useQueueStore = defineStore('queue', () => {
 
       return response
     } catch (err: any) {
-      error.value = err.message || '获取队列统计失败'
+      error.value = err.message || t('queue.fetchStatsFailed')
       throw err
     } finally {
       loading.value = false
@@ -147,7 +149,7 @@ export const useQueueStore = defineStore('queue', () => {
       await fetchStats()
       return response
     } catch (err: any) {
-      error.value = err.message || '重置超时任务失败'
+      error.value = err.message || t('queue.resetFailed')
       throw err
     } finally {
       loading.value = false
@@ -167,7 +169,7 @@ export const useQueueStore = defineStore('queue', () => {
       await fetchStats()
       return response
     } catch (err: any) {
-      error.value = err.message || '清理旧任务失败'
+      error.value = err.message || t('queue.cleanupFailed')
       throw err
     } finally {
       loading.value = false
@@ -182,7 +184,7 @@ export const useQueueStore = defineStore('queue', () => {
       const response = await queueApi.healthCheck()
       return response
     } catch (err: any) {
-      error.value = err.message || '健康检查失败'
+      error.value = err.message || t('queue.healthCheckFailed')
       throw err
     }
   }
