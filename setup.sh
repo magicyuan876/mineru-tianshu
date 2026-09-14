@@ -670,9 +670,10 @@ create_directories() {
         input output \
         data/uploads data/output data/db \
         logs/backend logs/worker logs/mcp logs/scheduler
-    # 容器以非 root 用户（tianshu, UID 10001）运行，需保证数据/日志目录对容器可写；
-    # 权限不足时容器 entrypoint 会给出明确报错（best-effort，失败不中断）
-    chmod -R a+rwX data logs input output 2> /dev/null || true
+    # 容器以非 root 用户（tianshu, UID 10001）运行，需保证挂载目录对容器可写；
+    # models 同样要放权 —— init-models 要往里写模型、mineru.json 与 manifest.json，
+    # 还有 HF_HOME / MODELSCOPE_CACHE 两个缓存目录（best-effort，失败不中断）
+    chmod -R a+rwX models data logs input output 2> /dev/null || true
     log_success "目录就绪"
 }
 

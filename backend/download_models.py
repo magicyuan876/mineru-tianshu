@@ -261,6 +261,15 @@ def main(output_dir, selected_models=None, force=False):
     output_path.mkdir(parents=True, exist_ok=True)
     logger.info(f"📁 Output directory (Container/Host mapped): {output_path}")
 
+    # 本服务覆盖了 entrypoint，拿不到 docker-entrypoint.sh 的可写性预检。不先判一次的话，
+    # 每个模型都会以 ModelScope 的 SDK 目录创建失败告终，最后再撞上写 manifest 的 traceback，
+    # 真正的原因淹没在一堆 "Download failed" 里。
+    if not os.access(output_path, os.W_OK):
+        logger.error(f"❌ Output directory is not writable: {output_path}")
+        logger.error("   容器以非 root 用户 tianshu (UID 10001) 运行，需在宿主机放权：")
+        logger.error("   chmod -R a+rwX models")
+        return 1
+
     # 筛选模型
     models_to_download = MODELS
     if selected_models:
