@@ -107,15 +107,11 @@ services:
     ports:
       - "${API_PORT:-8000}:8000"
     volumes:
-      # 模型外部卷(只读)
-      - ./models-offline:/models-external:ro
-      # 容器内模型缓存(读写；容器以非 root 用户 tianshu 运行)
-      - backend-models-cache:/home/tianshu/.cache:rw
-      - ./models:/app/models:rw
-      # Hugging Face 模型缓存(持久化)
-      - ./models/huggingface_cache:/home/tianshu/.cache/huggingface:rw
-      # ModelScope 模型缓存(持久化，国内模型下载)
-      - ./models/modelscope_cache:/home/tianshu/.cache/modelscope:rw
+      # 离线模型目录直接挂载为 /app/models（只读），确保 mineru.json 与模型权重路径一致
+      - ./models-offline:/app/models:ro
+      # HF/ModelScope 缓存保持可写（子目录覆盖父卷的只读属性）
+      - ./models/huggingface_cache:/app/models/huggingface_cache:rw
+      - ./models/modelscope_cache:/app/models/modelscope_cache:rw
       # 上传文件(统一使用 /app/data 路径)
       - ./data/uploads:/app/data/uploads:rw
       # 输出结果
@@ -220,15 +216,11 @@ services:
     ports:
       - "127.0.0.1:${WORKER_PORT:-8001}:8001"
     volumes:
-      # 模型外部卷(只读)
-      - ./models-offline:/models-external:ro
-      # 容器内模型缓存(读写；容器以非 root 用户 tianshu 运行)
-      - worker-models-cache:/home/tianshu/.cache:rw
-      - ./models:/app/models:rw
-      # Hugging Face 模型缓存(持久化)
-      - ./models/huggingface_cache:/home/tianshu/.cache/huggingface:rw
-      # ModelScope 模型缓存(持久化，国内模型下载)
-      - ./models/modelscope_cache:/home/tianshu/.cache/modelscope:rw
+      # 离线模型目录直接挂载为 /app/models（只读），确保 mineru.json 与模型权重路径一致
+      - ./models-offline:/app/models:ro
+      # HF/ModelScope 缓存保持可写（子目录覆盖父卷的只读属性）
+      - ./models/huggingface_cache:/app/models/huggingface_cache:rw
+      - ./models/modelscope_cache:/app/models/modelscope_cache:rw
       # 上传文件(读写)
       - ./data/uploads:/app/data/uploads:rw
       # 输出结果
@@ -406,13 +398,6 @@ networks:
           gateway: 172.30.0.1
 
 volumes:
-  # 模型缓存卷(分开以避免权限问题)
-  backend-models-cache:
-    driver: local
-    name: tianshu-backend-models
-  worker-models-cache:
-    driver: local
-    name: tianshu-worker-models
   redis-data:
     driver: local
     name: tianshu-redis-data

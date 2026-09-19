@@ -233,15 +233,15 @@ main() {
     check_environment "$SERVICE_TYPE"
     initialize_directories
 
-    # ✅ 在初始化目录后，执行配置分发
-    setup_mineru_config
-
     initialize_database
 
     # Initialize models before checking (for worker only)
     if [ "$SERVICE_TYPE" = "worker" ]; then
         initialize_models
     fi
+
+    # 模型初始化完成后再分发 mineru.json（离线/外部模型卷此时已复制到 /app/models）
+    setup_mineru_config
 
     check_models
 
