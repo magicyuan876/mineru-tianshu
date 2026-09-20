@@ -23,3 +23,22 @@ jobs:
     # 使用官方的 pre-commit action（带缓存，速度快）
     - name: Run pre-commit
       uses: pre-commit/action@v3.0.1
+
+  backend-test:
+    name: Backend Production Safety Tests
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Install test dependencies
+      run: python -m pip install -r backend/requirements-test.txt
+
+    - name: Run backend tests
+      run: PYTHONPATH=backend python -m pytest backend/tests -q

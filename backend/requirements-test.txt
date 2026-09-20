@@ -1,0 +1,15 @@
+# 生产事故防线测试需要的轻量运行时依赖；不安装 MinerU、Torch 或 GPU 引擎。
+email-validator>=2.2.0
+fastapi==0.141.1
+httpx>=0.28.0
+loguru>=0.7.3
+minio>=7.2.0
+pydantic>=2.11.0
+pyjwt>=2.10.0
+python-multipart>=0.0.20
+redis>=5.0.0
+
+pytest==8.4.2
+pytest-cov==7.0.0
+pytest-mock==3.15.1
+respx==0.22.0

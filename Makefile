@@ -173,6 +173,9 @@ test-api: ## 测试 API 是否可访问
 	@echo "$(BLUE)[INFO]$(NC) 测试 API (http://localhost:$(API_PORT)/api/v1/health)..."
 	@curl -f http://localhost:$(API_PORT)/api/v1/health && echo "" && echo "$(GREEN)[OK]$(NC) API 正常" || echo "$(RED)[ERROR]$(NC) API 不可访问"
 
+test: ## 运行后端生产事故防线测试
+	@PYTHONPATH=backend python -m pytest backend/tests -q
+
 health: ## 检查所有服务健康状态
 	@echo "$(BLUE)[INFO]$(NC) 检查服务健康状态..."
 	@$(COMPOSE_CMD) ps | grep "healthy" && echo "$(GREEN)[OK]$(NC) 所有服务健康" || echo "$(YELLOW)[WARNING]$(NC) 部分服务不健康"
