@@ -8,6 +8,7 @@ pydantic>=2.11.0
 pyjwt>=2.10.0
 python-multipart>=0.0.20
 redis>=5.0.0
+uvicorn[standard]==0.34.0
 
 pytest==8.4.2
 pytest-cov==7.0.0
