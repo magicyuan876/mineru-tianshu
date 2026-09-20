@@ -61,7 +61,7 @@ loguru>=0.7.3
 python-dotenv>=1.0.1
 minio>=7.2.0
 redis>=5.0.0
-markitdown>=0.1.4
+markitdown[xls]==0.1.7
 attrdict>=2.0.1
 prettytable
 ujson
