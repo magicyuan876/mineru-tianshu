@@ -20,8 +20,12 @@ biopython>=1.80
 # mineru[core] = [vlm] + [pipeline] + [gradio]，pipeline / vlm / hybrid 后端全部覆盖。
 # 注意：gradio 的约束 !=6.0.0,...,!=6.7.0,<6.9.0,>=5.49.1 会让 pip 从最新版 (6.2x)
 # 起逐个回溯下载 30.7MB 的 wheel 读元数据，国内源上这一步约 30-40 分钟。
-# 曾改为 [pipeline,vlm] 裁掉 gradio，但线上出现 mineru.utils.model_utils 缺失，
-# 为排除变量先还原；真正的疑点是 >=3.4.5 没有上限、上游版本漂移。
+#
+# 版本必须钉死，不能用 >=：本项目直接 import 了 mineru.utils.model_utils 与
+# mineru.cli.common，这两个都不是 MinerU 承诺稳定的公共 API。线上曾因 >=3.4.5
+# 在重新构建时解析到上游新版本，导致 Worker 启动即崩溃：
+#     ModuleNotFoundError: No module named 'mineru.utils.model_utils'
+# 升级 MinerU 时请同步确认这两个入口仍然存在（Dockerfile Step 7 有构建期断言）。
 # 不用 [all]：相对 [core] 在 Linux 上只多出 [s3] 和 [vllm] 两项——
 #   [s3] 只是 boto3，下面已显式声明；
 #   [vllm] 装的是进程内推理引擎，而本项目的 vLLM 跑在独立容器（vllm/vllm-openai）里经 HTTP 调用，
@@ -29,7 +33,7 @@ biopython>=1.80
 #   镜像内根本没有代码路径 import 它。
 # 而它的代价是：vllm>=0.10.1.1 每个版本都硬绑定特定 torch，与本镜像钉死的 torch 2.10.0+cu130 冲突，
 # 会让 pip 回溯下载几十个 250MB+ 的 wheel。
-mineru[core]>=3.4.5
+mineru[core]==3.4.5
 # 以下为 mineru 依赖树中的关键包，显式声明以确保版本锁定
 boto3>=1.34.0
 botocore>=1.34.0

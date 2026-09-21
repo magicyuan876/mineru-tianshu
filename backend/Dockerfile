@@ -75,13 +75,16 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # 注意 mineru[core] 会带入 gradio（MinerU 自带的演示 WebUI，本项目从未引用），
 # 其约束 !=6.0.0,...,!=6.7.0,<6.9.0,>=5.49.1 会让 pip 从最新版 (6.2x) 起逐个
 # 回溯下载 30.7MB 的 wheel 读元数据，国内源上约 30-40 分钟。
-# 曾改为 mineru[pipeline,vlm] 裁掉它，但线上随后出现 mineru.utils.model_utils
-# 缺失，为排除变量先还原为 core。真正的疑点是下面的 >=3.4.5 没有上限，
-# 上游版本漂移后模块布局可能变化 —— 待定位后应改为钉死版本。
+#
+# 版本钉死不用 >=：本项目直接 import 了 mineru.utils.model_utils 与
+# mineru.cli.common，二者都不是 MinerU 承诺稳定的公共 API。线上曾因 >=3.4.5
+# 在重新构建时解析到上游新版本，Worker 启动即崩溃重启：
+#     ModuleNotFoundError: No module named 'mineru.utils.model_utils'
+# 升级 MinerU 时务必同步确认下面 Step 7 的入口断言仍然通过。
 # 加入了日志中提示缺失的所有包
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install "huggingface-hub<1.0" \
-                "mineru[core]>=3.4.5" \
+                "mineru[core]==3.4.5" \
                 "transformers==4.57.6" \
                 "openai>=1.50.0" \
                 "boto3>=1.34.0" \

@@ -141,7 +141,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # Step 3: 安装 MinerU 及其依赖（允许自动解析依赖）
 RUN --mount=type=cache,target=/root/.cache/pip \
     echo "Installing MinerU with dependencies..." && \
-    pip install "mineru[core]>=3.4.5" \
+    pip install "mineru[core]==3.4.5" \
     -i ${PIP_MIRROR} \
     --break-system-packages \
     --default-timeout=600 \
