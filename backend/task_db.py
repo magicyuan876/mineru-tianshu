@@ -25,6 +25,8 @@ from typing import Optional, List, Dict
 from pathlib import Path
 from loguru import logger
 
+from utils import assert_local_filesystem
+
 # 导入 Redis 队列（可选）
 try:
     from redis_queue import get_redis_queue
@@ -76,6 +78,10 @@ class TaskDB:
 
         # 确保 db_path 是绝对路径字符串
         self.db_path = str(Path(db_path).resolve())
+
+        # WAL 依赖 POSIX 文件锁，NFS/CIFS 上会静默损坏数据库，启动时直接拦截
+        assert_local_filesystem(self.db_path)
+
         self._init_db()
 
     def _get_conn(self):

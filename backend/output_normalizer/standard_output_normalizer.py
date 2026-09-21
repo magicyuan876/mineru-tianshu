@@ -5,8 +5,8 @@
 from pathlib import Path
 from typing import Optional, Dict, Any
 from loguru import logger
-import shutil
 import re
+from utils import copy_file, move_file
 from .base_output_normalizer import BaseOutputNormalizer
 
 
@@ -69,7 +69,7 @@ class StandardOutputNormalizer(BaseOutputNormalizer):
         # 如果不在根目录，移动到根目录
         if main_md.parent != output_dir:
             logger.info("   Moving to root directory...")
-            shutil.copy2(main_md, standard_md)
+            copy_file(main_md, standard_md)
         else:
             # 重命名
             logger.info(f"   Renaming to {self.STANDARD_MARKDOWN_NAME}...")
@@ -111,7 +111,7 @@ class StandardOutputNormalizer(BaseOutputNormalizer):
                 if img_file.parent != standard_image_dir:
                     dest = standard_image_dir / img_file.name
                     logger.debug(f"   Moving: {img_file.name}")
-                    shutil.move(str(img_file), str(dest))
+                    move_file(img_file, dest)
 
             return standard_image_dir, len(image_files)
 
@@ -140,7 +140,7 @@ class StandardOutputNormalizer(BaseOutputNormalizer):
                             dest = standard_image_dir / f"{stem}_{counter}{suffix}"
                             counter += 1
 
-                    shutil.move(str(img_file), str(dest))
+                    move_file(img_file, dest)
                     total_images += 1
 
             # 删除空目录
@@ -186,7 +186,7 @@ class StandardOutputNormalizer(BaseOutputNormalizer):
         # 如果不在根目录，移动到根目录
         if main_json.parent != output_dir:
             logger.info("   Moving to root directory...")
-            shutil.copy2(main_json, standard_json)
+            copy_file(main_json, standard_json)
         else:
             # 重命名
             logger.info(f"   Renaming to {self.STANDARD_JSON_NAME}...")

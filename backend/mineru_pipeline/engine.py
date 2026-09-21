@@ -12,7 +12,6 @@ MinerU Pipeline Engine
 """
 
 import json
-import shutil
 import tempfile
 import time
 import urllib.request
@@ -25,6 +24,8 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 from threading import Lock
 from loguru import logger
+
+from utils import copy_file
 import img2pdf
 
 # 尝试导入 torch 用于显存管理
@@ -423,7 +424,7 @@ class MinerUPipelineEngine:
                             rel_path = src_path.relative_to(generated_result_dir)
                             dest_path = final_output_dir / rel_path
                             dest_path.parent.mkdir(parents=True, exist_ok=True)
-                            shutil.copy2(src_path, dest_path)
+                            copy_file(src_path, dest_path)
 
                 # 4. 返回路径
                 final_md_path = None

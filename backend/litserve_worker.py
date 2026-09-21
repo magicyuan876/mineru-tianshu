@@ -91,7 +91,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 # Local imports
 from task_db import TaskDB
 from output_normalizer import normalize_output
-from utils import parse_list_arg, ALLOWED_UPLOAD_EXTENSIONS
+from utils import parse_list_arg, ALLOWED_UPLOAD_EXTENSIONS, copy_file, move_file
 import importlib.util
 
 
@@ -556,7 +556,7 @@ class MinerUWorkerAPI(ls.LitAPI):
 
         if not target_path.exists():
             try:
-                shutil.copy2(source_file, target_path)
+                copy_file(source_file, target_path)
                 logger.info(f"📄 Copied source PDF to output: {target_name}")
             except Exception as e:
                 logger.warning(f"Failed to copy source PDF: {e}")
@@ -605,7 +605,7 @@ class MinerUWorkerAPI(ls.LitAPI):
                             shutil.rmtree(dest)
                         else:
                             dest.unlink()
-                    shutil.move(str(item), str(dest))
+                    move_file(item, dest)
                 shutil.rmtree(actual_output)
             except Exception as e:
                 logger.warning(f"Flattening warning: {e}")
@@ -741,7 +741,7 @@ class MinerUWorkerAPI(ls.LitAPI):
                 profile_path = temp_path / "profile"
                 profile_path.mkdir()
                 temp_input = temp_path / input_file.name
-                shutil.copy2(input_file, temp_input)
+                copy_file(input_file, temp_input)
 
                 cmd = [
                     "libreoffice",
@@ -758,7 +758,7 @@ class MinerUWorkerAPI(ls.LitAPI):
                 temp_new = temp_path / f"{input_file.stem}.{target_fmt}"
                 if not temp_new.exists():
                     raise RuntimeError(f"{target_fmt} output missing")
-                shutil.move(str(temp_new), str(final_new))
+                move_file(temp_new, final_new)
                 logger.info(f"✅ Converted {input_file.suffix} → .{target_fmt}: {final_new}")
                 return str(final_new)
         except Exception as e:

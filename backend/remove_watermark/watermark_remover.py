@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import List, Tuple, Optional, Union
 from loguru import logger
 
+from utils import copy_file
+
 try:
     from ultralytics import YOLO
 
@@ -280,9 +282,7 @@ class WatermarkRemover:
         if not boxes:
             logger.info("  No watermark detected, copying original")
             # 复制而不是移动
-            import shutil
-
-            shutil.copy2(image_path, output_path)
+            copy_file(image_path, output_path)
             return output_path
 
         logger.info(f"  Detected {len(boxes)} watermark(s)")
