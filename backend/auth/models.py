@@ -189,7 +189,9 @@ class APIKeyCreate(BaseModel):
     """创建 API Key 请求"""
 
     name: str = Field(..., min_length=1, max_length=100)
-    expires_days: int = Field(90, gt=0, le=3650)  # 默认 90 天，最长 10 年，必须限期
+    # 必须限期：不提供永久 Key。上限 30 年（10950 天）用于长期运行的内部集成，
+    # 前端最长选项与此保持一致，避免出现前端可选、后端拒绝的组合。
+    expires_days: int = Field(90, gt=0, le=10950)
     scopes: Optional[List[str]] = None  # 权限作用域（Permission 枚举值），None 表示不限
 
     @field_validator("scopes")

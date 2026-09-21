@@ -572,7 +572,7 @@ export default {
     days90: '90 days',
     days180: '180 days',
     days365: '365 days',
-    neverExpires: 'Never expires',
+    years30: '30 years',
     creating: 'Creating...',
     create: 'Create',
     expired: 'Expired',

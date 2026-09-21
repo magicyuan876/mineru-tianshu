@@ -573,7 +573,7 @@ export default {
     days90: '90 天',
     days180: '180 天',
     days365: '365 天',
-    neverExpires: '永不过期',
+    years30: '30 年',
     creating: '创建中...',
     create: '创建',
     expired: '已过期',

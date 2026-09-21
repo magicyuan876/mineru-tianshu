@@ -128,7 +128,7 @@
               <option :value="90">{{ $t('apiKey.days90') }}</option>
               <option :value="180">{{ $t('apiKey.days180') }}</option>
               <option :value="365">{{ $t('apiKey.days365') }}</option>
-              <option :value="null">{{ $t('apiKey.neverExpires') }}</option>
+              <option :value="10950">{{ $t('apiKey.years30') }}</option>
             </select>
           </div>
 
