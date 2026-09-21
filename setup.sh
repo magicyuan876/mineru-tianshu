@@ -411,6 +411,19 @@ detect_server_ip() {
     esac
 }
 
+# 拼接经前端 nginx 反代的 RustFS 公网地址。
+# 端口为 80 时必须省略：写成 http://host:80/s3 虽然能用，但不规范，
+# 且前端日后切到 HTTPS 时这个写死的 :80 会直接失效。
+build_rustfs_public_url() {
+    local host="$1"
+    local port="$2"
+    if [ "$port" = "80" ] || [ -z "$port" ]; then
+        echo "http://${host}/s3"
+    else
+        echo "http://${host}:${port}/s3"
+    fi
+}
+
 container_running() {
     docker ps --filter "name=$1" --filter "status=running" --format '{{.Names}}' 2> /dev/null \
         | grep -q "$1"
@@ -682,7 +695,7 @@ interactive_configure() {
     front_port=$(get_env_key FRONTEND_PORT)
     front_port="${front_port:-80}"
     # RustFS 端口仅绑定回环，图片统一经前端 nginx /s3/ 反代访问
-    ask "RustFS 公网访问地址（经前端 nginx /s3/ 反代，需浏览器可达）" "http://${ip:-127.0.0.1}:${front_port}/s3"
+    ask "RustFS 公网访问地址（经前端 nginx /s3/ 反代，需浏览器可达）" "$(build_rustfs_public_url "${ip:-127.0.0.1}" "$front_port")"
     set_env_key RUSTFS_PUBLIC_URL "$REPLY"
 
     local api_default
@@ -782,14 +795,16 @@ tune_env() {
     case "$rustfs_url" in
         "" | *192.168.1.100* | http://localhost/s3 | http://127.0.0.1/s3)
             if [ -n "$server_ip" ]; then
-                set_env_key RUSTFS_PUBLIC_URL "http://${server_ip}:${front_port}/s3"
-                log_success "RUSTFS_PUBLIC_URL = http://${server_ip}:${front_port}/s3（经前端 nginx 反代）"
+                local derived_url
+                derived_url=$(build_rustfs_public_url "$server_ip" "$front_port")
+                set_env_key RUSTFS_PUBLIC_URL "$derived_url"
+                log_success "RUSTFS_PUBLIC_URL = ${derived_url}（经前端 nginx 反代）"
             elif [ "$DRY_RUN" -eq 1 ]; then
                 log_warning "未能探测服务器 IP（dry-run 继续；正式部署时会直接报错退出）"
-                log_warning "正式部署前请手动设置 RUSTFS_PUBLIC_URL=http://<服务器IP>:${front_port}/s3"
+                log_warning "正式部署前请手动设置 RUSTFS_PUBLIC_URL=$(build_rustfs_public_url "<服务器IP>" "$front_port")"
             else
                 log_error "未能探测服务器 IP，无法确定 RUSTFS_PUBLIC_URL"
-                log_error "请手动在 $ENV_FILE 中设置，例如 RUSTFS_PUBLIC_URL=http://<服务器IP>:${front_port}/s3"
+                log_error "请手动在 $ENV_FILE 中设置，例如 RUSTFS_PUBLIC_URL=$(build_rustfs_public_url "<服务器IP>" "$front_port")"
                 log_error "该地址必须是浏览器可达的；留空会让所有含图片的解析任务失败"
                 exit 1
             fi
