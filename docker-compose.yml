@@ -366,7 +366,10 @@ services:
     networks:
       - tianshu-network
     depends_on:
+      # nginx 会在启动时解析 /s3/ 的上游，rustfs 未就绪会拖慢首次启动；
+      # 真正的健壮性由 nginx 配置里的 resolver + 变量 proxy_pass 保证
       - backend
+      - rustfs
 
 networks:
   tianshu-network:

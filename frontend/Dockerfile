@@ -57,6 +57,11 @@ server {
     # 文件上传大小限制（0 表示不限制）
     client_max_body_size ${NGINX_CLIENT_MAX_BODY_SIZE};
 
+    # Docker 内嵌 DNS。配合下面 proxy_pass 中的变量，把上游解析推迟到请求时。
+    # 直接写字面主机名时 nginx 会在**加载配置时**解析，解析不到就 emerg 拒绝启动，
+    # 导致 rustfs 短暂不可用就让整个前端（含 /api/ 与页面本身）一起起不来。
+    resolver 127.0.0.11 valid=30s ipv6=off;
+
     # Gzip 压缩
     gzip on;
     gzip_vary on;
@@ -78,7 +83,10 @@ server {
     }
 
     # 静态资源缓存（排除 /api/ 路径，避免干扰后端静态文件服务）
-    location ~* ^(?!/api/).*\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+    # 负向前瞻必须同时排除 /api/ 与 /s3/：正则 location 优先级高于前缀 location，
+    # 不排除的话 /s3/<bucket>/<object>.png 会命中这里被当成本地静态文件，
+    # 而不是转发给 RustFS —— 解析结果里的图片会全部 404。
+    location ~* ^(?!/api/|/s3/).*\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
         expires 1y;
         add_header Cache-Control "public, immutable";
     }
@@ -86,12 +94,16 @@ server {
     # API 代理（包括静态文件）
     # /api/v1/files/output/* 会被代理到后端的静态文件服务
     #
-    # ⚠️ proxy_pass 末尾不能加斜杠：加了斜杠 nginx 会把 location 匹配的 /api/ 前缀
-    # 替换掉，后端收到的是 /v1/xxx，而 FastAPI 的路由挂在 /api/v1 前缀下 → 全部 404。
-    # 前端生产构建的 VITE_API_BASE_URL=/api（frontend/.env.production），请求路径为
-    # /api/v1/xxx，必须原样透传给后端。
+    # ⚠️ proxy_pass 不能带 URI 部分（末尾斜杠或路径）：带了 nginx 会把 location 匹配的
+    # /api/ 前缀替换掉，后端收到的是 /v1/xxx，而 FastAPI 的路由挂在 /api/v1 前缀下 →
+    # 全部 404。前端生产构建的 VITE_API_BASE_URL=/api（frontend/.env.production），
+    # 请求路径为 /api/v1/xxx，必须原样透传给后端。
+    # 这里用变量（配合上面的 resolver）而非字面主机名：proxy_pass 不带 URI 部分时，
+    # 变量写法同样原样透传完整请求 URI，语义不变；但解析被推迟到请求时，
+    # backend 短暂不可用不会让 nginx 拒绝启动、连静态页面一起挂掉。
     location /api/ {
-        proxy_pass http://backend:8000;
+        set $backend_upstream http://backend:8000;
+        proxy_pass $backend_upstream;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -106,9 +118,13 @@ server {
 
     # RustFS 对象存储反代（解析结果图片）
     # RustFS 端口仅绑定宿主机回环，浏览器统一经此路径访问图片
-    # ⚠️ proxy_pass 末尾带斜杠：/s3/<bucket>/<object> → /<bucket>/<object>
+    # proxy_pass 使用变量 + rewrite 剥前缀：/s3/<bucket>/<object> → /<bucket>/<object>
+    # 用变量而非字面量，是为了让 rustfs 不可用时 nginx 仍能启动，
+    # 此路径返回 502，而 /api/ 与前端页面不受影响；rustfs 恢复后自动生效。
     location /s3/ {
-        proxy_pass http://rustfs:9000/;
+        set $rustfs_upstream http://rustfs:9000;
+        rewrite ^/s3/(.*)$ /$1 break;
+        proxy_pass $rustfs_upstream;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -120,7 +136,11 @@ server {
 
     # WebSocket 支持
     location /ws/ {
-        proxy_pass http://backend:8000/ws/;
+        # 同 /api/：变量 + resolver，避免 backend 不可用时 nginx 拒绝启动。
+        # 原写法 proxy_pass 带 /ws/ 后缀，变量写法用 rewrite 保持同样的路径语义。
+        set $ws_upstream http://backend:8000;
+        rewrite ^/ws/(.*)$ /ws/$1 break;
+        proxy_pass $ws_upstream;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
