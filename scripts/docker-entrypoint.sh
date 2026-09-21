@@ -73,20 +73,30 @@ check_environment() {
 initialize_directories() {
     log_info "Initializing directory structure..."
 
-    mkdir -p /app/models
+    # /app/models 允许只读挂载（离线部署直接把 models-offline 挂成 :ro），
+    # 因此建目录失败不视为错误
+    mkdir -p /app/models 2> /dev/null || true
     mkdir -p /app/data/uploads
     mkdir -p /app/data/output
+    mkdir -p /app/data/db
     mkdir -p /app/logs
 
-    # 容器以非 root 用户运行时，挂载卷的属主可能不可写，提前给出明确报错
+    # 真正需要写入的目录：不可写直接退出，避免任务跑到一半才失败
     local dir
-    for dir in /app/models /app/data/uploads /app/data/output /app/logs; do
+    for dir in /app/data/uploads /app/data/output /app/data/db /app/logs; do
         if [ ! -w "$dir" ]; then
-            log_error "Directory $dir is not writable by the container user (tianshu, UID 10001)."
-            log_error "Fix on host: chmod -R a+rwX <host dir>，或参考 setup.sh create_directories 的处理"
+            log_error "Directory $dir is not writable by the container user (UID $(id -u))."
+            log_error "Fix on host: 让部署目录属主与 TIANSHU_UID/TIANSHU_GID 一致，"
+            log_error "             或执行 chmod -R a+rwX <host dir>（参考 setup.sh create_directories）"
             exit 1
         fi
     done
+
+    # /app/models 只读即可：mineru.json 与模型权重都只被读取。
+    # 只有需要在容器内下载模型时才必须可写，这里降级为提示。
+    if [ ! -w /app/models ]; then
+        log_info "/app/models is read-only (expected for offline deployments; models are only read)"
+    fi
 
     log_success "Directory structure initialized"
 }

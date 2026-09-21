@@ -4,7 +4,7 @@
 # 使用方式: make [命令]
 # 例如: make setup, make start, make logs
 
-.PHONY: help setup build start stop restart status logs clean dev test
+.PHONY: help setup build start stop restart status logs clean reload smoke test
 
 # 默认目标
 .DEFAULT_GOAL := help
@@ -116,20 +116,19 @@ restart: ## 重启所有服务
 	@echo "$(GREEN)[OK]$(NC) 服务已重启"
 
 # ============================================================================
-# 开发环境
+# 开发
+#
+# 不再提供独立的 dev 编排：后端源码已由 docker-compose.yml 挂载进容器
+# （./backend:/app/backend），改完代码 restart 即可生效，无需重新 build。
+# 前端本机开发用 frontend/ 下的 vite（vite.config.ts 已把 /api 代理到 :8000）。
 # ============================================================================
-dev: ## 启动开发环境
-	@echo "$(BLUE)[INFO]$(NC) 启动开发环境..."
-	@$(COMPOSE_CMD) -f docker-compose.dev.yml up -d
-	@echo "$(GREEN)[OK]$(NC) 开发环境启动中..."
-	@sleep 10
-	@$(COMPOSE_CMD) -f docker-compose.dev.yml ps
+reload: ## 重启后端与 Worker，加载本地改动的代码（源码已挂载，无需 build）
+	@echo "$(BLUE)[INFO]$(NC) 重启 backend / worker 以加载代码改动..."
+	@$(COMPOSE_CMD) $(COMPOSE_PROFILE) restart backend worker
+	@echo "$(GREEN)[OK]$(NC) 已重启"
 
-dev-stop: ## 停止开发环境
-	@$(COMPOSE_CMD) -f docker-compose.dev.yml down
-
-dev-logs: ## 查看开发环境日志
-	@$(COMPOSE_CMD) -f docker-compose.dev.yml logs -f
+smoke: ## 对已启动的部署跑一次解析自检
+	@bash setup.sh --smoke-only
 
 # ============================================================================
 # 日志和状态

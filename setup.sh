@@ -10,7 +10,6 @@
 #   bash setup.sh --mode native              # 本机原生部署（不用 Docker，Apple Silicon 自动 MPS 加速）
 #   bash setup.sh --mode offline-build       # 联网机：构建离线镜像包（docker-images/）
 #   bash setup.sh --mode offline-deploy      # 生产机：部署离线镜像包
-#   bash setup.sh --mode dev                 # 开发模式（热重载，compose.dev）
 #
 # 非交互参数:
 #   --gpus N          GPU 数量（默认 nvidia-smi -L 自动检测）
@@ -18,6 +17,9 @@
 #   --network cn|global  网络环境（cn=国内镜像加速 / global=海外官方源直连，默认交互询问，非交互默认 cn）
 #   --yes             跳过全部交互提问，未指定的配置保持 .env 默认值
 #   --dry-run         只生成配置文件并打印将执行的操作，不构建、不启动
+#   --skip-smoke      跳过部署末尾的真实解析自检（默认会提交一个样例 PDF 验证全链路）
+#   --smoke-only      不部署，只对已启动的服务跑一次解析自检（配合 --mode 选 .env 文件）
+#   --port N          解析自检访问的 API 端口（默认读 .env 的 API_PORT）
 #   -h, --help        显示帮助
 #
 # 示例:
@@ -25,6 +27,7 @@
 #   bash setup.sh --mode gpu --dry-run       # 预览 .env 与执行计划
 #   bash setup.sh --mode cpu --yes           # Mac 上一键 CPU 开发环境
 #   bash setup.sh --mode native              # Mac 原生运行（MPS 加速，性能优于 Docker CPU）
+#   bash setup.sh --smoke-only               # 对已启动的服务单独跑一次解析自检
 # ============================================================================
 
 set -euo pipefail
@@ -48,7 +51,8 @@ log_warning() { echo -e "${YELLOW}[⚠]${NC} $1"; }
 log_error() { echo -e "${RED}[✗]${NC} $1"; }
 
 usage() {
-    sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'
+    # 打印文件头注释块（到第一个空行为止），新增选项时无需再同步行号
+    sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//'
 }
 
 # ----------------------------------------------------------------------------
@@ -60,6 +64,9 @@ OPT_CONCURRENCY=""
 OPT_NETWORK=""
 ASSUME_YES=0
 DRY_RUN=0
+SKIP_SMOKE=0
+SMOKE_ONLY=0
+OPT_PORT=""
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -86,6 +93,18 @@ while [ $# -gt 0 ]; do
         --dry-run)
             DRY_RUN=1
             shift
+            ;;
+        --skip-smoke)
+            SKIP_SMOKE=1
+            shift
+            ;;
+        --smoke-only)
+            SMOKE_ONLY=1
+            shift
+            ;;
+        --port)
+            OPT_PORT="${2:-}"
+            shift 2
             ;;
         -h | --help)
             usage
@@ -227,6 +246,33 @@ detect_compose() {
     fi
 }
 
+# 把本次部署使用的 compose 文件组合写进 .env 的 COMPOSE_FILE。
+# 之后用户直接敲 docker compose ps / logs / down，或用 make 的各个目标时，
+# 无需再手动拼 -f，避免误操作到错误的 compose 文件（离线部署尤其容易踩）。
+persist_compose_file() {
+    # COMPOSE_FILE 只对 docker compose 默认读取的 ./.env 生效
+    if [ "$ENV_FILE" != ".env" ]; then
+        return 0
+    fi
+
+    local files=""
+    local i
+    for ((i = 0; i < ${#DC[@]}; i++)); do
+        if [ "${DC[$i]}" = "-f" ]; then
+            if [ -z "$files" ]; then
+                files="${DC[$((i + 1))]}"
+            else
+                files="${files}:${DC[$((i + 1))]}"
+            fi
+        fi
+    done
+
+    if [ -n "$files" ]; then
+        set_env_key COMPOSE_FILE "$files"
+        log_info "COMPOSE_FILE = ${files}（后续 docker compose / make 命令无需再带 -f）"
+    fi
+}
+
 # 启用 Redis 时 compose 命令附加 --profile redis（保证 stop/logs 等也带上）
 add_redis_profile() {
     if [ -f "$ENV_FILE" ] && grep -qE '^REDIS_QUEUE_ENABLED=true' "$ENV_FILE"; then
@@ -250,7 +296,20 @@ set_env_key() {
     local key="$1"
     local val="$2"
     if grep -qE "^${key}=" "$ENV_FILE"; then
-        sed_i "s|^${key}=.*|${key}=${val}|" "$ENV_FILE"
+        # 不能用 sed 的替换串写值：& 会被展开成整个匹配，	 之类会被解释成控制字符，
+        # 密码/密钥里带这些字符时会被静默改写。awk 从 ENVIRON 取值则是纯字面量。
+        local tmp="${ENV_FILE}.tmp.$$"
+        if TIANSHU_K="$key" TIANSHU_V="$val" awk '
+            BEGIN { k = ENVIRON["TIANSHU_K"]; v = ENVIRON["TIANSHU_V"]; done = 0 }
+            !done && index($0, k "=") == 1 { print k "=" v; done = 1; next }
+            { print }
+        ' "$ENV_FILE" > "$tmp"; then
+            mv "$tmp" "$ENV_FILE"
+        else
+            rm -f "$tmp"
+            log_warning "写入 ${key} 失败，$ENV_FILE 保持原样"
+            return 1
+        fi
     else
         printf '%s=%s\n' "$key" "$val" >> "$ENV_FILE"
     fi
@@ -373,6 +432,75 @@ prepare_env() {
         log_success "已从 $example_file 创建 $ENV_FILE"
     else
         log_info "$ENV_FILE 已存在，仅更新部署相关键"
+    fi
+
+    ensure_runtime_user
+    ensure_free_subnet
+}
+
+# Docker 网段避让：compose 里的固定 /16 一旦被机器上其它项目占用，
+# 创建网络会直接失败（Pool overlaps with other one on this address space）。
+# 这里扫描已占用网段，冲突时自动挑一个空闲的写入 .env。
+ensure_free_subnet() {
+    if ! command -v docker > /dev/null 2>&1; then
+        return 0
+    fi
+
+    local configured
+    configured=$(get_env_key TIANSHU_SUBNET)
+
+    # 已显式配置且不冲突就直接沿用
+    local used
+    used=$(docker network ls --format '{{.Name}}' 2> /dev/null | while read -r net; do
+        docker network inspect "$net" --format '{{range .IPAM.Config}}{{.Subnet}} {{end}}' 2> /dev/null
+    done | tr ' ' '
+' | grep -E '^[0-9]' || true)
+
+    # 各模式的默认网段（与对应 compose 文件保持一致）
+    local candidate="${configured}"
+    if [ -z "$candidate" ]; then
+        case "$MODE" in
+            cpu) candidate="172.29.0.0/16" ;;
+            offline-deploy) candidate="172.30.0.0/16" ;;
+            *) candidate="172.28.0.0/16" ;;
+        esac
+    fi
+
+    if ! printf '%s
+' "$used" | grep -qxF "$candidate"; then
+        log_info "Docker 网段 ${candidate} 可用"
+        return 0
+    fi
+
+    log_warning "Docker 网段 ${candidate} 已被占用，自动挑选空闲网段..."
+    local third
+    for third in 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45; do
+        local try="172.${third}.0.0/16"
+        if ! printf '%s
+' "$used" | grep -qxF "$try"; then
+            set_env_key TIANSHU_SUBNET "$try"
+            set_env_key TIANSHU_GATEWAY "172.${third}.0.1"
+            log_success "已切换到空闲网段 ${try}"
+            return 0
+        fi
+    done
+
+    log_warning "172.28~172.45 均被占用，请手动在 $ENV_FILE 设置 TIANSHU_SUBNET / TIANSHU_GATEWAY"
+    return 0
+}
+
+# 容器运行身份：默认 root（0:0），规避各类挂载目录属主不匹配问题。
+# 需要非 root 运行（企业安全审计等）时，把 .env 里的 TIANSHU_UID/TIANSHU_GID
+# 改成宿主机部署目录的属主即可，无需改动任何 compose 文件。
+ensure_runtime_user() {
+    local uid
+    uid=$(get_env_key TIANSHU_UID)
+    if [ -z "$uid" ]; then
+        set_env_key TIANSHU_UID 0
+        set_env_key TIANSHU_GID 0
+        log_info "容器运行身份 TIANSHU_UID:TIANSHU_GID = 0:0（root）"
+    else
+        log_info "容器运行身份 TIANSHU_UID:TIANSHU_GID = ${uid}:$(get_env_key TIANSHU_GID)（沿用 $ENV_FILE 设置）"
     fi
 }
 
@@ -666,15 +794,84 @@ tune_env() {
 
 create_directories() {
     log_info "创建宿主机目录..."
-    mkdir -p models \
-        input output \
+    # models/{huggingface,modelscope}_cache 被 compose 显式挂载，必须由脚本建出来：
+    # 交给 Docker 自动创建会得到 root 属主的目录，非 root 运行时缓存写不进去
+    mkdir -p models models/huggingface_cache models/modelscope_cache \
         data/uploads data/output data/db \
         logs/backend logs/worker logs/mcp logs/scheduler
-    # 容器以非 root 用户（tianshu, UID 10001）运行，需保证挂载目录对容器可写；
-    # models 同样要放权 —— init-models 要往里写模型、mineru.json 与 manifest.json，
-    # 还有 HF_HOME / MODELSCOPE_CACHE 两个缓存目录（best-effort，失败不中断）
-    chmod -R a+rwX models data logs input output 2> /dev/null || true
+
+    migrate_legacy_data_dirs
+    check_database_filesystem
+
+    # 挂载目录需对容器内的运行身份可写（best-effort，失败不中断）
+    local uid gid
+    uid=$(get_env_key TIANSHU_UID)
+    gid=$(get_env_key TIANSHU_GID)
+    if [ -n "$uid" ] && [ "$uid" != "0" ]; then
+        chown -R "${uid}:${gid:-$uid}" models data logs 2> /dev/null \
+            || log_warning "chown 到 ${uid}:${gid:-$uid} 失败（网络盘或权限不足），已回退为 chmod 放权"
+    fi
+    chmod -R a+rwX models data logs 2> /dev/null || true
     log_success "目录就绪"
+}
+
+# SQLite 的 WAL 依赖 POSIX 文件锁，NFS/CIFS 上锁语义不可靠，会导致数据库**静默损坏**
+# （task_db 与 auth_db 共用同一个文件，损坏意味着任务、用户、API Key 一起丢）。
+# 容器内 TaskDB 启动时还会再校验一次，这里是给宿主机侧的早期提示。
+check_database_filesystem() {
+    local fs_type
+    fs_type=$(stat -f -c %T data/db 2> /dev/null || echo "")
+    [ -z "$fs_type" ] && return 0
+
+    case "$fs_type" in
+        nfs* | cifs* | smb* | "fuseblk")
+            log_error "data/db 位于网络文件系统（${fs_type}）上，SQLite 会静默损坏数据"
+            log_error "请把部署目录（至少 data/db）放到本地磁盘，或用 DATABASE_PATH 指向本地路径"
+            log_error "明确知晓风险时可设置 TIANSHU_ALLOW_NETWORK_DB=true 跳过（不推荐）"
+            exit 1
+            ;;
+        9p | v9fs | virtiofs | drvfs | vboxsf)
+            log_warning "data/db 位于宿主机共享目录（${fs_type}）：本机开发可用，生产部署建议用本地磁盘"
+            ;;
+    esac
+}
+
+# 历史布局迁移：早期 docker-compose.yml 把上传/输出挂在 ./input 与 ./output，
+# 而 offline/cpu 用的是 ./data/uploads 与 ./data/output —— 同一台机器换个模式，
+# 数据落盘位置就变了。现已统一到 ./data/*，这里把旧目录的内容搬过去。
+migrate_legacy_data_dirs() {
+    local pair old_dir new_dir
+    for pair in "input:data/uploads" "output:data/output"; do
+        old_dir="${pair%%:*}"
+        new_dir="${pair##*:}"
+
+        [ -d "$old_dir" ] || continue
+
+        # .gitkeep 是仓库里的占位文件，不算数据
+        if [ -z "$(_dir_payload "$old_dir")" ]; then
+            continue
+        fi
+
+        # 新目录已有数据时不自动合并，避免覆盖，交由用户决定
+        if [ -n "$(_dir_payload "$new_dir")" ]; then
+            log_warning "旧目录 ./${old_dir} 与新目录 ./${new_dir} 都有数据，未自动迁移"
+            log_warning "确认后手动合并: mv ./${old_dir}/* ./${new_dir}/"
+            continue
+        fi
+
+        # 用 find 搬运，确保点文件（如 .cache）也能迁移；保留旧目录本身与 .gitkeep
+        if find "$old_dir" -mindepth 1 -maxdepth 1 ! -name '.gitkeep' -exec mv -t "$new_dir/" {} + 2> /dev/null; then
+            log_success "已迁移历史数据目录: ./${old_dir} -> ./${new_dir}"
+        else
+            log_warning "迁移 ./${old_dir} -> ./${new_dir} 失败，请手动处理"
+        fi
+    done
+}
+
+# 返回目录中除占位文件以外的内容（为空表示该目录没有真实数据）
+_dir_payload() {
+    [ -d "$1" ] || return 0
+    find "$1" -mindepth 1 -maxdepth 1 ! -name '.gitkeep' 2> /dev/null | head -1
 }
 
 # ----------------------------------------------------------------------------
@@ -741,6 +938,110 @@ verify_deployment() {
     return "$rc"
 }
 
+# ----------------------------------------------------------------------------
+# 部署自检：提交一个样例 PDF，轮询到 completed 才算真正跑通
+#
+# /health 只能证明进程活着。真正会出问题的是模型路径、目录权限、GPU 可见性、
+# 存储链路 —— 这些只有跑完一次真实解析才暴露得出来（issue #84 的用户正是
+# 「部署成功、解析失败」）。自检失败只告警，不影响部署结果。
+# ----------------------------------------------------------------------------
+json_field() {
+    # 从 JSON 中取出字符串字段值（不引入 jq 依赖）
+    local key="$1"
+    grep -o "\"${key}\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" | head -1 | sed 's/.*"\([^"]*\)"$/\1/'
+}
+
+json_escape() {
+    # 转义 JSON 字符串中的反斜杠与双引号
+    printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
+}
+
+run_smoke_test() {
+    if [ "$SKIP_SMOKE" -eq 1 ]; then
+        log_info "已跳过解析自检（--skip-smoke）"
+        return 0
+    fi
+
+    local sample="scripts/smoke-sample.pdf"
+    if [ ! -f "$sample" ]; then
+        log_warning "未找到样例文件 ${sample}，跳过解析自检"
+        return 0
+    fi
+
+    # 端口优先取调用方传入值（--port），其次读 .env 的 API_PORT
+    local api_port username password timeout
+    api_port="${1:-}"
+    if [ -z "$api_port" ]; then
+        api_port=$(get_env_key API_PORT)
+        api_port="${api_port:-8000}"
+    fi
+    username=$(get_env_key TIANSHU_ADMIN_USERNAME)
+    username="${username:-admin}"
+    password=$(get_env_key TIANSHU_ADMIN_PASSWORD)
+    timeout="${TIANSHU_SMOKE_TIMEOUT:-600}"
+
+    if [ -z "$password" ]; then
+        log_warning "$ENV_FILE 中未找到 TIANSHU_ADMIN_PASSWORD，跳过解析自检"
+        return 0
+    fi
+
+    log_info "解析自检：提交样例 PDF 验证全链路（最长 ${timeout}s）..."
+
+    # --- 1. 登录取 token ---
+    local login_body token
+    login_body="{\"username\":\"$(json_escape "$username")\",\"password\":\"$(json_escape "$password")\"}"
+    token=$(curl -fsS -X POST "http://localhost:${api_port}/api/v1/auth/login"         -H "Content-Type: application/json" -d "$login_body" 2> /dev/null | json_field access_token)
+
+    if [ -z "$token" ]; then
+        log_warning "解析自检：登录失败，跳过（可手动在 Web UI 上传文件验证）"
+        return 1
+    fi
+
+    # --- 2. 提交任务 ---
+    local submit_resp task_id
+    submit_resp=$(curl -fsS -X POST "http://localhost:${api_port}/api/v1/tasks/submit"         -H "Authorization: Bearer ${token}" -F "file=@${sample}" 2> /dev/null)
+    task_id=$(printf '%s' "$submit_resp" | json_field task_id)
+
+    if [ -z "$task_id" ]; then
+        log_warning "解析自检：任务提交失败，响应: ${submit_resp}"
+        return 1
+    fi
+    log_info "解析自检：任务已提交（task_id=${task_id}），等待 Worker 处理..."
+
+    # --- 3. 轮询结果（首次解析含模型加载，耗时较长属正常） ---
+    local waited=0 interval=5 status="" resp=""
+    while [ "$waited" -lt "$timeout" ]; do
+        resp=$(curl -fsS "http://localhost:${api_port}/api/v1/tasks/${task_id}"             -H "Authorization: Bearer ${token}" 2> /dev/null)
+        status=$(printf '%s' "$resp" | json_field status)
+
+        case "$status" in
+            completed)
+                log_success "解析自检通过：样例 PDF 已解析完成（耗时约 ${waited}s）"
+                log_success "模型加载、目录权限、GPU 与存储链路均正常"
+                return 0
+                ;;
+            failed | cancelled)
+                local err
+                err=$(printf '%s' "$resp" | json_field error_message)
+                log_error "解析自检失败：任务状态 ${status}"
+                [ -n "$err" ] && log_error "错误信息: ${err}"
+                log_error "排查: ${DC[*]} logs --tail 80 worker"
+                return 1
+                ;;
+        esac
+
+        sleep "$interval"
+        waited=$((waited + interval))
+        if [ $((waited % 60)) -eq 0 ]; then
+            log_info "解析自检：已等待 ${waited}s，当前状态 ${status:-unknown}（首次解析需加载模型）"
+        fi
+    done
+
+    log_warning "解析自检超时（${timeout}s），任务仍处于 ${status:-unknown} 状态"
+    log_warning "模型首次加载较慢时属正常，可稍后在 Web UI 查看任务 ${task_id}"
+    return 1
+}
+
 show_info() {
     local api_port
     local frontend_port
@@ -805,7 +1106,7 @@ dry_run_summary() {
         echo "    JWT_SECRET_KEY            = $(get_env_key JWT_SECRET_KEY | cut -c1-8)...（已生成，仅显示前 8 位）"
         echo "    TIANSHU_ADMIN_USERNAME    = $(get_env_key TIANSHU_ADMIN_USERNAME)（初始密码见 ${ENV_FILE}）"
     fi
-    log_info "将创建目录: models input output data/{uploads,output,db} logs/{backend,worker,mcp,scheduler}"
+    log_info "将创建目录: models/{,huggingface_cache,modelscope_cache} data/{uploads,output,db} logs/{backend,worker,mcp,scheduler}"
     if [ "${1:-}" = "compose" ]; then
         log_info "将执行构建: ${DC[*]} build --parallel"
         log_info "将启动服务: ${DC[*]} up -d"
@@ -838,13 +1139,20 @@ deploy_gpu_mode() {
     fi
 
     # compose 组合
+    # 默认(gpu)模式使用本机 vLLM，需要 docker-compose.vllm.yml 叠加 docker.sock 挂载；
+    # pipeline 模式不用 vLLM，因此不授予 worker 宿主机 Docker 权限
     DC+=(-f docker-compose.yml)
-    [ "$MODE" = "pipeline" ] && DC+=(-f docker-compose.pipeline.yml)
+    if [ "$MODE" = "pipeline" ]; then
+        DC+=(-f docker-compose.pipeline.yml)
+    else
+        DC+=(-f docker-compose.vllm.yml)
+    fi
 
     prepare_env
     interactive_configure
     tune_env
     add_redis_profile
+    persist_compose_file
 
     if [ "$DRY_RUN" -eq 1 ]; then
         dry_run_summary compose
@@ -857,6 +1165,7 @@ deploy_gpu_mode() {
     if ! verify_deployment; then
         log_warning "部署完成但存在告警，请查看上方信息"
     fi
+    run_smoke_test || log_warning "解析自检未通过：服务已启动，但解析链路可能存在问题"
     show_info
 }
 
@@ -994,6 +1303,9 @@ deploy_cpu() {
         log_warning "RustFS 暂未响应（:${rustfs_port}）"
     fi
 
+    # CPU 解析比 GPU 慢一个数量级，自检超时相应放宽
+    TIANSHU_SMOKE_TIMEOUT="${TIANSHU_SMOKE_TIMEOUT:-1200}" run_smoke_test         || log_warning "解析自检未通过：服务已启动，但解析链路可能存在问题"
+
     echo ""
     log_success "=========================================="
     log_success " CPU 开发环境已启动"
@@ -1125,6 +1437,9 @@ build_offline() {
     [ -f mcp_config.example.json ] && cp mcp_config.example.json "${output_dir}/"
     # 把本脚本一并打包，生产机直接 bash setup.sh --mode offline-deploy
     cp "$0" "${output_dir}/setup.sh"
+    # 部署自检用的样例 PDF（离线环境同样要能跑通解析验证）
+    mkdir -p "${output_dir}/scripts"
+    cp scripts/smoke-sample.pdf "${output_dir}/scripts/" 2> /dev/null         || log_warning "scripts/smoke-sample.pdf 未找到，离线部署将跳过解析自检"
     chmod +x "${output_dir}/setup.sh" 2> /dev/null || true
     log_success "配置文件复制完成"
 
@@ -1231,6 +1546,7 @@ deploy_offline() {
 
     DC+=(-f "$compose_file")
     add_redis_profile
+    persist_compose_file
 
     log_info "启动服务..."
     "${DC[@]}" up -d
@@ -1238,6 +1554,8 @@ deploy_offline() {
 
     # 健康检查（端口读 .env）
     verify_deployment || log_warning "健康检查存在告警，请查看上方信息"
+
+    run_smoke_test || log_warning "解析自检未通过：服务已启动，但解析链路可能存在问题"
 
     # 容器内 GPU 验证
     sleep 5
@@ -1248,47 +1566,6 @@ deploy_offline() {
     fi
 
     show_info
-}
-
-# ----------------------------------------------------------------------------
-# 模式：dev（开发模式，热重载）
-# ----------------------------------------------------------------------------
-deploy_dev() {
-    MODE="dev"
-
-    log_info "开发模式（docker-compose.dev.yml，热重载 + debugpy:5678）"
-
-    if [ "$DRY_RUN" -eq 0 ]; then
-        if ! command -v docker > /dev/null 2>&1; then
-            log_error "未安装 Docker"
-            exit 1
-        fi
-    fi
-    detect_compose
-    DC+=(-f docker-compose.dev.yml)
-
-    prepare_env
-    ensure_jwt_secret
-    ensure_admin_password
-
-    if [ "$DRY_RUN" -eq 1 ]; then
-        log_info "将创建目录: models input output data/{uploads,output,db} logs/{backend,worker,mcp,scheduler}"
-        log_info "将启动服务: ${DC[*]} up -d"
-        log_warning "dry-run 模式：未执行构建与启动"
-        return 0
-    fi
-
-    create_directories
-
-    log_info "启动开发环境..."
-    "${DC[@]}" up -d
-    log_success "开发环境已启动"
-    echo ""
-    echo "  Backend (热重载): http://localhost:8000/docs"
-    echo "  debugpy 调试端口: 5678"
-    echo "  查看日志: ${DC[*]} logs -f"
-    echo "  停止服务: ${DC[*]} down"
-    echo ""
 }
 
 # ----------------------------------------------------------------------------
@@ -1317,7 +1594,7 @@ deploy_native() {
         echo "    3. 交互选择是否下载 VLM 模型，下载模型到 ./models"
         echo "    4. 生成 ~/mineru.json（指向本机 ./models 绝对路径）"
         echo "    5. 生成 backend/.env（若不存在）"
-        echo "    6. 前台启动: .venv/bin/python backend/start_all.py --output-dir ./output"
+        echo "    6. 前台启动: .venv/bin/python backend/start_all.py --output-dir ./data/output"
         log_warning "dry-run 模式：未执行任何操作"
         return 0
     fi
@@ -1410,7 +1687,10 @@ EOF
     echo "  前端界面:  cd frontend && npm install && npm run dev"
     echo "  停止服务:  Ctrl+C"
     echo ""
-    exec .venv/bin/python backend/start_all.py --output-dir ./output
+    # native 模式是前台 exec 启动，装不下部署后自检；给出单独执行的命令
+    echo "  解析自检:  另开一个终端执行 bash setup.sh --smoke-only --port 8000"
+    echo ""
+    exec .venv/bin/python backend/start_all.py --output-dir ./data/output
 }
 
 # ----------------------------------------------------------------------------
@@ -1428,14 +1708,13 @@ choose_mode() {
     echo "  3) CPU 本地开发（Mac Apple Silicon）"
     echo "  4) 离线构建（联网机：构建离线镜像包）"
     echo "  5) 离线部署（生产机：部署离线镜像包）"
-    echo "  6) 开发模式（热重载 + debugpy）"
-    echo "  7) 原生部署（不用 Docker，Mac Apple Silicon 自动 MPS 加速）"
+    echo "  6) 原生部署（不用 Docker，Mac Apple Silicon 自动 MPS 加速）"
     echo "  0) 退出"
     echo ""
 
     local choice=""
     while true; do
-        printf "${BLUE}[?]${NC} 请输入选项 [0-7]: "
+        printf "${BLUE}[?]${NC} 请输入选项 [0-6]: "
         read -r choice
         case "$choice" in
             1) MODE="gpu"; break ;;
@@ -1443,8 +1722,7 @@ choose_mode() {
             3) MODE="cpu"; break ;;
             4) MODE="offline-build"; break ;;
             5) MODE="offline-deploy"; break ;;
-            6) MODE="dev"; break ;;
-            7) MODE="native"; break ;;
+            6) MODE="native"; break ;;
             0) log_info "已退出"; exit 0 ;;
             *) log_error "无效选项，请重新输入" ;;
         esac
@@ -1457,6 +1735,19 @@ choose_mode() {
 main() {
     trap 'log_warning "操作被用户中断"; exit 130' INT TERM
 
+    # 只跑自检：对已经启动的部署验证解析链路，不做任何部署动作。
+    # native 模式（前台 exec 启动）与部署后复查都走这条路径。
+    if [ "$SMOKE_ONLY" -eq 1 ]; then
+        [ "$MODE" = "cpu" ] && ENV_FILE=".env.cpu"
+        if [ ! -f "$ENV_FILE" ]; then
+            log_error "未找到 $ENV_FILE，请在部署目录下执行，或用 --mode 指定模式"
+            exit 1
+        fi
+        detect_compose
+        run_smoke_test "$OPT_PORT"
+        exit $?
+    fi
+
     if [ -z "$MODE" ]; then
         if [ "$INTERACTIVE" -eq 1 ]; then
             choose_mode
@@ -1468,7 +1759,7 @@ main() {
     fi
 
     case "$MODE" in
-        gpu | pipeline | cpu | offline-build | dev | native) choose_network ;;
+        gpu | pipeline | cpu | offline-build | native) choose_network ;;
     esac
 
     case "$MODE" in
@@ -1477,10 +1768,9 @@ main() {
         cpu) deploy_cpu ;;
         offline-build) build_offline ;;
         offline-deploy) deploy_offline ;;
-        dev) deploy_dev ;;
         native) deploy_native ;;
         *)
-            log_error "未知模式: ${MODE}（可选: gpu / pipeline / cpu / offline-build / offline-deploy / dev / native）"
+            log_error "未知模式: ${MODE}（可选: gpu / pipeline / cpu / offline-build / offline-deploy / native）"
             exit 1
             ;;
     esac

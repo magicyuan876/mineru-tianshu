@@ -103,6 +103,7 @@ services:
   backend:
     image: tianshu-backend:latest
     container_name: tianshu-backend
+    user: "${TIANSHU_UID:-0}:${TIANSHU_GID:-0}"
     restart: unless-stopped
     ports:
       - "${API_PORT:-8000}:8000"
@@ -211,6 +212,7 @@ services:
   worker:
     image: tianshu-backend:latest
     container_name: tianshu-worker
+    user: "${TIANSHU_UID:-0}:${TIANSHU_GID:-0}"
     restart: unless-stopped
     command: ["worker", "python", "litserve_worker.py"]
     ports:
@@ -321,6 +323,7 @@ services:
   mcp-server:
     image: tianshu-backend:latest
     container_name: tianshu-mcp
+    user: "${TIANSHU_UID:-0}:${TIANSHU_GID:-0}"
     restart: unless-stopped
     command: ["mcp", "python", "mcp_server.py"]
     ports:
@@ -394,8 +397,9 @@ networks:
     ipam:
       driver: default
       config:
-        - subnet: 172.30.0.0/16
-          gateway: 172.30.0.1
+        # 网段可配置：默认值被占用时 setup.sh 会自动挑一个空闲 /16 写入 .env
+        - subnet: ${TIANSHU_SUBNET:-172.30.0.0/16}
+          gateway: ${TIANSHU_GATEWAY:-172.30.0.1}
 
 volumes:
   redis-data:

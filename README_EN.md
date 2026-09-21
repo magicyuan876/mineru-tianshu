@@ -122,7 +122,7 @@ English | [简体中文](./README.md)
   - **Multi-Stage Build**: Optimized image size, separated dependency and application layers
   - **GPU Support**: NVIDIA CUDA 12.6 + Container Toolkit integration
   - **Service Orchestration**: Complete orchestration of frontend, backend, Worker, MCP (docker-compose)
-  - **Developer Friendly**: Hot reload, remote debugging (debugpy), real-time logs
+  - **Developer Friendly**: source is bind-mounted into the containers — `make reload` picks up edits; `make smoke` verifies the parsing pipeline end to end
   - **Production Ready**: Health checks, data persistence, zero-downtime deployment, resource limits
   - **Multiple Deployment Modes**: GPU standard, pipeline-only, Mac CPU local dev, offline deployment, dev hot-reload
   - See: Docker configuration files (`docker-compose.yml`, `backend/Dockerfile`, `frontend/Dockerfile`)
@@ -323,7 +323,6 @@ bash setup.sh --mode gpu --dry-run
 | `cpu` | Mac CPU local development (docker-compose.cpu.yml + .env.cpu) |
 | `native` | Native host deployment (no Docker; auto MPS acceleration on Apple Silicon, VLM via MLX) |
 | `offline-build` / `offline-deploy` | Offline deployment: build the bundle online / deploy on the production host |
-| `dev` | Development mode (docker-compose.dev.yml, hot reload + debugpy) |
 
 The wizard asks for network environment (China mirrors / overseas direct), GPU count (auto-detected), worker concurrency, model source (HuggingFace/ModelScope), Redis, RustFS public URL and ports, and automatically generates the JWT secret, computes `MINERU_VIRTUAL_VRAM_SIZE`/`WORKER_MEMORY_LIMIT`, creates directories and runs health checks.
 

@@ -12,9 +12,11 @@ repos:
     hooks:
       # 检查文件是否以换行符结尾
       - id: end-of-file-fixer
+        exclude: \.pdf$   # 二进制资源不做文本修补
 
       # 移除行尾空格
       - id: trailing-whitespace
+        exclude: \.pdf$
         args: [--markdown-linebreak-ext=md]
 
       # 检查 YAML 语法
@@ -80,7 +82,7 @@ repos:
       - id: check-case-conflict  # 检查文件名大小写冲突
       - id: mixed-line-ending    # 检查混合行尾
         args: [--fix=lf]         # 统一使用 LF
-        exclude: \.(bat|cmd|ps1)$  # 排除 Windows 脚本文件
+        exclude: \.(bat|cmd|ps1|pdf)$  # 排除 Windows 脚本文件与二进制资源（PDF 内含 CR 字节，改写会损坏文件）
 
   # ============================================================
   # 6. Markdown 检查

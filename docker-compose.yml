@@ -61,6 +61,7 @@ services:
   init-models:
     image: tianshu-backend:latest
     container_name: tianshu-init-models
+    user: "${TIANSHU_UID:-0}:${TIANSHU_GID:-0}"
     entrypoint: ["python", "download_models.py", "--output", "/app/models"]
     volumes:
       - ./models:/app/models:rw
@@ -92,14 +93,15 @@ services:
       # 同机重复构建由 BuildKit 自身的层缓存覆盖，去掉它没有实际损失。
     image: tianshu-backend:latest
     container_name: tianshu-backend
+    user: "${TIANSHU_UID:-0}:${TIANSHU_GID:-0}"
     restart: unless-stopped
     ports:
       - "${API_PORT:-8000}:8000"
     volumes:
       - ./backend:/app/backend:rw
       - ./models:/app/models:rw
-      - ./input:/app/data/uploads:rw
-      - ./output:/app/data/output:rw
+      - ./data/uploads:/app/data/uploads:rw
+      - ./data/output:/app/data/output:rw
       - ./logs/backend:/app/logs:rw
       - ./data/db:/app/data/db:rw
       - /etc/localtime:/etc/localtime:ro
@@ -159,12 +161,13 @@ services:
   scheduler:
     image: tianshu-backend:latest
     container_name: tianshu-scheduler
+    user: "${TIANSHU_UID:-0}:${TIANSHU_GID:-0}"
     restart: unless-stopped
     command: ["python", "task_scheduler.py", "--interval", "60", "--stale-task-timeout", "60"]
     volumes:
       - ./data/db:/app/data/db:rw
-      - ./output:/app/data/output:rw
-      - ./input:/app/data/uploads:rw
+      - ./data/output:/app/data/output:rw
+      - ./data/uploads:/app/data/uploads:rw
       - ./logs/scheduler:/app/logs:rw
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
@@ -231,23 +234,18 @@ services:
   worker:
     image: tianshu-backend:latest
     container_name: tianshu-worker
-    # worker 必须保持 root：挂载 /var/run/docker.sock 用于 vLLM 容器互斥控制，非 root 无法操作 Docker socket
-    user: root
+    user: "${TIANSHU_UID:-0}:${TIANSHU_GID:-0}"
     restart: unless-stopped
-    command: [
-      "worker",
-      "python",
-      "litserve_worker.py",
-      "--mineru-vllm-api-list", "['http://vllm-mineru:30024/v1']"
-    ]
+    # vLLM 相关参数与 /var/run/docker.sock 挂载已移到 docker-compose.vllm.yml，
+    # 仅在真正使用本机 vLLM 时叠加 —— 避免解析不可信文档的容器常驻持有宿主机 Docker 权限
+    command: ["worker", "python", "litserve_worker.py"]
     ports:
       - "127.0.0.1:${WORKER_PORT:-8001}:8001"
     volumes:
       - ./backend:/app/backend:rw
-      - /var/run/docker.sock:/var/run/docker.sock
       - ./models:/app/models:rw
-      - ./input:/app/data/uploads:rw
-      - ./output:/app/data/output:rw
+      - ./data/uploads:/app/data/uploads:rw
+      - ./data/output:/app/data/output:rw
       - ./logs/worker:/app/logs:rw
       - ./data/db:/app/data/db:rw
       - /etc/localtime:/etc/localtime:ro
@@ -317,6 +315,7 @@ services:
   mcp-server:
     image: tianshu-backend:latest
     container_name: tianshu-mcp
+    user: "${TIANSHU_UID:-0}:${TIANSHU_GID:-0}"
     restart: unless-stopped
     command: ["mcp", "python", "mcp_server.py"]
     ports:
@@ -375,8 +374,9 @@ networks:
     ipam:
       driver: default
       config:
-        - subnet: 172.28.0.0/16
-          gateway: 172.28.0.1
+        # 网段可配置：默认值被占用时 setup.sh 会自动挑一个空闲 /16 写入 .env
+        - subnet: ${TIANSHU_SUBNET:-172.28.0.0/16}
+          gateway: ${TIANSHU_GATEWAY:-172.28.0.1}
 
 volumes:
   redis-data:

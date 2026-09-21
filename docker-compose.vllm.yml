@@ -1,0 +1,28 @@
+# Tianshu (天枢) - 本机 vLLM override
+#
+# 在 docker-compose.yml 之上叠加「使用本机 vllm-mineru 容器」所需的配置。
+#
+# 用法（推荐直接用部署脚本）:
+#   bash setup.sh --mode gpu
+#
+# 手动用法:
+#   docker compose -f docker-compose.yml -f docker-compose.vllm.yml up -d
+#
+# 为什么单独拆出来:
+#   VLLMController 通过挂载 /var/run/docker.sock 冷启动 vllm-mineru 容器。
+#   Docker socket 等价于宿主机 root 权限，而 worker 要解析用户上传的任意
+#   PDF / Office 文档（LibreOffice、PDF 解析器都是 RCE 高发面），因此这份权限
+#   只在真正需要本机 vLLM 时才授予，pipeline / 离线等模式不挂载。
+#
+#   若 vLLM 由外部统一托管（任务自带 server_url），同样不需要本文件。
+
+services:
+  worker:
+    command: [
+      "worker",
+      "python",
+      "litserve_worker.py",
+      "--mineru-vllm-api-list", "['http://vllm-mineru:30024/v1']"
+    ]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock

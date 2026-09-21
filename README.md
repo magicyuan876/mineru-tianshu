@@ -124,9 +124,9 @@
   - **多阶段构建**：优化镜像体积，分离依赖层和应用层
   - **GPU 支持**：NVIDIA CUDA 12.6 + Container Toolkit 集成
   - **服务编排**：前端、后端、Worker、MCP 完整编排（docker-compose）
-  - **开发友好**：支持热重载、远程调试（debugpy）、实时日志
+  - **开发友好**：源码挂载进容器，改完 `make reload` 即生效；`make smoke` 一键验证解析链路
   - **生产就绪**：健康检查、数据持久化、零停机部署、资源限制
-  - **多种部署模式**：GPU 标准、纯 pipeline、Mac CPU 本地开发、离线部署、开发热重载
+  - **多种部署模式**：GPU 标准、纯 pipeline、Mac CPU 本地开发、原生部署、离线部署
   - 详见：Docker 配置文件（`docker-compose.yml`、`backend/Dockerfile`、`frontend/Dockerfile`）
 
 - ✅ **企业级用户认证与授权系统**
@@ -324,7 +324,6 @@ bash setup.sh --mode gpu --dry-run
 | `cpu` | Mac CPU 本地开发（docker-compose.cpu.yml + .env.cpu） |
 | `native` | 本机原生部署（不用 Docker，Apple Silicon 自动 MPS 加速，VLM 走 MLX） |
 | `offline-build` / `offline-deploy` | 离线部署：联网机构建离线包 / 生产机离线部署 |
-| `dev` | 开发模式（docker-compose.dev.yml，热重载 + debugpy） |
 
 交互过程会询问网络环境（国内镜像加速 / 海外官方源直连）、GPU 数量（自动检测）、Worker 并发数、模型源（HuggingFace/ModelScope）、Redis、RustFS 公网地址和端口，并自动完成 JWT 密钥生成、`MINERU_VIRTUAL_VRAM_SIZE`/`WORKER_MEMORY_LIMIT` 计算、目录创建和健康检查。
 

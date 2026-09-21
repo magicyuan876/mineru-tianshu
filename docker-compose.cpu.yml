@@ -68,6 +68,7 @@ services:
       # 已不存在的父层（理由详见 docker-compose.yml）。
     image: tianshu-backend-cpu:latest
     container_name: tianshu-backend-cpu
+    user: "${TIANSHU_UID:-0}:${TIANSHU_GID:-0}"
     platform: linux/amd64
     restart: unless-stopped
     ports:
@@ -181,6 +182,7 @@ services:
       # 已不存在的父层（理由详见 docker-compose.yml）。
     image: tianshu-backend-cpu:latest
     container_name: tianshu-worker-cpu
+    user: "${TIANSHU_UID:-0}:${TIANSHU_GID:-0}"
     platform: linux/amd64
     restart: unless-stopped
     # CPU 模式命令（传递 --accelerator cpu）
@@ -327,8 +329,9 @@ networks:
     ipam:
       driver: default
       config:
-        - subnet: 172.29.0.0/16
-          gateway: 172.29.0.1
+        # 网段可配置：默认值被占用时 setup.sh 会自动挑一个空闲 /16 写入 .env
+        - subnet: ${TIANSHU_SUBNET:-172.29.0.0/16}
+          gateway: ${TIANSHU_GATEWAY:-172.29.0.1}
 
 volumes:
   rustfs-data:
