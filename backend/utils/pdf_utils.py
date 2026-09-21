@@ -158,11 +158,23 @@ def split_pdf_file(
         logger.info(f"   Chunk size: {chunk_size} pages")
         logger.info("   Using pikepdf for optimized performance")
 
+        # 计算分片边界。尾部余数过小时并入上一个分片：
+        # 简单的 range(0, n, chunk) 会让 41 页 + chunk=20 切成 20/20/1，
+        # 那个 1 页分片要走完整流程（认领任务、归一化、对象存储上传、参与合并），
+        # 固定开销和满分片一样，有效工作却只有 1/20。
+        boundaries = []
+        for start in range(0, total_pages, chunk_size):
+            boundaries.append((start, min(start + chunk_size, total_pages)))
+        if len(boundaries) >= 2:
+            last_start, last_end = boundaries[-1]
+            if (last_end - last_start) * 2 < chunk_size:
+                prev_start, _ = boundaries[-2]
+                boundaries[-2:] = [(prev_start, last_end)]
+
         chunks = []
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        for i in range(0, total_pages, chunk_size):
-            end_page = min(i + chunk_size, total_pages)
+        for i, end_page in boundaries:
             chunk_page_count = end_page - i
 
             # 创建分片 PDF（引用复制，不是深拷贝）

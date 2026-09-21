@@ -242,6 +242,9 @@ services:
       - HF_TOKEN=${HF_TOKEN:-}
 
       # PDF 拆分配置
+      # CPU 模式刻意保留大阈值：这里通常只有 1 个 Worker 进程，拆分得不到任何
+      # 并行收益，只会平白多出每个分片的固定开销（任务认领、归一化、对象存储上传、
+      # 合并）。GPU 部署才需要小分片把多张卡喂满。
       - PDF_SPLIT_ENABLED=${PDF_SPLIT_ENABLED:-true}
       - PDF_SPLIT_THRESHOLD_PAGES=${PDF_SPLIT_THRESHOLD_PAGES:-500}
       - PDF_SPLIT_CHUNK_SIZE=${PDF_SPLIT_CHUNK_SIZE:-500}

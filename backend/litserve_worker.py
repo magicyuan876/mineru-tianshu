@@ -893,8 +893,8 @@ class MinerUWorkerAPI(ls.LitAPI):
         if os.getenv("PDF_SPLIT_ENABLED", "true").lower() != "true":
             return False
 
-        threshold = int(os.getenv("PDF_SPLIT_THRESHOLD_PAGES", "500"))
-        chunk_size = int(os.getenv("PDF_SPLIT_CHUNK_SIZE", "500"))
+        threshold = int(os.getenv("PDF_SPLIT_THRESHOLD_PAGES", "40"))
+        chunk_size = int(os.getenv("PDF_SPLIT_CHUNK_SIZE", "20"))
 
         try:
             pages = get_pdf_page_count(Path(file_path))
