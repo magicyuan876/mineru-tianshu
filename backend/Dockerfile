@@ -72,17 +72,16 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 
 # Step 3: [核心业务包] (注意：移除 --no-deps，补全缺失的 botocore/reportlab 等)
 #
-# 用 mineru[pipeline,vlm] 而不是 mineru[core]：
-#   core 的定义就是 gradio + pipeline + vlm 三个 extra 的并集，本身不含任何独立包，
-#   所以去掉 gradio 是精确等价的裁剪。
-# gradio 是 MinerU 自带的演示 WebUI（本项目有自己的 Vue 前端，代码中从未引用），
-# 但它的版本约束是 !=6.0.0,...,!=6.7.0,<6.9.0,>=5.49.1 —— pip 会从最新版
-# (6.2x) 逐个往回下载 30.7MB 的 wheel 读元数据，直到退进允许区间。
-# 实测在国内源上这一步要烧掉 30-40 分钟，且产物完全用不到。
+# 注意 mineru[core] 会带入 gradio（MinerU 自带的演示 WebUI，本项目从未引用），
+# 其约束 !=6.0.0,...,!=6.7.0,<6.9.0,>=5.49.1 会让 pip 从最新版 (6.2x) 起逐个
+# 回溯下载 30.7MB 的 wheel 读元数据，国内源上约 30-40 分钟。
+# 曾改为 mineru[pipeline,vlm] 裁掉它，但线上随后出现 mineru.utils.model_utils
+# 缺失，为排除变量先还原为 core。真正的疑点是下面的 >=3.4.5 没有上限，
+# 上游版本漂移后模块布局可能变化 —— 待定位后应改为钉死版本。
 # 加入了日志中提示缺失的所有包
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install "huggingface-hub<1.0" \
-                "mineru[pipeline,vlm]>=3.4.5" \
+                "mineru[core]>=3.4.5" \
                 "transformers==4.57.6" \
                 "openai>=1.50.0" \
                 "boto3>=1.34.0" \
@@ -130,12 +129,11 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 
 # Step 7: [最终验证]
 # 除了三方包，这里还显式导入本项目真正用到的 MinerU 入口。
-# 裁剪 mineru extra 之后，万一漏掉依赖，构建会在这一步当场失败，
-# 而不是等到线上解析任务才暴露。
+# 这三个入口不是 MinerU 承诺稳定的公共 API，上游版本漂移就可能消失；
+# 在构建期验证，可以让问题当场暴露，而不是等到线上 Worker 起不来。
 RUN python -c "import torch; import pypdf; import boto3; import botocore; import openai; print(chr(9989) + ' 三方依赖验证通过')" \
     && python -c "import flash_attn; print(chr(9989) + ' flash_attn 可用')" \
     && python -c "from mineru.cli.common import do_parse; from mineru.utils.model_utils import get_vram, clean_memory; print(chr(9989) + ' MinerU 解析入口验证通过 (do_parse / get_vram / clean_memory)')" \
-    && python -c "import importlib.util as u; assert u.find_spec('gradio') is None, 'gradio 不应出现在镜像中'; print(chr(9989) + ' 确认未安装 gradio')" \
     && pip show mineru flash-attn | grep -E "^(Name|Version)"
 
 # -----------------------------------------------------------------------------

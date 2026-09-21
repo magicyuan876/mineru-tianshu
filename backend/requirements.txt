@@ -17,12 +17,11 @@ py-cpuinfo
 biopython>=1.80
 
 # 2. MinerU 3.4+ & VLM 必需依赖
-# 用 [pipeline,vlm] 而不是 [core]：core 的定义就是 gradio + pipeline + vlm 三个 extra 的
-# 并集（`importlib.metadata.requires('mineru')` 可验证），本身不含独立包，
-# 所以去掉 gradio 是精确等价的裁剪，pipeline / vlm / hybrid 后端全部照常覆盖。
-# gradio 是 MinerU 自带的演示 WebUI，本项目有自己的 Vue 前端，代码中从未引用；
-# 而它的约束 !=6.0.0,...,!=6.7.0,<6.9.0,>=5.49.1 会让 pip 从最新版 (6.2x) 起
-# 逐个回溯下载 30.7MB 的 wheel 读元数据 —— 实测在国内源上白烧 30-40 分钟。
+# mineru[core] = [vlm] + [pipeline] + [gradio]，pipeline / vlm / hybrid 后端全部覆盖。
+# 注意：gradio 的约束 !=6.0.0,...,!=6.7.0,<6.9.0,>=5.49.1 会让 pip 从最新版 (6.2x)
+# 起逐个回溯下载 30.7MB 的 wheel 读元数据，国内源上这一步约 30-40 分钟。
+# 曾改为 [pipeline,vlm] 裁掉 gradio，但线上出现 mineru.utils.model_utils 缺失，
+# 为排除变量先还原；真正的疑点是 >=3.4.5 没有上限、上游版本漂移。
 # 不用 [all]：相对 [core] 在 Linux 上只多出 [s3] 和 [vllm] 两项——
 #   [s3] 只是 boto3，下面已显式声明；
 #   [vllm] 装的是进程内推理引擎，而本项目的 vLLM 跑在独立容器（vllm/vllm-openai）里经 HTTP 调用，
@@ -30,7 +29,7 @@ biopython>=1.80
 #   镜像内根本没有代码路径 import 它。
 # 而它的代价是：vllm>=0.10.1.1 每个版本都硬绑定特定 torch，与本镜像钉死的 torch 2.10.0+cu130 冲突，
 # 会让 pip 回溯下载几十个 250MB+ 的 wheel。
-mineru[pipeline,vlm]>=3.4.5
+mineru[core]>=3.4.5
 # 以下为 mineru 依赖树中的关键包，显式声明以确保版本锁定
 boto3>=1.34.0
 botocore>=1.34.0
