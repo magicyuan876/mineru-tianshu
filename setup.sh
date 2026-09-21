@@ -271,6 +271,25 @@ persist_compose_file() {
         set_env_key COMPOSE_FILE "$files"
         log_info "COMPOSE_FILE = ${files}（后续 docker compose / make 命令无需再带 -f）"
     fi
+
+    # COMPOSE_PROFILES 同理：Redis 定义在 profile 里，裸 docker compose 命令看不见它。
+    # 最典型的后果是 `docker compose down` 不会停 redis，网络因仍有活动端点而删不掉：
+    #   Error: network ... has active endpoints (name:"tianshu-redis")
+    local profiles=""
+    for ((i = 0; i < ${#DC[@]}; i++)); do
+        if [ "${DC[$i]}" = "--profile" ]; then
+            if [ -z "$profiles" ]; then
+                profiles="${DC[$((i + 1))]}"
+            else
+                profiles="${profiles},${DC[$((i + 1))]}"
+            fi
+        fi
+    done
+
+    if [ -n "$profiles" ]; then
+        set_env_key COMPOSE_PROFILES "$profiles"
+        log_info "COMPOSE_PROFILES = ${profiles}（后续命令无需再带 --profile）"
+    fi
 }
 
 # 启用 Redis 时 compose 命令附加 --profile redis（保证 stop/logs 等也带上）
@@ -1072,6 +1091,12 @@ show_info() {
     echo "  查看日志: ${DC[*]} logs -f"
     echo "  查看状态: ${DC[*]} ps"
     echo "  停止服务: ${DC[*]} down"
+    echo ""
+    echo "  调整并发: bash setup.sh --mode ${MODE} --concurrency N --yes --dry-run"
+    echo "            （只重算 .env，显存预算会同步调整），随后 docker compose up -d worker"
+    echo "  解析自检: bash setup.sh --smoke-only"
+    echo ""
+    log_info "COMPOSE_FILE / COMPOSE_PROFILES 已写入 ${ENV_FILE}，可直接用裸 docker compose 命令"
     echo ""
     log_warning "管理员账号: $(get_env_key TIANSHU_ADMIN_USERNAME)（初始密码见 ${ENV_FILE} 中 TIANSHU_ADMIN_PASSWORD，请妥善保存）"
     echo ""
