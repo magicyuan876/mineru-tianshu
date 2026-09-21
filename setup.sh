@@ -314,6 +314,16 @@ get_env_key() {
 set_env_key() {
     local key="$1"
     local val="$2"
+
+    # 值不得含换行：写进去会把一行配置拆成两行，.env 结构被破坏后
+    # 表现为"值被莫名截断"，极难排查（探测类函数返回多行文本时就会这样）
+    local val_oneline
+    val_oneline=$(printf '%s' "$val" | tr -d '\n\r')
+    if [ "${#val_oneline}" -ne "${#val}" ]; then
+        log_error "拒绝写入 ${key}：值包含换行符，可能来自某个探测命令的异常输出"
+        return 1
+    fi
+
     if grep -qE "^${key}=" "$ENV_FILE"; then
         # 不能用 sed 的替换串写值：& 会被展开成整个匹配，	 之类会被解释成控制字符，
         # 密码/密钥里带这些字符时会被静默改写。awk 从 ENVIRON 取值则是纯字面量。
@@ -385,11 +395,20 @@ detect_server_ip() {
     if [ -z "$ip" ] && command -v hostname > /dev/null 2>&1; then
         ip=$(hostname -I 2> /dev/null | awk '{print $1}' || true)
     fi
-    # macOS 回退
+    # macOS 回退（注意 Windows 上也有同名的 ipconfig，但用法完全不同，
+    # 会输出一整段用法说明 —— 所以下面必须做格式校验）
     if [ -z "$ip" ] && command -v ipconfig > /dev/null 2>&1; then
         ip=$(ipconfig getifaddr en0 2> /dev/null || true)
     fi
-    echo "$ip"
+
+    # 只接受单行合法 IPv4：探测命令在不同平台上可能返回多行文本或错误提示，
+    # 原样写进 .env 会破坏文件结构（值被截断成 http:// 之类），且很难排查
+    ip=$(printf '%s' "$ip" | tr -d '
+' | head -n1 | tr -d '[:space:]')
+    case "$ip" in
+        [0-9]*.[0-9]*.[0-9]*.[0-9]*) echo "$ip" ;;
+        *) echo "" ;;
+    esac
 }
 
 container_running() {
@@ -655,19 +674,16 @@ interactive_configure() {
         set_env_key REDIS_QUEUE_ENABLED false
     fi
 
-    if ask_yn "是否启用 RustFS 对象存储（解析结果图片外链）" "Y"; then
-        set_env_key RUSTFS_ENABLED true
-        local ip
-        local front_port
-        ip=$(detect_server_ip)
-        front_port=$(get_env_key FRONTEND_PORT)
-        front_port="${front_port:-80}"
-        # RustFS 端口仅绑定回环，图片统一经前端 nginx /s3/ 反代访问
-        ask "RustFS 公网访问地址（经前端 nginx /s3/ 反代，需浏览器可达）" "http://${ip:-127.0.0.1}:${front_port}/s3"
-        set_env_key RUSTFS_PUBLIC_URL "$REPLY"
-    else
-        set_env_key RUSTFS_ENABLED false
-    fi
+    # 对象存储是必需依赖，不提供关闭选项：解析结果里的图片必须有浏览器可达的地址
+    set_env_key RUSTFS_ENABLED true
+    local ip
+    local front_port
+    ip=$(detect_server_ip)
+    front_port=$(get_env_key FRONTEND_PORT)
+    front_port="${front_port:-80}"
+    # RustFS 端口仅绑定回环，图片统一经前端 nginx /s3/ 反代访问
+    ask "RustFS 公网访问地址（经前端 nginx /s3/ 反代，需浏览器可达）" "http://${ip:-127.0.0.1}:${front_port}/s3"
+    set_env_key RUSTFS_PUBLIC_URL "$REPLY"
 
     local api_default
     local front_default
@@ -749,30 +765,39 @@ tune_env() {
     # --- RustFS 公网地址 -----------------------------------------------------
     # 解析结果中的图片会改写为该地址，必须浏览器可达；
     # RustFS 端口仅绑定回环，默认经前端 nginx /s3/ 路径反代
-    local rustfs_enabled
-    rustfs_enabled=$(get_env_key RUSTFS_ENABLED)
-    if [ "$rustfs_enabled" != "false" ]; then
-        local rustfs_url
-        local front_port
-        local server_ip
-        rustfs_url=$(get_env_key RUSTFS_PUBLIC_URL)
-        front_port=$(get_env_key FRONTEND_PORT)
-        front_port="${front_port:-80}"
-        server_ip=$(detect_server_ip)
-        case "$rustfs_url" in
-            "" | *192.168.1.100* | http://localhost/s3 | http://127.0.0.1/s3)
-                if [ -n "$server_ip" ]; then
-                    set_env_key RUSTFS_PUBLIC_URL "http://${server_ip}:${front_port}/s3"
-                    log_success "RUSTFS_PUBLIC_URL = http://${server_ip}:${front_port}/s3（经前端 nginx 反代）"
-                else
-                    log_warning "未能探测服务器 IP，请手动设置 RUSTFS_PUBLIC_URL，否则解析结果的图片无法加载"
-                fi
-                ;;
-            *)
-                log_info "RUSTFS_PUBLIC_URL 已配置（${rustfs_url}），保持不变"
-                ;;
-        esac
+    # 对象存储是必需依赖：Worker 侧对含图片的任务已是 fail-closed，
+    # 这里把开关强制打开，并保证公网地址一定有值，否则拒绝部署
+    if [ "$(get_env_key RUSTFS_ENABLED)" != "true" ]; then
+        set_env_key RUSTFS_ENABLED true
+        log_info "RUSTFS_ENABLED = true（对象存储为必需依赖，已强制启用）"
     fi
+
+    local rustfs_url
+    local front_port
+    local server_ip
+    rustfs_url=$(get_env_key RUSTFS_PUBLIC_URL)
+    front_port=$(get_env_key FRONTEND_PORT)
+    front_port="${front_port:-80}"
+    server_ip=$(detect_server_ip)
+    case "$rustfs_url" in
+        "" | *192.168.1.100* | http://localhost/s3 | http://127.0.0.1/s3)
+            if [ -n "$server_ip" ]; then
+                set_env_key RUSTFS_PUBLIC_URL "http://${server_ip}:${front_port}/s3"
+                log_success "RUSTFS_PUBLIC_URL = http://${server_ip}:${front_port}/s3（经前端 nginx 反代）"
+            elif [ "$DRY_RUN" -eq 1 ]; then
+                log_warning "未能探测服务器 IP（dry-run 继续；正式部署时会直接报错退出）"
+                log_warning "正式部署前请手动设置 RUSTFS_PUBLIC_URL=http://<服务器IP>:${front_port}/s3"
+            else
+                log_error "未能探测服务器 IP，无法确定 RUSTFS_PUBLIC_URL"
+                log_error "请手动在 $ENV_FILE 中设置，例如 RUSTFS_PUBLIC_URL=http://<服务器IP>:${front_port}/s3"
+                log_error "该地址必须是浏览器可达的；留空会让所有含图片的解析任务失败"
+                exit 1
+            fi
+            ;;
+        *)
+            log_info "RUSTFS_PUBLIC_URL 已配置（${rustfs_url}），保持不变"
+            ;;
+    esac
 
     # --- Worker 内存上限 -----------------------------------------------------
     # cgroup 硬上限而非预留：随 worker 进程数放大，防止失控进程拖垮宿主机

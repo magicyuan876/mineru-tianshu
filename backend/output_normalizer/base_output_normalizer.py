@@ -98,44 +98,47 @@ class BaseOutputNormalizer:
         raise NotImplementedError
 
     def _process_rustfs_upload(self, result: Dict[str, Any]):
-        """处理 RustFS 上传和 URL 替换"""
+        """把图片上传到 RustFS 并改写引用地址
 
-        # 检查是否启用 RustFS
+        对象存储是**强制依赖**：解析结果里的图片必须有浏览器可访问的地址。
+        以前这里上传失败只打一条警告就继续，产出的 Markdown 保留相对路径
+        images/xxx.jpg，浏览器按页面地址解析成 /tasks/images/xxx.jpg → 全部 404，
+        而任务状态仍是 completed，用户完全看不出问题出在哪。
+        现在改为 fail-closed：上传不成功就让任务失败，并给出可操作的原因。
+        """
+        image_count = result.get("image_count", 0)
+
         rustfs_enabled = os.getenv("RUSTFS_ENABLED", "true").lower() in ("true", "1", "yes")
-
         if not rustfs_enabled:
-            logger.info("ℹ️  RustFS is disabled (RUSTFS_ENABLED=false), using local file service")
-            result["rustfs_enabled"] = False
-            result["images_uploaded"] = False
-            return
+            raise RuntimeError(
+                f"解析结果包含 {image_count} 张图片，但 RUSTFS_ENABLED=false。"
+                "对象存储是本平台的必需依赖，关闭后图片无法被浏览器访问。"
+                "请在 .env 中设置 RUSTFS_ENABLED=true 并配置 RUSTFS_PUBLIC_URL 后重试。"
+            )
 
+        logger.info(f"📤 Uploading {image_count} images to RustFS...")
         try:
-            logger.info(f"📤 Uploading {result['image_count']} images to RustFS...")
             url_mapping = self._upload_images_to_rustfs(result["image_dir"])
-
-            if url_mapping:
-                # 替换 Markdown 中的图片路径
-                if result["markdown_file"]:
-                    self._replace_markdown_urls(result["markdown_file"], url_mapping)
-
-                # 替换 JSON 中的图片路径
-                if result["json_file"]:
-                    self._replace_json_urls(result["json_file"], url_mapping)
-
-                result["rustfs_enabled"] = True
-                result["images_uploaded"] = True
-                logger.info(f"✅ Images uploaded to RustFS: {len(url_mapping)}/{result['image_count']}")
-            else:
-                logger.warning("⚠️  No images uploaded (url_mapping empty)")
-                result["rustfs_enabled"] = False
-                result["images_uploaded"] = False
         except Exception as e:
-            logger.error(f"❌ Failed to upload images to RustFS: {e}")
-            logger.error(f"   Error details: {type(e).__name__}: {str(e)}")
-            result["rustfs_enabled"] = False
-            result["images_uploaded"] = False
-            # RustFS 上传失败不应中断主流程，继续使用本地路径
-            logger.warning("⚠️  Continuing with local image paths (RustFS upload failed)")
+            raise RuntimeError(
+                f"图片上传到 RustFS 失败（{type(e).__name__}: {e}）。"
+                "请检查 RustFS 容器是否运行、RUSTFS_ENDPOINT / RUSTFS_ACCESS_KEY / "
+                "RUSTFS_SECRET_KEY / RUSTFS_PUBLIC_URL 是否配置正确。"
+            ) from e
+
+        if not url_mapping:
+            raise RuntimeError(
+                f"图片上传到 RustFS 未返回任何地址（应上传 {image_count} 张）。" "请检查 RustFS 服务状态与存储桶权限。"
+            )
+
+        if result["markdown_file"]:
+            self._replace_markdown_urls(result["markdown_file"], url_mapping)
+        if result["json_file"]:
+            self._replace_json_urls(result["json_file"], url_mapping)
+
+        result["rustfs_enabled"] = True
+        result["images_uploaded"] = True
+        logger.info(f"✅ Images uploaded to RustFS: {len(url_mapping)}/{image_count}")
 
     def _upload_images_to_rustfs(self, image_dir: Path) -> Dict[str, str]:
         """
