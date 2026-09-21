@@ -141,7 +141,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # Step 3: 安装 MinerU 及其依赖（允许自动解析依赖）
 RUN --mount=type=cache,target=/root/.cache/pip \
     echo "Installing MinerU with dependencies..." && \
-    pip install "mineru[core]>=3.4.5" \
+    pip install "mineru[pipeline,vlm]>=3.4.5" \
     -i ${PIP_MIRROR} \
     --break-system-packages \
     --default-timeout=600 \
@@ -183,6 +183,8 @@ RUN python -c "import sys; print('Python:', sys.version)" && \
     python -c "import torch; print('✅ PyTorch:', torch.__version__)" && \
     python -c "import transformers; print('✅ Transformers:', transformers.__version__)" && \
     python -c "import funasr; print('✅ FunASR:', funasr.__version__)" && \
+    python -c "from mineru.cli.common import do_parse; from mineru.utils.model_utils import get_vram, clean_memory; print(chr(9989) + ' MinerU 解析入口: do_parse / get_vram / clean_memory')" && \
+    python -c "import importlib.util as u; assert u.find_spec('gradio') is None, 'gradio 不应出现在镜像中'; print(chr(9989) + ' 确认未安装 gradio')" && \
     echo "✅ 依赖安装完成（CUDA 验证将在运行时进行，构建时无 GPU 访问）"
 
 # ============================================================================

@@ -31,19 +31,18 @@ ENV DEBIAN_FRONTEND=noninteractive \
     LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH \
     PIP_CACHE_DIR=/root/.cache/pip
 
-# 2. [系统修复] 安装底层库 (Ubuntu 24.04 适配)
+# 2. [系统修复] 底层库 + 中文字体 + LibreOffice
+# 合并为单层：原先拆成两个 RUN 会执行两次 apt-get update（各拉一遍索引）。
+# LibreOffice 只装实际用到的三个组件，元包 libreoffice 会额外带上 Base / Draw / Math，
+# 本项目一个都不用（Dockerfile.cpu 与 Dockerfile.offline 本来就是这么写的）。
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3.12 python3.12-dev python3-pip python3.12-venv \
     git wget curl ffmpeg antiword pandoc poppler-utils \
     libgomp1 libglib2.0-0 libsm6 libxext6 libxrender-dev \
     libgl1 libglx-mesa0 libgstreamer1.0-0 \
-    && rm -rf /var/lib/apt/lists/*
-
-# 3. [系统修复] 安装中文字体
-RUN apt-get update && apt-get install -y --no-install-recommends \
     fonts-noto-core fonts-noto-cjk fonts-noto-cjk-extra \
     fonts-wqy-zenhei fonts-wqy-microhei fontconfig \
-    libreoffice \
+    libreoffice-writer libreoffice-calc libreoffice-impress \
     && fc-cache -fv \
     && rm -rf /var/lib/apt/lists/*
 
@@ -72,10 +71,18 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     pip install torch==2.10.0+cu130 torchvision==0.25.0+cu130 --index-url https://download.pytorch.org/whl/cu130 --break-system-packages
 
 # Step 3: [核心业务包] (注意：移除 --no-deps，补全缺失的 botocore/reportlab 等)
+#
+# 用 mineru[pipeline,vlm] 而不是 mineru[core]：
+#   core 的定义就是 gradio + pipeline + vlm 三个 extra 的并集，本身不含任何独立包，
+#   所以去掉 gradio 是精确等价的裁剪。
+# gradio 是 MinerU 自带的演示 WebUI（本项目有自己的 Vue 前端，代码中从未引用），
+# 但它的版本约束是 !=6.0.0,...,!=6.7.0,<6.9.0,>=5.49.1 —— pip 会从最新版
+# (6.2x) 逐个往回下载 30.7MB 的 wheel 读元数据，直到退进允许区间。
+# 实测在国内源上这一步要烧掉 30-40 分钟，且产物完全用不到。
 # 加入了日志中提示缺失的所有包
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install "huggingface-hub<1.0" \
-                "mineru[core]>=3.4.5" \
+                "mineru[pipeline,vlm]>=3.4.5" \
                 "transformers==4.57.6" \
                 "openai>=1.50.0" \
                 "boto3>=1.34.0" \
@@ -122,8 +129,14 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     fi
 
 # Step 7: [最终验证]
-RUN python -c "import torch; import flash_attn; import pypdf; import boto3; import botocore; import openai; print('✅ All Backend Dependencies Verified')" && \
-    pip show mineru flash-attn | grep -E "^(Name|Version)"
+# 除了三方包，这里还显式导入本项目真正用到的 MinerU 入口。
+# 裁剪 mineru extra 之后，万一漏掉依赖，构建会在这一步当场失败，
+# 而不是等到线上解析任务才暴露。
+RUN python -c "import torch; import pypdf; import boto3; import botocore; import openai; print(chr(9989) + ' 三方依赖验证通过')" \
+    && python -c "import flash_attn; print(chr(9989) + ' flash_attn 可用')" \
+    && python -c "from mineru.cli.common import do_parse; from mineru.utils.model_utils import get_vram, clean_memory; print(chr(9989) + ' MinerU 解析入口验证通过 (do_parse / get_vram / clean_memory)')" \
+    && python -c "import importlib.util as u; assert u.find_spec('gradio') is None, 'gradio 不应出现在镜像中'; print(chr(9989) + ' 确认未安装 gradio')" \
+    && pip show mineru flash-attn | grep -E "^(Name|Version)"
 
 # -----------------------------------------------------------------------------
 # Stage 3: Application Runtime
