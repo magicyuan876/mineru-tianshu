@@ -164,6 +164,67 @@ class MinerUPipelineEngine:
         logger.warning(f"⚠️  VLLM server wait timed out after {timeout}s. Process may fail.")
         return False
 
+    @staticmethod
+    def _flatten_content_blocks(json_content):
+        """把 MinerU 的 content_list 拍平成块列表，兼容 v1 与 v2
+
+        - v1 (*_content_list.json)    : 扁平数组 [block, block, ...]
+        - v2 (*_content_list_v2.json) : 按页分组的嵌套数组 [[block, ...], [block, ...], ...]
+
+        前端 TaskDetail.vue 早已按 v2 处理，这里与之保持一致。历史上这里只按 v1
+        处理，遇到 v2 会抛 AttributeError: 'list' object has no attribute 'get'。
+        """
+        if not isinstance(json_content, list):
+            return []
+
+        blocks = []
+        for item in json_content:
+            if isinstance(item, list):
+                # v2：一页的块列表
+                blocks.extend(b for b in item if isinstance(b, dict))
+            elif isinstance(item, dict):
+                # 按页分组的对象格式，或 v1 的扁平块
+                page_blocks = item.get("parsing_res_list") or item.get("blocks")
+                if isinstance(page_blocks, list):
+                    blocks.extend(b for b in page_blocks if isinstance(b, dict))
+                else:
+                    blocks.append(item)
+        return blocks
+
+    @staticmethod
+    def _extract_block_text(block):
+        """从单个块里取纯文本，兼容 v1 的 text 字段与 v2 的 content 结构"""
+        if not isinstance(block, dict):
+            return ""
+
+        # v1：直接带 text
+        text = block.get("text")
+        if isinstance(text, str) and text:
+            return text
+
+        content = block.get("content")
+        if isinstance(content, str):
+            return content
+        if not isinstance(content, dict):
+            return ""
+
+        # v2：content 下按块类型分不同的键，值形如 [{"content": "..."}, ...]
+        for key in ("title_content", "paragraph_content", "table_content", "list_content"):
+            items = content.get(key)
+            if not isinstance(items, list):
+                continue
+            parts = []
+            for item in items:
+                if isinstance(item, dict):
+                    piece = item.get("content")
+                    if isinstance(piece, str):
+                        parts.append(piece)
+                elif isinstance(item, str):
+                    parts.append(item)
+            if parts:
+                return "".join(parts)
+        return ""
+
     def _clean_markdown(self, text: str) -> str:
         """
         [关键功能] 深度清洗 Markdown 文本
@@ -404,11 +465,10 @@ class MinerUPipelineEngine:
                 if not content.strip() and json_content:
                     logger.warning("⚠️  Markdown file is empty, attempting to recover text from JSON...")
                     recovered_text = []
-                    if isinstance(json_content, list):
-                        for block in json_content:
-                            text = block.get("text", "")
-                            text = self._clean_markdown(text)
-                            recovered_text.append(text)
+                    for block in self._flatten_content_blocks(json_content):
+                        text = self._extract_block_text(block)
+                        if text:
+                            recovered_text.append(self._clean_markdown(text))
                     content = "\n\n".join(recovered_text)
 
                     if temp_md_files:

@@ -55,3 +55,42 @@ def test_output_file_route_requires_auth_and_rejects_escaped_paths(runtime_paths
     assert valid.headers["x-content-type-options"] == "nosniff"
     assert valid.headers["content-security-policy"] == "default-src 'none'; sandbox"
     assert valid.headers["content-disposition"].startswith("attachment;")
+
+
+def test_empty_upload_is_rejected_without_creating_task(runtime_paths):
+    """0 字节上传必须在接口层被拒绝，不落盘、不建任务
+
+    线上曾有 356 个空 .docx 进入队列，占用 Worker 后由 pdfium 抛出
+    `PdfiumError: Data format error`，用户看不懂于是反复重试。
+    """
+    auth_db = AuthDB(str(runtime_paths["database_path"]))
+    user = auth_db.create_user(
+        UserCreate(
+            username="uploader",
+            email="uploader@example.com",
+            password="safe-password",
+            role=UserRole.ADMIN,
+        )
+    )
+    token = create_access_token(user.user_id, user.username, user.role)
+    api_server = load_api_module()
+
+    with TestClient(api_server.app) as client:
+        empty = client.post(
+            "/api/v1/tasks/submit",
+            files={"file": ("empty.docx", b"", "application/octet-stream")},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        normal = client.post(
+            "/api/v1/tasks/submit",
+            files={"file": ("ok.txt", b"hello", "text/plain")},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert empty.status_code == 400
+    assert "空" in empty.json()["detail"]
+    # 空文件不得落盘
+    assert not any(p.is_file() for p in runtime_paths["upload_path"].glob("*.docx"))
+    # 正常文件不受影响
+    assert normal.status_code == 200
+    assert normal.json()["task_id"]

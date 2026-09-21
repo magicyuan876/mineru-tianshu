@@ -129,18 +129,25 @@ def test_worker_failure_marks_task_failed_and_enqueues_one_failure_webhook(monke
 
 
 def test_legacy_office_conversion_uses_unique_libreoffice_profiles(monkeypatch, mocker, tmp_path):
+    """每次转换必须使用独立的 UserInstallation profile
+
+    LibreOffice 是单实例模型：多个进程共用默认 profile 时，后来的调用会把活交给
+    已有实例后直接退出，表现为 exit 1 或 exit 0 但无产出。Worker 有多个进程并发，
+    线上正是因此出现大量转换失败。
+    """
     worker_module = load_worker_module(monkeypatch)
     worker = worker_module.MinerUWorkerAPI.__new__(worker_module.MinerUWorkerAPI)
     source = tmp_path / "legacy.xls"
     source.write_bytes(b"xls")
     commands = []
 
-    def fake_run(command, **kwargs):
-        commands.append((command, kwargs))
+    def fake_run(command, timeout):
+        commands.append((command, timeout))
         output_dir = Path(command[command.index("--outdir") + 1])
         (output_dir / "legacy.xlsx").write_bytes(b"xlsx")
+        return b"", b"", 0
 
-    mocker.patch.object(worker_module.subprocess, "run", side_effect=fake_run)
+    mocker.patch.object(worker_module.MinerUWorkerAPI, "_run_with_process_group", side_effect=fake_run)
 
     first_output = worker._convert_office_to_new_format(str(source))
     second_output = worker._convert_office_to_new_format(str(source))
@@ -149,13 +156,32 @@ def test_legacy_office_conversion_uses_unique_libreoffice_profiles(monkeypatch, 
     assert second_output == str(tmp_path / "legacy.xlsx")
     assert len(commands) == 2
     profiles = []
-    for command, kwargs in commands:
+    for command, timeout in commands:
         profile = next(argument for argument in command if argument.startswith("-env:UserInstallation="))
         profiles.append(profile)
         assert command[0] == "libreoffice"
         assert command[command.index("--convert-to") + 1] == "xlsx"
-        assert kwargs == {"check": True, "timeout": 120, "capture_output": True}
+        assert timeout == 180
     assert profiles[0] != profiles[1]
+
+
+def test_legacy_office_conversion_timeout_is_configurable(monkeypatch, mocker, tmp_path):
+    worker_module = load_worker_module(monkeypatch)
+    monkeypatch.setenv("OFFICE_CONVERT_TIMEOUT", "42")
+    worker = worker_module.MinerUWorkerAPI.__new__(worker_module.MinerUWorkerAPI)
+    source = tmp_path / "legacy.doc"
+    source.write_bytes(b"doc")
+    seen = []
+
+    def fake_run(command, timeout):
+        seen.append(timeout)
+        Path(command[command.index("--outdir") + 1], "legacy.docx").write_bytes(b"docx")
+        return b"", b"", 0
+
+    mocker.patch.object(worker_module.MinerUWorkerAPI, "_run_with_process_group", side_effect=fake_run)
+    worker._convert_office_to_new_format(str(source))
+
+    assert seen == [42]
 
 
 def test_legacy_office_conversion_failure_skips_markitdown(monkeypatch, mocker, tmp_path):

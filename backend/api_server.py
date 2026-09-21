@@ -309,12 +309,23 @@ async def submit_task(
 
         # 异步写盘：同步的 temp_file.write() 会在写入期间冻结事件循环，uvicorn 期间
         # 不读取任何 socket —— 包括其它正在上传的连接。块大小从 8MB 降到 1MB，让出更均匀。
+        written = 0
         async with await anyio.open_file(temp_file_path, "wb") as temp_file:
             while True:
                 chunk = await file.read(1 << 20)
                 if not chunk:
                     break
+                written += len(chunk)
                 await temp_file.write(chunk)
+
+        # 空文件直接拒绝：放进队列只会占用 Worker，几十秒后抛一个用户看不懂的
+        # 解析器内部异常（如 PdfiumError: Data format error），用户往往反复重试。
+        if written == 0:
+            temp_file_path.unlink(missing_ok=True)
+            raise HTTPException(
+                status_code=400,
+                detail=f"文件内容为空（0 字节）: {safe_name}。如果源文件在网盘/云盘上，请先下载到本地再上传。",
+            )
 
         options = {
             "lang": lang,
