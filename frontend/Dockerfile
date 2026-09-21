@@ -83,6 +83,18 @@ server {
     }
 
     # 静态资源缓存（排除 /api/ 路径，避免干扰后端静态文件服务）
+    # nginx 的 mime.types 不含 .mjs，默认按 application/octet-stream 返回。
+    # 浏览器按 HTML 规范拒绝把非 JavaScript MIME 的文件当模块脚本加载，
+    # 而 pdf.js 的 worker 正是 .mjs：
+    #   Failed to load module script: The server responded with a non-JavaScript
+    #   MIME type of "application/octet-stream" ... Setting up fake worker.
+    # 结果是 PDF 预览始终"解析失败"。这里显式声明它的类型。
+    location ~ \.mjs$ {
+        default_type text/javascript;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
     # 负向前瞻必须同时排除 /api/ 与 /s3/：正则 location 优先级高于前缀 location，
     # 不排除的话 /s3/<bucket>/<object>.png 会命中这里被当成本地静态文件，
     # 而不是转发给 RustFS —— 解析结果里的图片会全部 404。
