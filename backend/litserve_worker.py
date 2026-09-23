@@ -164,7 +164,15 @@ SPREADSHEET_EXTENSIONS = frozenset({".xlsx", ".xls"})
 # 多卡多进程下（如 128 核、8 卡 x 2 = 16 进程）会有上千个计算线程抢核，CPU 侧的渲染、预处理、
 # 后处理全部变慢，GPU 一直在等数据。由主进程写入进程总数，子进程在 setup() 里据此均分。
 TOTAL_WORKERS_ENV = "TIANSHU_TOTAL_WORKERS"
-CPU_THREAD_ENV_VARS = ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS", "NUMEXPR_NUM_THREADS")
+# MINERU_INTRA_OP_NUM_THREADS：MinerU 表格结构模型（slanet+ / unet，ONNX Runtime）读取的线程数，
+# 不认 OMP_NUM_THREADS，未设置时 ONNX Runtime 按全部核数开线程
+CPU_THREAD_ENV_VARS = (
+    "OMP_NUM_THREADS",
+    "MKL_NUM_THREADS",
+    "OPENBLAS_NUM_THREADS",
+    "NUMEXPR_NUM_THREADS",
+    "MINERU_INTRA_OP_NUM_THREADS",
+)
 
 
 def _available_cpus() -> int:
@@ -196,7 +204,42 @@ def configure_cpu_threads() -> int:
     threads = resolve_cpu_threads(os.getenv("WORKER_CPU_THREADS"), os.getenv(TOTAL_WORKERS_ENV), _available_cpus())
     for var in CPU_THREAD_ENV_VARS:
         os.environ.setdefault(var, str(threads))
+    # 单次推理内的算子间并行对这些小模型收益很小，多进程下只会继续放大线程数
+    os.environ.setdefault("MINERU_INTER_OP_NUM_THREADS", "1")
     return threads
+
+
+def limit_onnxruntime_threads(threads: int) -> bool:
+    """给未显式指定线程数的 ONNX Runtime 会话补上线程上限
+
+    MinerU 的表格分类模型（PaddleTableClsModel）创建会话时不传 SessionOptions，
+    任何环境变量都管不到，每个进程都会按全部核数开线程。这里包装 InferenceSession：
+    调用方没传 SessionOptions、或线程数仍是默认值 0 时补上限，显式配置的保持不动。
+    需在模型首次构建（首个任务）之前调用；调用方以属性方式访问 onnxruntime.InferenceSession 时生效。
+    """
+    try:
+        import onnxruntime as ort
+    except ImportError:
+        return False
+
+    original = ort.InferenceSession
+    if getattr(original, "_tianshu_thread_limited", False):
+        return True
+
+    class ThreadLimitedInferenceSession(original):
+        _tianshu_thread_limited = True
+
+        def __init__(self, path_or_bytes, sess_options=None, *args, **kwargs):
+            if sess_options is None:
+                sess_options = ort.SessionOptions()
+            if sess_options.intra_op_num_threads == 0:
+                sess_options.intra_op_num_threads = threads
+            if sess_options.inter_op_num_threads == 0:
+                sess_options.inter_op_num_threads = 1
+            super().__init__(path_or_bytes, sess_options, *args, **kwargs)
+
+    ort.InferenceSession = ThreadLimitedInferenceSession
+    return True
 
 
 def apply_cpu_threads_to_libs(threads: int) -> None:
@@ -335,9 +378,11 @@ class MinerUWorkerAPI(ls.LitAPI):
         from mineru.utils.model_utils import get_vram
 
         apply_cpu_threads_to_libs(cpu_threads)
+        ort_limited = limit_onnxruntime_threads(cpu_threads)
         logger.info(
             f"🧵 [CPU Threads] {cpu_threads} threads per worker "
-            f"(total workers: {os.getenv(TOTAL_WORKERS_ENV, '?')}, cpus: {_available_cpus()})"
+            f"(total workers: {os.getenv(TOTAL_WORKERS_ENV, '?')}, cpus: {_available_cpus()}, "
+            f"onnxruntime limited: {ort_limited})"
         )
 
         if os.getenv("MINERU_VIRTUAL_VRAM_SIZE", None) is None:
