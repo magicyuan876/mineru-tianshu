@@ -7,7 +7,6 @@ MinerU Pipeline Engine
 - [新增] 智能显存休眠机制 (Auto-Sleep): 空闲 5 分钟自动释放显存
 - [新增] 自动唤醒机制 (Auto-Wakeup): 新任务自动重新加载模型
 - [优化] 移除每次任务后的强制显存清理，提升连续处理性能
-- [核心修复] 深度文本清洗 (双重反转义、去重、清洗 LaTeX 符号)
 - [核心修复] 使用临时纯英文目录处理，规避中文路径问题
 """
 
@@ -16,8 +15,6 @@ import tempfile
 import time
 import urllib.request
 import urllib.error
-import re
-import html
 import gc
 import threading
 from pathlib import Path
@@ -46,7 +43,7 @@ _LOCAL_VLLM_REWRITE = {
 class MinerUPipelineEngine:
     """
     MinerU Pipeline 引擎
-    集成自动显存管理与深度清洗功能
+    集成自动显存管理功能
     """
 
     _instance: Optional["MinerUPipelineEngine"] = None
@@ -225,41 +222,6 @@ class MinerUPipelineEngine:
                 return "".join(parts)
         return ""
 
-    def _clean_markdown(self, text: str) -> str:
-        """
-        [关键功能] 深度清洗 Markdown 文本
-        解决 HTML 转义、LaTeX 过度包装、非换行空格和重复内容问题
-        """
-        if not text:
-            return ""
-
-        if "117" in text or "LVEDd" in text:
-            logger.debug(f"🧹 Executing _clean_markdown... (Length: {len(text)})")
-
-        # 1. HTML 反转义 (执行两次以解决 &amp;gt; 这种双重转义问题)
-        text = html.unescape(text)
-        text = html.unescape(text)
-
-        # 2. 暴力替换常见的未转义字符
-        text = text.replace("&gt;", ">").replace("&lt;", "<").replace("&amp;", "&")
-
-        # 3. 去除 LaTeX 的 \mathrm{} 包装
-        text = re.sub(r"\\mathrm\{(.*?)\}", r"\1", text, flags=re.DOTALL)
-
-        # 4. 清洗 LaTeX 特殊字符
-        text = text.replace("~", " ")
-
-        # 5. 去除模型幻觉产生的 <del> 标签
-        text = text.replace("<del>", "").replace("</del>", "")
-
-        # 6. [加强版] 暴力去重逻辑
-        text = re.sub(r"(\S+)([\s\r\n]+)\1", r"\1", text)
-
-        # 7. 去除连续的多余空行
-        text = re.sub(r"\n{3,}", "\n\n", text)
-
-        return text
-
     def cleanup(self):
         """
         [增强版] 清理显存与模型
@@ -289,7 +251,7 @@ class MinerUPipelineEngine:
 
     def parse(self, file_path: str, output_path: str, options: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
-        处理文件 (增强版：自动唤醒 + 临时目录 + 深度清洗)
+        处理文件 (增强版：自动唤醒 + 临时目录)
         """
         # =========================================================
         # 1. 状态更新与自动唤醒 (Auto-Wakeup)
@@ -433,22 +395,14 @@ class MinerUPipelineEngine:
                         else:
                             raise FileNotFoundError("Processing failed internally - No output generated")
 
-                # 1. 读取内容并进行深度清洗
+                # 1. 读取内容（保持 MinerU 原样输出，不做文本改写）
                 content = ""
                 json_content = None
 
                 temp_md_files = list(generated_result_dir.rglob("*.md"))
                 if temp_md_files:
-                    md_file = temp_md_files[0]
-                    raw_content = md_file.read_text(encoding="utf-8")
-
-                    # 深度清洗
-                    content = self._clean_markdown(raw_content)
-
-                    # 覆盖写入清洗后的内容
-                    md_file.write_text(content, encoding="utf-8")
-
-                    logger.info(f"✅ Read and cleaned MD content: {len(content)} chars")
+                    content = temp_md_files[0].read_text(encoding="utf-8")
+                    logger.info(f"✅ Read MD content: {len(content)} chars")
 
                 # MinerU 3.0 新增 content_list_v2.json（推荐格式），优先使用；兼容 v1
                 temp_json_files = list(generated_result_dir.rglob("*_content_list_v2.json"))
@@ -468,7 +422,7 @@ class MinerUPipelineEngine:
                     for block in self._flatten_content_blocks(json_content):
                         text = self._extract_block_text(block)
                         if text:
-                            recovered_text.append(self._clean_markdown(text))
+                            recovered_text.append(text)
                     content = "\n\n".join(recovered_text)
 
                     if temp_md_files:
