@@ -110,7 +110,7 @@ class RustFSClient:
         初始化 RustFS 客户端
 
         Args:
-            endpoint: RustFS 服务地址 (例如: rustfs:9000)
+            endpoint: RustFS 服务地址 (例如: tianshu-rustfs:9000)
             access_key: 访问密钥
             secret_key: 密钥
             bucket_name: 存储桶名称
@@ -118,7 +118,7 @@ class RustFSClient:
             public_url: 公开访问 URL (必须设置，例如: http://192.168.1.100:9000)
         """
         # 从环境变量读取配置（不再提供 rustfsadmin 默认凭据兜底）
-        self.endpoint = endpoint or os.getenv("RUSTFS_ENDPOINT", "rustfs:9000")
+        self.endpoint = endpoint or os.getenv("RUSTFS_ENDPOINT", "tianshu-rustfs:9000")
         self.access_key = access_key or os.getenv("RUSTFS_ACCESS_KEY", "")
         self.secret_key = secret_key or os.getenv("RUSTFS_SECRET_KEY", "")
         self.bucket_name = bucket_name or os.getenv("RUSTFS_BUCKET", "ts-img")

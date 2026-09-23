@@ -117,20 +117,20 @@ services:
       - TIANSHU_ADMIN_USERNAME=${TIANSHU_ADMIN_USERNAME:-admin}
       - TIANSHU_ADMIN_PASSWORD=${TIANSHU_ADMIN_PASSWORD}
       - CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0}
-      - WORKER_URL=${WORKER_URL:-http://worker:8001}
+      - WORKER_URL=${WORKER_URL:-http://tianshu-worker:8001}
       - MODEL_PATH=/app/models
       - OUTPUT_PATH=/app/data/output
       - UPLOAD_PATH=/app/data/uploads
       - DATABASE_PATH=${DATABASE_PATH:-/app/data/db/mineru_tianshu.db}
       - RUSTFS_ENABLED=${RUSTFS_ENABLED:-true}
-      - RUSTFS_ENDPOINT=${RUSTFS_ENDPOINT:-rustfs:9000}
+      - RUSTFS_ENDPOINT=${RUSTFS_ENDPOINT:-tianshu-rustfs:9000}
       - RUSTFS_ACCESS_KEY=${RUSTFS_ACCESS_KEY}
       - RUSTFS_SECRET_KEY=${RUSTFS_SECRET_KEY}
       - RUSTFS_BUCKET=${RUSTFS_BUCKET:-ts-img}
       # 默认经前端 nginx /s3/ 反代访问（80 端口）；无 nginx 的本地开发可改 http://127.0.0.1:9000
       - RUSTFS_PUBLIC_URL=${RUSTFS_PUBLIC_URL:-http://localhost/s3}
       - REDIS_QUEUE_ENABLED=${REDIS_QUEUE_ENABLED:-false}
-      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_HOST=${REDIS_HOST:-tianshu-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
       - REDIS_PASSWORD=${REDIS_PASSWORD}
       - MODEL_DOWNLOAD_SOURCE=${MODEL_DOWNLOAD_SOURCE:-auto}
@@ -277,13 +277,13 @@ services:
       - PDF_SPLIT_THRESHOLD_PAGES=${PDF_SPLIT_THRESHOLD_PAGES:-40}
       - PDF_SPLIT_CHUNK_SIZE=${PDF_SPLIT_CHUNK_SIZE:-20}
       - RUSTFS_ENABLED=${RUSTFS_ENABLED:-true}
-      - RUSTFS_ENDPOINT=${RUSTFS_ENDPOINT:-rustfs:9000}
+      - RUSTFS_ENDPOINT=${RUSTFS_ENDPOINT:-tianshu-rustfs:9000}
       - RUSTFS_ACCESS_KEY=${RUSTFS_ACCESS_KEY}
       - RUSTFS_SECRET_KEY=${RUSTFS_SECRET_KEY}
       - RUSTFS_BUCKET=${RUSTFS_BUCKET:-ts-img}
       - RUSTFS_PUBLIC_URL=${RUSTFS_PUBLIC_URL:-http://localhost/s3}
       - REDIS_QUEUE_ENABLED=${REDIS_QUEUE_ENABLED:-false}
-      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_HOST=${REDIS_HOST:-tianshu-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
       - REDIS_PASSWORD=${REDIS_PASSWORD}
     mem_limit: ${WORKER_MEMORY_LIMIT:-16G}
@@ -331,7 +331,7 @@ services:
       - MCP_HOST=0.0.0.0
       - MCP_PORT=8002
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - API_BASE_URL=${API_BASE_URL:-http://backend:8000}
+      - API_BASE_URL=${API_BASE_URL:-http://tianshu-backend:8000}
       # MCP 访问密钥（逗号分隔）与 MCP 调后端 API 的服务凭据
       - MCP_API_KEYS=${MCP_API_KEYS:-}
       - TIANSHU_API_KEY=${TIANSHU_API_KEY:-}
@@ -363,6 +363,9 @@ services:
     environment:
       - TZ=Asia/Shanghai
       - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:8000}
+      # nginx 上游按容器名寻址（服务名别名可能丢失，容器名始终登记在内置 DNS 中）
+      - NGINX_BACKEND_UPSTREAM=tianshu-backend:8000
+      - NGINX_RUSTFS_UPSTREAM=tianshu-rustfs:9000
     networks:
       - tianshu-network
     depends_on:

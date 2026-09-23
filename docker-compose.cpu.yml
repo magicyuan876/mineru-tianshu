@@ -115,7 +115,7 @@ services:
       - GPU_COUNT=0
 
       # Worker 配置
-      - WORKER_URL=${WORKER_URL:-http://worker:8001}
+      - WORKER_URL=${WORKER_URL:-http://tianshu-worker-cpu:8001}
 
       # 文件限制
       - MAX_FILE_SIZE=${MAX_FILE_SIZE:-0}
@@ -130,7 +130,7 @@ services:
 
       # RustFS 对象存储配置
       - RUSTFS_ENABLED=${RUSTFS_ENABLED:-true}
-      - RUSTFS_ENDPOINT=${RUSTFS_ENDPOINT:-rustfs:9000}
+      - RUSTFS_ENDPOINT=${RUSTFS_ENDPOINT:-tianshu-rustfs-cpu:9000}
       - RUSTFS_ACCESS_KEY=${RUSTFS_ACCESS_KEY}
       - RUSTFS_SECRET_KEY=${RUSTFS_SECRET_KEY}
       - RUSTFS_BUCKET=${RUSTFS_BUCKET:-ts-img}
@@ -251,7 +251,7 @@ services:
 
       # RustFS 对象存储配置
       - RUSTFS_ENABLED=${RUSTFS_ENABLED:-true}
-      - RUSTFS_ENDPOINT=${RUSTFS_ENDPOINT:-rustfs:9000}
+      - RUSTFS_ENDPOINT=${RUSTFS_ENDPOINT:-tianshu-rustfs-cpu:9000}
       - RUSTFS_ACCESS_KEY=${RUSTFS_ACCESS_KEY}
       - RUSTFS_SECRET_KEY=${RUSTFS_SECRET_KEY}
       - RUSTFS_BUCKET=${RUSTFS_BUCKET:-ts-img}
@@ -314,6 +314,9 @@ services:
       - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:8000}
       # Nginx 文件上传大小限制
       - NGINX_CLIENT_MAX_BODY_SIZE=${NGINX_CLIENT_MAX_BODY_SIZE:-0}
+      # nginx 上游按容器名寻址（服务名别名可能丢失，容器名始终登记在内置 DNS 中）
+      - NGINX_BACKEND_UPSTREAM=tianshu-backend-cpu:8000
+      - NGINX_RUSTFS_UPSTREAM=tianshu-rustfs-cpu:9000
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost/"]
       interval: 30s

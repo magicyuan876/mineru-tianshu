@@ -487,6 +487,36 @@ prepare_env() {
 
     ensure_runtime_user
     ensure_free_subnet
+    migrate_service_hosts
+}
+
+# 容器间寻址从服务名迁移到容器名（tianshu-*）。
+# compose 登记的服务名别名（rustfs / redis ...）线上出现过丢失：容器照常运行，
+# 但 Docker 内置 DNS 查不到服务名，上传图片、连 Redis 全部失败；容器名则始终登记。
+# 只改写仍等于旧默认值的键，用户自定义的地址（外部 S3 / Redis 等）保持不动。
+migrate_service_hosts() {
+    [ -f "$ENV_FILE" ] || return 0
+
+    local suffix=""
+    [ "$MODE" = "cpu" ] && suffix="-cpu"
+
+    local key old new current
+    while IFS='|' read -r key old new; do
+        [ -n "$key" ] || continue
+        current=$(get_env_key "$key")
+        if [ "$current" = "$old" ]; then
+            set_env_key "$key" "$new" && log_info "${key}: ${old} → ${new}（按容器名寻址）"
+        fi
+    done << EOF
+RUSTFS_ENDPOINT|rustfs:9000|tianshu-rustfs${suffix}:9000
+API_BASE_URL|http://backend:8000|http://tianshu-backend${suffix}:8000
+WORKER_URL|http://worker:8001|http://tianshu-worker${suffix}:8001
+EOF
+
+    # CPU 栈没有 redis 服务，不迁移
+    if [ "$MODE" != "cpu" ] && [ "$(get_env_key REDIS_HOST)" = "redis" ]; then
+        set_env_key REDIS_HOST "tianshu-redis" && log_info "REDIS_HOST: redis → tianshu-redis（按容器名寻址）"
+    fi
 }
 
 # Docker 网段避让：compose 里的固定 /16 一旦被机器上其它项目占用，
@@ -986,6 +1016,27 @@ verify_deployment() {
         log_error "检查 frontend/Dockerfile 中 'location /api/' 的 proxy_pass 配置"
         rc=1
     fi
+
+    # 容器间 DNS 自检：地址解析不了时，含图片的任务会全部失败、Redis 队列会静默退回 SQLite，
+    # 而 /health 对此毫无感知。经 compose exec 按服务定位容器，与容器名后缀无关
+    local host_port host
+    local -a dns_targets=()
+    host_port=$(get_env_key RUSTFS_ENDPOINT)
+    dns_targets+=("${host_port:-tianshu-rustfs:9000}")
+    if [ "$(get_env_key REDIS_QUEUE_ENABLED)" = "true" ]; then
+        host_port=$(get_env_key REDIS_HOST)
+        dns_targets+=("${host_port:-tianshu-redis}")
+    fi
+    for host_port in "${dns_targets[@]}"; do
+        host="${host_port%%:*}"
+        if "${DC[@]}" exec -T backend getent hosts "$host" > /dev/null 2>&1; then
+            log_success "容器内可解析 ${host}"
+        else
+            log_error "backend 容器内无法解析 ${host}：图片上传 / Redis 队列将不可用"
+            log_error "排查: ${DC[*]} exec backend getent hosts ${host}"
+            rc=1
+        fi
+    done
 
     if container_running tianshu-worker; then
         log_success "Worker 容器运行中"

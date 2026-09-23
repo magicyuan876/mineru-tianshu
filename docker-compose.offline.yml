@@ -147,7 +147,7 @@ services:
       - CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0}
 
       # Worker 配置
-      - WORKER_URL=${WORKER_URL:-http://worker:8001}
+      - WORKER_URL=${WORKER_URL:-http://tianshu-worker:8001}
 
       # 文件限制（0 表示不限制）
       - MAX_FILE_SIZE=${MAX_FILE_SIZE:-0}  # 不限制文件大小
@@ -162,7 +162,7 @@ services:
 
       # RustFS 对象存储配置
       - RUSTFS_ENABLED=${RUSTFS_ENABLED:-true}
-      - RUSTFS_ENDPOINT=${RUSTFS_ENDPOINT:-rustfs:9000}
+      - RUSTFS_ENDPOINT=${RUSTFS_ENDPOINT:-tianshu-rustfs:9000}
       - RUSTFS_ACCESS_KEY=${RUSTFS_ACCESS_KEY}
       - RUSTFS_SECRET_KEY=${RUSTFS_SECRET_KEY}
       - RUSTFS_BUCKET=${RUSTFS_BUCKET:-ts-img}
@@ -182,7 +182,7 @@ services:
 
       # Redis 队列配置（可选 - 解决 SQLite 并发瓶颈）
       - REDIS_QUEUE_ENABLED=${REDIS_QUEUE_ENABLED:-false}
-      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_HOST=${REDIS_HOST:-tianshu-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
       - REDIS_DB=${REDIS_DB:-0}
       - REDIS_PASSWORD=${REDIS_PASSWORD:-}
@@ -275,7 +275,7 @@ services:
       - PDF_SPLIT_CHUNK_SIZE=${PDF_SPLIT_CHUNK_SIZE:-20}
 
       # RustFS 对象存储配置
-      - RUSTFS_ENDPOINT=${RUSTFS_ENDPOINT:-rustfs:9000}
+      - RUSTFS_ENDPOINT=${RUSTFS_ENDPOINT:-tianshu-rustfs:9000}
       - RUSTFS_ACCESS_KEY=${RUSTFS_ACCESS_KEY}
       - RUSTFS_SECRET_KEY=${RUSTFS_SECRET_KEY}
       - RUSTFS_BUCKET=${RUSTFS_BUCKET:-ts-img}
@@ -285,7 +285,7 @@ services:
 
       # Redis 队列配置（可选 - 解决 SQLite 并发瓶颈）
       - REDIS_QUEUE_ENABLED=${REDIS_QUEUE_ENABLED:-false}
-      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_HOST=${REDIS_HOST:-tianshu-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
       - REDIS_DB=${REDIS_DB:-0}
       - REDIS_PASSWORD=${REDIS_PASSWORD:-}
@@ -343,7 +343,7 @@ services:
       - MCP_HOST=0.0.0.0
       - MCP_PORT=8002
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - API_BASE_URL=${API_BASE_URL:-http://backend:8000}
+      - API_BASE_URL=${API_BASE_URL:-http://tianshu-backend:8000}
       # MCP 访问密钥（逗号分隔）与 MCP 调后端 API 的服务凭据
       - MCP_API_KEYS=${MCP_API_KEYS:-}
       - TIANSHU_API_KEY=${TIANSHU_API_KEY:-}
@@ -379,6 +379,9 @@ services:
       - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:8000}
       # Nginx 文件上传大小限制(0 表示不限制)
       - NGINX_CLIENT_MAX_BODY_SIZE=${NGINX_CLIENT_MAX_BODY_SIZE:-0}
+      # nginx 上游按容器名寻址（服务名别名可能丢失，容器名始终登记在内置 DNS 中）
+      - NGINX_BACKEND_UPSTREAM=tianshu-backend:8000
+      - NGINX_RUSTFS_UPSTREAM=tianshu-rustfs:9000
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost/"]
       interval: 30s

@@ -22,7 +22,7 @@ services:
       "worker",
       "python",
       "litserve_worker.py",
-      "--mineru-vllm-api-list", "['http://vllm-mineru:30024/v1']"
+      "--mineru-vllm-api-list", "['http://tianshu-vllm-mineru:30024/v1']"
     ]
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock

@@ -114,7 +114,7 @@ server {
     # 变量写法同样原样透传完整请求 URI，语义不变；但解析被推迟到请求时，
     # backend 短暂不可用不会让 nginx 拒绝启动、连静态页面一起挂掉。
     location /api/ {
-        set $backend_upstream http://backend:8000;
+        set $backend_upstream http://${NGINX_BACKEND_UPSTREAM};
         proxy_pass $backend_upstream;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
@@ -134,7 +134,7 @@ server {
     # 用变量而非字面量，是为了让 rustfs 不可用时 nginx 仍能启动，
     # 此路径返回 502，而 /api/ 与前端页面不受影响；rustfs 恢复后自动生效。
     location /s3/ {
-        set $rustfs_upstream http://rustfs:9000;
+        set $rustfs_upstream http://${NGINX_RUSTFS_UPSTREAM};
         rewrite ^/s3/(.*)$ /$1 break;
         proxy_pass $rustfs_upstream;
         proxy_http_version 1.1;
@@ -150,7 +150,7 @@ server {
     location /ws/ {
         # 同 /api/：变量 + resolver，避免 backend 不可用时 nginx 拒绝启动。
         # 原写法 proxy_pass 带 /ws/ 后缀，变量写法用 rewrite 保持同样的路径语义。
-        set $ws_upstream http://backend:8000;
+        set $ws_upstream http://${NGINX_BACKEND_UPSTREAM};
         rewrite ^/ws/(.*)$ /ws/$1 break;
         proxy_pass $ws_upstream;
         proxy_http_version 1.1;
@@ -185,9 +185,13 @@ set -e
 
 # 设置默认值（如果环境变量未设置，0 表示不限制）
 export NGINX_CLIENT_MAX_BODY_SIZE=${NGINX_CLIENT_MAX_BODY_SIZE:-0}
+# 上游按容器名寻址：compose 登记的服务名别名（backend / rustfs）可能丢失，容器名始终登记在内置 DNS 中。
+# 各 compose 文件按自己的容器名传入（CPU 栈带 -cpu 后缀）
+export NGINX_BACKEND_UPSTREAM=${NGINX_BACKEND_UPSTREAM:-tianshu-backend:8000}
+export NGINX_RUSTFS_UPSTREAM=${NGINX_RUSTFS_UPSTREAM:-tianshu-rustfs:9000}
 
-# 替换 Nginx 配置中的环境变量
-envsubst '${NGINX_CLIENT_MAX_BODY_SIZE}' < /etc/nginx/conf.d/default.conf > /tmp/default.conf
+# 替换 Nginx 配置中的环境变量（显式列出变量名，$backend_upstream 等 nginx 变量不受影响）
+envsubst '${NGINX_CLIENT_MAX_BODY_SIZE} ${NGINX_BACKEND_UPSTREAM} ${NGINX_RUSTFS_UPSTREAM}' < /etc/nginx/conf.d/default.conf > /tmp/default.conf
 mv /tmp/default.conf /etc/nginx/conf.d/default.conf
 
 # 启动 Nginx
