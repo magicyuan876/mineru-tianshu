@@ -230,6 +230,8 @@ services:
       # Worker 配置（CPU 模式降低批次大小和延长超时）
       - MAX_BATCH_SIZE=${MAX_BATCH_SIZE:-1}
       - TIMEOUT=${WORKER_TIMEOUT:-600}
+      # 每进程 CPU 线程数，留空 = 自动按「可用核数 ÷ worker 进程总数」均分
+      - WORKER_CPU_THREADS=${WORKER_CPU_THREADS:-}
 
       # 模型下载配置（本地模式）
       - MODEL_DOWNLOAD_SOURCE=${MODEL_DOWNLOAD_SOURCE:-local}

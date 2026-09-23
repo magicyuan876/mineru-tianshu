@@ -160,6 +160,60 @@ LOCAL_VLLM_BACKENDS = frozenset({"vlm-auto-engine", "hybrid-auto-engine", "vlm-h
 # 大表耗时和内存都很高（2 万行 x 20 列约 50s / 1.8GB），容易拖死或 OOM 掉 worker。
 SPREADSHEET_EXTENSIONS = frozenset({".xlsx", ".xls"})
 
+# 每个 worker 进程的 CPU 线程数。不设上限时 PyTorch / OpenCV / BLAS 在每个进程里都按全部核数开线程池，
+# 多卡多进程下（如 128 核、8 卡 x 2 = 16 进程）会有上千个计算线程抢核，CPU 侧的渲染、预处理、
+# 后处理全部变慢，GPU 一直在等数据。由主进程写入进程总数，子进程在 setup() 里据此均分。
+TOTAL_WORKERS_ENV = "TIANSHU_TOTAL_WORKERS"
+CPU_THREAD_ENV_VARS = ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS", "NUMEXPR_NUM_THREADS")
+
+
+def _available_cpus() -> int:
+    """容器 / 任务集可用的 CPU 数（优先 sched_getaffinity，能反映 cpuset 限制）"""
+    try:
+        return len(os.sched_getaffinity(0))
+    except (AttributeError, OSError):
+        return os.cpu_count() or 1
+
+
+def resolve_cpu_threads(override: Optional[str], total_workers: Optional[str], cpu_count: int) -> int:
+    """计算单进程线程数：WORKER_CPU_THREADS 显式指定优先，否则按可用核数均分给全部 worker 进程"""
+    try:
+        explicit = int(override) if override not in (None, "") else 0
+    except ValueError:
+        explicit = 0
+    if explicit > 0:
+        return explicit
+
+    try:
+        workers = int(total_workers) if total_workers not in (None, "") else 1
+    except ValueError:
+        workers = 1
+    return max(1, cpu_count // max(1, workers))
+
+
+def configure_cpu_threads() -> int:
+    """在导入 torch / cv2 之前设置线程环境变量；已显式设置的变量保持不动"""
+    threads = resolve_cpu_threads(os.getenv("WORKER_CPU_THREADS"), os.getenv(TOTAL_WORKERS_ENV), _available_cpus())
+    for var in CPU_THREAD_ENV_VARS:
+        os.environ.setdefault(var, str(threads))
+    return threads
+
+
+def apply_cpu_threads_to_libs(threads: int) -> None:
+    """环境变量之外再显式设置一遍：OpenCV 不读 OMP_NUM_THREADS，torch 若已提前导入也需要显式调用"""
+    try:
+        import torch
+
+        torch.set_num_threads(threads)
+    except Exception as e:
+        logger.debug(f"torch.set_num_threads skipped: {e}")
+    try:
+        import cv2
+
+        cv2.setNumThreads(threads)
+    except Exception as e:
+        logger.debug(f"cv2.setNumThreads skipped: {e}")
+
 
 class VLLMController:
     """按需冷启动 vLLM 容器。"""
@@ -259,6 +313,9 @@ class MinerUWorkerAPI(ls.LitAPI):
             hf_endpoint = os.getenv("HF_ENDPOINT", "https://hf-mirror.com")
             os.environ.setdefault("HF_ENDPOINT", hf_endpoint)
 
+        # CPU 线程上限：必须在下方首次导入 torch（mineru.utils.model_utils）之前设置环境变量
+        cpu_threads = configure_cpu_threads()
+
         # 设备配置
         self.device = device
         if "cuda" in str(device):
@@ -276,6 +333,12 @@ class MinerUWorkerAPI(ls.LitAPI):
 
         # MinerU VRAM 设置
         from mineru.utils.model_utils import get_vram
+
+        apply_cpu_threads_to_libs(cpu_threads)
+        logger.info(
+            f"🧵 [CPU Threads] {cpu_threads} threads per worker "
+            f"(total workers: {os.getenv(TOTAL_WORKERS_ENV, '?')}, cpus: {_available_cpus()})"
+        )
 
         if os.getenv("MINERU_VIRTUAL_VRAM_SIZE", None) is None:
             if self.accelerator == "cuda":
@@ -1237,6 +1300,11 @@ def start_litserve_workers(
         workers_per_device=workers_per_device,
         timeout=False,
     )
+
+    # 子进程在 server.run() 里才 spawn，此时写入的环境变量会被继承，用于均分 CPU 线程
+    total_workers = len(getattr(server, "inference_workers_config", None) or []) or workers_per_device
+    os.environ[TOTAL_WORKERS_ENV] = str(total_workers)
+    logger.info(f"🧵 Total inference workers: {total_workers}")
 
     def graceful_shutdown(signum=None, frame=None):
         if hasattr(api, "teardown"):

@@ -257,6 +257,8 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       # ⬇️ 并发控制唯一入口（默认单任务串行）；>1 时必须同步下调 MINERU_VIRTUAL_VRAM_SIZE，否则 CUDA OOM
       - MAX_CONCURRENT_TASKS=${MAX_CONCURRENT_TASKS:-1}
+      # 每进程 CPU 线程数，留空 = 自动按「可用核数 ÷ worker 进程总数」均分
+      - WORKER_CPU_THREADS=${WORKER_CPU_THREADS:-}
       - MINERU_VIRTUAL_VRAM_SIZE=${MINERU_VIRTUAL_VRAM_SIZE:-8}
       - WORKER_GPUS=1
       - MAX_BATCH_SIZE=1
