@@ -824,12 +824,19 @@ def list_tasks(
         cursor.execute(count_sql, params)
         total = cursor.fetchone()[0]
 
+        # 先只按 rowid 排序分页，再回表取整行：排序阶段不碰 data 列（整份 Markdown / 版面 JSON，
+        # 单行可达数 MB）。用不上 idx_parent_created 的查询（如 include_children + 状态筛选）也不会退化成读全表大字段。
+        # rowid 作为同一时刻的次序键：子任务批量创建时 created_at 相同，缺它翻页会重复 / 漏行
         query_params = params + [page_size, offset]
         data_sql = f"""
             SELECT * FROM tasks
-            {where_clause}
-            ORDER BY created_at DESC
-            LIMIT ? OFFSET ?
+            WHERE rowid IN (
+                SELECT rowid FROM tasks
+                {where_clause}
+                ORDER BY created_at DESC, rowid DESC
+                LIMIT ? OFFSET ?
+            )
+            ORDER BY created_at DESC, rowid DESC
         """
         cursor.execute(data_sql, query_params)
         tasks = [dict(row) for row in cursor.fetchall()]

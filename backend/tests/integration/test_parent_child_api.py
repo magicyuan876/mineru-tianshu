@@ -71,3 +71,29 @@ def test_retry_parent_requeues_failed_subtasks_and_delete_cascades(runtime_paths
     assert deleted.status_code == 200
     assert db.get_task(parent_id) is None
     assert all(db.get_task(c) is None for c in children)
+
+
+def test_list_uses_composite_index_and_paginates_ties_stably(runtime_paths):
+    headers = make_token(runtime_paths, UserRole.ADMIN)
+    api_server = load_api_module()
+    db = api_server.db
+
+    # 排序若退化成「取出全部顶层任务再排序」，会连同每行 data 大字段一起读，大库上列表接口卡死
+    with db.get_cursor() as cursor:
+        plan = cursor.execute(
+            "EXPLAIN QUERY PLAN SELECT rowid FROM tasks WHERE parent_task_id IS NULL "
+            "ORDER BY created_at DESC, rowid DESC LIMIT 20"
+        ).fetchall()
+    assert "idx_parent_created" in " ".join(row[3] for row in plan)
+
+    # 25 个同一时刻创建的任务：分两页取回应恰好不重不漏
+    ids = [db.create_task(f"same_{i}.pdf", f"/tmp/same_{i}.pdf") for i in range(25)]
+    with db.get_cursor() as cursor:
+        cursor.execute("UPDATE tasks SET created_at = '2026-09-24 01:00:00'")
+
+    with TestClient(api_server.app) as client:
+        page1 = client.get("/api/v1/queue/tasks", params={"page": 1, "page_size": 20}, headers=headers).json()
+        page2 = client.get("/api/v1/queue/tasks", params={"page": 2, "page_size": 20}, headers=headers).json()
+
+    got = [t["task_id"] for t in page1["tasks"] + page2["tasks"]]
+    assert len(got) == 25 and set(got) == set(ids)

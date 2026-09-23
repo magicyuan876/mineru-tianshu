@@ -169,6 +169,9 @@ class TaskDB:
             # 创建主子任务索引（字段存在后才创建）
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_parent_task ON tasks(parent_task_id)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_is_parent ON tasks(is_parent)")
+            # 任务列表默认只列顶层任务并按时间倒序分页：没有这个复合索引时 SQLite 会先取出全部顶层任务
+            # 再排序，而每行的 data 列里是整份 Markdown / 版面 JSON，大库上列表接口会直接卡死
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_parent_created ON tasks(parent_task_id, created_at)")
 
             # 迁移：添加 user_id 字段（如果不存在）
             try:
