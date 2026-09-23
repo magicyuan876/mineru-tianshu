@@ -7,7 +7,7 @@
 
 MinerU Tianshu（天枢）是一个**企业级 AI 数据预处理平台**，将非结构化数据转换为 AI 可用的结构化格式（Markdown + JSON）：
 
-- 📄 文档：PDF、Word、Excel、PPT（MinerU 原生解析 DOCX/XLSX/PPTX；旧版 .doc/.xls/.ppt 经 LibreOffice 转换）、HTML/TXT/CSV/EPUB（MarkItDown）、ZIP 压缩包（自动解包为父子任务批量解析）
+- 📄 文档：PDF、Word、Excel、PPT（MinerU 原生解析 DOCX/PPTX；旧版 .doc/.ppt 经 LibreOffice 转换）、Excel .xlsx/.xls 与 HTML/TXT/CSV/EPUB（MarkItDown）、ZIP 压缩包（自动解包为父子任务批量解析）
 - 🖼️ 图片：JPG、PNG、BMP、TIFF（多 OCR 引擎 + 水印去除🧪）
 - 🎙️ 音频：MP3、WAV、M4A、FLAC（SenseVoice 多语言、说话人识别、情感识别）
 - 🎬 视频：MP4、AVI、MKV、MOV、WebM（FFmpeg 音频提取转写 + 关键帧 OCR🧪）
@@ -151,7 +151,8 @@ npm run build     # tsc && vite build → dist/
 
 - `sensevoice` → 音频引擎；`video` → 视频引擎
 - 包含 `pipeline` / `vlm-` / `hybrid-` → MinerU（`options["parse_mode"] = backend`）
-- `auto` → 按扩展名嗅探：格式引擎 → 音频 → 视频 → MinerU（PDF/图片/DOCX/XLSX/PPTX） → 旧版 `.doc/.xls/.ppt` 经 LibreOffice 转换 → MarkItDown（HTML/TXT/CSV）兜底
+- `.xlsx` / `.xls` → 直接走 MarkItDown（`auto` 与所有 MinerU 系 backend 均如此；`.xls` 由 xlrd 直接读取，无需转换）
+- `auto` → 按扩展名嗅探：格式引擎 → 音频 → 视频 → MinerU（PDF/图片/DOCX/PPTX） → 旧版 `.doc/.ppt` 经 LibreOffice 转换 → MarkItDown（HTML/TXT/CSV）兜底
 - 其他 → 在 `FormatEngineRegistry` 中查找
 
 **约定**：每个引擎都在 try/except 中导入并设置 `X_AVAILABLE` 标志，缺失的可选依赖只降级对应引擎，不会拖垮整个 Worker。新增引擎时请保持此模式。

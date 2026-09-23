@@ -155,6 +155,11 @@ VLLM_MINERU_CONTAINER = "tianshu-vllm-mineru"
 # *-http-client，*-http-client 则直接用 mineru_vllm_api —— 两者都要求容器在运行。
 LOCAL_VLLM_BACKENDS = frozenset({"vlm-auto-engine", "hybrid-auto-engine", "vlm-http-client", "hybrid-http-client"})
 
+# 表格文件统一走 MarkItDown（pandas 读表，.xlsx 用 openpyxl、.xls 用 xlrd，无需先转格式）。
+# 不走 MinerU 原生 XLSX 解析：它对每个 sheet 按 3 档间隔容忍度各做一遍全量表格检测，
+# 大表耗时和内存都很高（2 万行 x 20 列约 50s / 1.8GB），容易拖死或 OOM 掉 worker。
+SPREADSHEET_EXTENSIONS = frozenset({".xlsx", ".xls"})
+
 
 class VLLMController:
     """按需冷启动 vLLM 容器。"""
@@ -387,11 +392,20 @@ class MinerUWorkerAPI(ls.LitAPI):
             return
 
         try:
-            # 1. 冷启动本地 vLLM 容器；调用方自带 server_url 时指向的是外部服务，不插手
-            if backend in LOCAL_VLLM_BACKENDS and self.mineru_vllm_api and not options.get("server_url"):
-                self.vllm_controller.ensure_running(VLLM_MINERU_CONTAINER)
-
             file_ext = Path(file_path).suffix.lower()
+
+            # 表格文件在 auto 和 MinerU 系 backend（前端预设会传 pipeline / vlm / hybrid）下都改走 MarkItDown
+            is_mineru_backend = "pipeline" in backend or "vlm-" in backend or "hybrid-" in backend
+            route_spreadsheet = file_ext in SPREADSHEET_EXTENSIONS and (backend == "auto" or is_mineru_backend)
+
+            # 1. 冷启动本地 vLLM 容器；调用方自带 server_url 时指向的是外部服务，不插手
+            if (
+                backend in LOCAL_VLLM_BACKENDS
+                and not route_spreadsheet
+                and self.mineru_vllm_api
+                and not options.get("server_url")
+            ):
+                self.vllm_controller.ensure_running(VLLM_MINERU_CONTAINER)
 
             # 1.5 前置校验：文件必须存在且非空
             # 空文件一路走到解析引擎，只会得到引擎内部的异常（PdfiumError 之类），
@@ -419,7 +433,13 @@ class MinerUWorkerAPI(ls.LitAPI):
             # 5. 引擎路由
             result = None
 
-            if backend == "sensevoice":
+            if route_spreadsheet:
+                if not self.markitdown:
+                    raise ValueError(f"MarkItDown not available, cannot parse {file_ext} spreadsheet")
+                logger.info(f"📊 {file_ext.upper()} spreadsheet detected, parsing with MarkItDown (backend={backend})")
+                result = self._process_with_markitdown(file_path)
+
+            elif backend == "sensevoice":
                 if not SENSEVOICE_AVAILABLE:
                     raise ValueError("SenseVoice not available")
                 result = self._process_audio(file_path, options)
@@ -429,7 +449,7 @@ class MinerUWorkerAPI(ls.LitAPI):
                     raise ValueError("Video engine not available")
                 result = self._process_video(file_path, options)
 
-            elif "pipeline" in backend or "vlm-" in backend or "hybrid-" in backend:
+            elif is_mineru_backend:
                 if not MINERU_PIPELINE_AVAILABLE:
                     raise ValueError("MinerU Pipeline not available")
                 options["parse_mode"] = backend
@@ -442,13 +462,10 @@ class MinerUWorkerAPI(ls.LitAPI):
                     result = self._process_audio(file_path, options)
                 elif file_ext in [".mp4", ".avi", ".mkv", ".mov"] and VIDEO_ENGINE_AVAILABLE:
                     result = self._process_video(file_path, options)
-                elif (
-                    file_ext in [".pdf", ".png", ".jpg", ".jpeg", ".docx", ".xlsx", ".pptx"]
-                    and MINERU_PIPELINE_AVAILABLE
-                ):
+                elif file_ext in [".pdf", ".png", ".jpg", ".jpeg", ".docx", ".pptx"] and MINERU_PIPELINE_AVAILABLE:
                     options["parse_mode"] = "pipeline"
                     result = self._process_with_mineru(file_path, options)
-                elif file_ext in [".doc", ".xls", ".ppt"]:
+                elif file_ext in [".doc", ".ppt"]:
                     # 旧版 Office 格式先用 LibreOffice 转为对应 OOXML 新格式，再走 MinerU 原生解析
                     try:
                         new_path = self._convert_office_to_new_format(file_path)

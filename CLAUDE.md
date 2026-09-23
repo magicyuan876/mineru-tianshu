@@ -106,8 +106,9 @@ Dispatch is keyed on the task's `backend` string:
 
 - `sensevoice` → audio engine; `video` → video engine
 - anything containing `pipeline` / `vlm-` / `hybrid-` → MinerU (`options["parse_mode"] = backend`)
-- `auto` → sniffed by extension: format engines → audio → video → MinerU (PDF/images/DOCX/XLSX/PPTX) → LibreOffice conversion for
-  legacy `.doc/.xls/.ppt` → MarkItDown fallback (HTML/TXT/CSV)
+- `.xlsx` / `.xls` → MarkItDown directly (under `auto` and every MinerU backend; `.xls` is read via xlrd, no conversion)
+- `auto` → sniffed by extension: format engines → audio → video → MinerU (PDF/images/DOCX/PPTX) → LibreOffice conversion for
+  legacy `.doc/.ppt` → MarkItDown fallback (HTML/TXT/CSV)
 - otherwise → looked up in `FormatEngineRegistry`
 
 Every engine is imported behind a try/except with an `X_AVAILABLE` flag, so a missing optional dependency

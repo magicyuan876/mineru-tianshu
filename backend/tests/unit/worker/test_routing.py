@@ -190,8 +190,8 @@ def test_legacy_office_conversion_failure_skips_markitdown(monkeypatch, mocker, 
     worker = make_worker(worker_module, mocker)
     worker._convert_office_to_new_format = mocker.Mock(side_effect=RuntimeError("conversion timed out"))
     worker._process_with_markitdown = mocker.Mock()
-    source = tmp_path / "legacy.xls"
-    source.write_bytes(b"xls")
+    source = tmp_path / "legacy.doc"
+    source.write_bytes(b"doc")
 
     with pytest.raises(RuntimeError, match="conversion timed out"):
         worker._process_task(
@@ -228,9 +228,9 @@ def test_legacy_office_mineru_failure_falls_back_with_converted_file(monkeypatch
     worker_module = load_worker_module(monkeypatch)
     monkeypatch.setattr(worker_module, "MINERU_PIPELINE_AVAILABLE", True)
     worker = make_worker(worker_module, mocker)
-    source = tmp_path / "legacy.xls"
-    source.write_bytes(b"xls")
-    converted = tmp_path / "legacy.xlsx"
+    source = tmp_path / "legacy.ppt"
+    source.write_bytes(b"ppt")
+    converted = tmp_path / "legacy.pptx"
     worker._convert_office_to_new_format = mocker.Mock(return_value=str(converted))
     if isinstance(mineru_result, Exception):
         worker._process_with_mineru.side_effect = mineru_result
@@ -274,3 +274,48 @@ def test_legacy_office_mineru_failure_without_markitdown_preserves_error(monkeyp
     update = worker.task_db.update_task_status.call_args
     assert update.args[1] == "failed"
     assert "RuntimeError: engine failure" in update.kwargs["error_message"]
+
+
+@pytest.mark.parametrize(
+    ("file_name", "backend"),
+    [
+        ("sheet.xlsx", "auto"),
+        ("sheet.xls", "auto"),
+        ("sheet.xlsx", "pipeline"),
+        ("sheet.xls", "hybrid-auto-engine"),
+        ("sheet.xlsx", "vlm-auto-engine"),
+    ],
+)
+def test_spreadsheet_routes_to_markitdown_without_conversion(monkeypatch, mocker, tmp_path, file_name, backend):
+    worker_module = load_worker_module(monkeypatch)
+    monkeypatch.setattr(worker_module, "MINERU_PIPELINE_AVAILABLE", True)
+    worker = make_worker(worker_module, mocker)
+    worker._convert_office_to_new_format = mocker.Mock()
+    worker._process_with_markitdown = mocker.Mock(
+        return_value={"result_path": "/output/sheet", "pdf_path": None, "content": "## Sheet1"}
+    )
+    source = tmp_path / file_name
+    source.write_bytes(b"sheet")
+
+    worker._process_task({"task_id": "task-sheet", "file_path": str(source), "backend": backend, "options": "{}"})
+
+    worker._process_with_markitdown.assert_called_once_with(str(source))
+    worker._process_with_mineru.assert_not_called()
+    worker._convert_office_to_new_format.assert_not_called()
+    worker.vllm_controller.ensure_running.assert_not_called()
+    assert worker.task_db.update_task_status.call_args.kwargs["status"] == "completed"
+
+
+def test_spreadsheet_without_markitdown_fails_task(monkeypatch, mocker, tmp_path):
+    worker_module = load_worker_module(monkeypatch)
+    monkeypatch.setattr(worker_module, "MINERU_PIPELINE_AVAILABLE", True)
+    worker = make_worker(worker_module, mocker)
+    worker.markitdown = None
+    source = tmp_path / "sheet.xlsx"
+    source.write_bytes(b"sheet")
+
+    with pytest.raises(ValueError, match="MarkItDown not available"):
+        worker._process_task({"task_id": "task-sheet", "file_path": str(source), "backend": "auto", "options": "{}"})
+
+    worker._process_with_mineru.assert_not_called()
+    assert worker.task_db.update_task_status.call_args.args[1] == "failed"
