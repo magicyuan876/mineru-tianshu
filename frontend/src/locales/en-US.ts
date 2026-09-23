@@ -667,6 +667,8 @@ export default {
       imageCaptionDesc: 'Configure the multimodal LLM used to generate image captions (OpenAI-compatible API)',
       webhook: 'Webhook Notifications',
       webhookDesc: 'Push signed notifications to a callback URL when tasks complete or fail',
+      taskConfig: 'Task Processing',
+      taskConfigDesc: 'Automatic retry policy for tasks stuck in processing',
       auditLog: 'Audit Logs',
       auditLogDesc: 'Review audit records of sensitive operations such as logins, config changes and task deletions',
     },
@@ -708,6 +710,19 @@ export default {
     saveSuccess: 'Configuration saved',
     saveError: 'Failed to save configuration',
     noChanges: 'No changes',
+  },
+  taskConfig: {
+    title: 'Task Processing',
+    description:
+      'The scheduler periodically checks tasks that stay in "processing" for too long (60 minutes by default) and handles them with the policy below',
+    maxRetries: 'Auto Retries on Timeout',
+    maxRetriesHelp:
+      'How many times a timed-out task is re-queued automatically before it is marked failed with a reason; 0 fails it on the first timeout. A manual retry restores the full count. Range 0–{max}',
+    invalid: 'Enter an integer between 0 and {max}',
+    loadError: 'Failed to load task processing config',
+    saving: 'Saving...',
+    saveSuccess: 'Configuration saved',
+    saveError: 'Failed to save configuration',
   },
   webhook: {
     title: 'Webhook Callbacks',

@@ -682,6 +682,78 @@
           />
         </div>
 
+        <!-- 任务处理策略 -->
+        <div v-show="activeTab === 'taskConfig'" class="space-y-6">
+          <section class="bg-white rounded-2xl border border-gray-200/80 shadow-sm">
+            <header class="px-6 sm:px-8 py-5 border-b border-gray-100">
+              <h2 class="text-lg font-semibold text-gray-900">{{ $t('taskConfig.title') }}</h2>
+              <p class="mt-1 text-sm text-gray-500">{{ $t('taskConfig.description') }}</p>
+            </header>
+
+            <form @submit.prevent="handleTaskConfigSubmit">
+              <div class="px-6 sm:px-8 divide-y divide-gray-100">
+                <!-- 超时自动重试次数 -->
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-8 py-5">
+                  <div class="min-w-0">
+                    <label for="task_max_retries" class="block text-sm font-medium text-gray-900">
+                      {{ $t('taskConfig.maxRetries') }}
+                    </label>
+                    <p class="mt-1 text-sm text-gray-500">
+                      {{ $t('taskConfig.maxRetriesHelp', { max: taskMaxRetriesLimit }) }}
+                    </p>
+                  </div>
+                  <input
+                    id="task_max_retries"
+                    v-model.number="taskConfigForm.max_retries"
+                    type="number"
+                    min="0"
+                    :max="taskMaxRetriesLimit"
+                    step="1"
+                    class="w-full sm:w-28 shrink-0 px-4 py-2"
+                  />
+                </div>
+              </div>
+            </form>
+          </section>
+
+          <!-- 粘性保存栏 -->
+          <Transition
+            enter-active-class="transition-all duration-200 ease-out"
+            enter-from-class="opacity-0 translate-y-3"
+            leave-active-class="transition-all duration-150 ease-in"
+            leave-to-class="opacity-0 translate-y-3"
+          >
+            <div
+              v-if="taskConfigDirty"
+              class="sticky bottom-4 z-20 flex items-center justify-between gap-4 rounded-xl bg-white/90 backdrop-blur border border-gray-200 shadow-lg px-4 py-3"
+            >
+              <p class="text-sm text-gray-600 flex items-center gap-2 min-w-0">
+                <span class="w-2 h-2 rounded-full bg-amber-500 shrink-0"></span>
+                {{ $t('systemConfig.unsavedChanges') }}
+              </p>
+              <div class="flex items-center gap-3 shrink-0">
+                <button
+                  type="button"
+                  @click="resetTaskConfigForm"
+                  :disabled="taskConfigSaving"
+                  class="btn btn-secondary !px-4 !py-1.5 text-sm"
+                >
+                  {{ $t('systemConfig.reset') }}
+                </button>
+                <button
+                  type="button"
+                  @click="handleTaskConfigSubmit"
+                  :disabled="taskConfigSaving"
+                  class="btn btn-primary !px-4 !py-1.5 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span v-if="taskConfigSaving">{{ $t('taskConfig.saving') }}</span>
+                  <span v-else>{{ $t('systemConfig.saveChanges') }}</span>
+                </button>
+              </div>
+            </div>
+          </Transition>
+        </div>
+
         <!-- 审计日志 -->
         <div v-show="activeTab === 'auditLog'" class="space-y-6">
           <section class="bg-white rounded-2xl border border-gray-200/80 shadow-sm">
@@ -811,7 +883,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Settings, Sparkles, Webhook, ScrollText, Send, FileSearch } from 'lucide-vue-next'
+import { Settings, Sparkles, Webhook, RotateCcw, ScrollText, Send, FileSearch } from 'lucide-vue-next'
 import {
   getSystemConfig,
   updateSystemConfig,
@@ -819,12 +891,14 @@ import {
   getImageCaptionConfig,
   testImageCaptionConnection,
   getWebhookConfig,
+  getTaskConfig,
   getWebhookDeliveries,
   getAuditLogs,
   type SystemConfig,
   type SystemConfigUpdateRequest,
   type ImageCaptionConfig,
   type WebhookConfig,
+  type TaskConfig,
   type WebhookDeliveryItem,
   type AuditLogItem,
   type AuditLogQuery,
@@ -843,13 +917,14 @@ const saving = ref(false)
 const uploading = ref(false)
 
 // 设置中心板块导航（ref 切换，无路由跳转）
-type TabKey = 'basic' | 'imageCaption' | 'webhook' | 'auditLog'
+type TabKey = 'basic' | 'imageCaption' | 'webhook' | 'taskConfig' | 'auditLog'
 const activeTab = ref<TabKey>('basic')
 
 const navItems = [
   { key: 'basic', icon: Settings, labelKey: 'systemConfig.nav.basic', descKey: 'systemConfig.nav.basicDesc' },
   { key: 'imageCaption', icon: Sparkles, labelKey: 'systemConfig.nav.imageCaption', descKey: 'systemConfig.nav.imageCaptionDesc' },
   { key: 'webhook', icon: Webhook, labelKey: 'systemConfig.nav.webhook', descKey: 'systemConfig.nav.webhookDesc' },
+  { key: 'taskConfig', icon: RotateCcw, labelKey: 'systemConfig.nav.taskConfig', descKey: 'systemConfig.nav.taskConfigDesc' },
   { key: 'auditLog', icon: ScrollText, labelKey: 'systemConfig.nav.auditLog', descKey: 'systemConfig.nav.auditLogDesc' },
 ] as const
 
@@ -1411,6 +1486,64 @@ function webhookStatusClass(status: string): string {
   return 'bg-yellow-100 text-yellow-700'
 }
 
+// ==================== 任务处理策略 ====================
+
+const taskConfigSaving = ref(false)
+const taskMaxRetriesLimit = ref(10)
+
+const taskConfigOriginal = ref<TaskConfig>({
+  max_retries: 2,
+})
+
+const taskConfigForm = ref<TaskConfig>({ ...taskConfigOriginal.value })
+
+const taskConfigDirty = computed(
+  () => JSON.stringify(taskConfigForm.value) !== JSON.stringify(taskConfigOriginal.value),
+)
+
+function resetTaskConfigForm() {
+  taskConfigForm.value = { ...taskConfigOriginal.value }
+}
+
+/**
+ * 加载任务处理策略
+ */
+async function loadTaskConfig() {
+  try {
+    const response = await getTaskConfig()
+    const { max_retries, max_retries_limit } = response.config
+    taskMaxRetriesLimit.value = max_retries_limit
+    taskConfigOriginal.value = { max_retries }
+    taskConfigForm.value = { max_retries }
+  } catch (error: any) {
+    console.error('Failed to load task config:', error)
+    toast.error(t('taskConfig.loadError'))
+  }
+}
+
+/**
+ * 保存任务处理策略
+ */
+async function handleTaskConfigSubmit() {
+  const retries = taskConfigForm.value.max_retries
+  if (!Number.isInteger(retries) || retries < 0 || retries > taskMaxRetriesLimit.value) {
+    toast.error(t('taskConfig.invalid', { max: taskMaxRetriesLimit.value }))
+    return
+  }
+
+  try {
+    taskConfigSaving.value = true
+    await updateSystemConfig({ task_max_retries: retries })
+    taskConfigOriginal.value = { max_retries: retries }
+    toast.success(t('taskConfig.saveSuccess'))
+  } catch (error: any) {
+    console.error('Failed to update task config:', error)
+    toast.error(error.response?.data?.detail || t('taskConfig.saveError'))
+  } finally {
+    taskConfigSaving.value = false
+  }
+}
+
 // ==================== 对接方回调概览（管理员） ====================
 
 const adminApiKeys = ref<AdminAPIKeyInfo[]>([])
@@ -1445,6 +1578,7 @@ onMounted(() => {
   loadConfig()
   loadImageCaptionConfig()
   loadWebhookConfig()
+  loadTaskConfig()
   loadWebhookDeliveries()
   loadAdminApiKeys()
   loadAuditLogs(1)

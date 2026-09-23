@@ -822,19 +822,36 @@ def reset_stale_tasks(
     timeout_minutes: int = Query(60, description="超时时间（分钟）"),
     current_user: User = Depends(require_permission(Permission.QUEUE_MANAGE)),
 ):
-    reset_count = db.reset_stale_tasks(timeout_minutes)
-    logger.info(f"🔄 Reset {reset_count} stale tasks by {current_user.username}")
+    from stale_tasks import handle_stale_tasks
+
+    result = handle_stale_tasks(db, timeout_minutes)
+    reset_count = result["reset_count"]
+    failed_count = result["failed_count"]
+    logger.info(
+        f"🔄 Stale tasks handled by {current_user.username}: {reset_count} reset, {failed_count} failed "
+        f"(max retries: {result['max_retries']})"
+    )
     record_audit(
         "admin.reset_stale",
         user=current_user,
         request=request,
         resource_type="task",
-        detail={"timeout_minutes": timeout_minutes, "reset_count": reset_count},
+        detail={
+            "timeout_minutes": timeout_minutes,
+            "reset_count": reset_count,
+            "failed_count": failed_count,
+            "max_retries": result["max_retries"],
+        },
     )
     return {
         "success": True,
         "reset_count": reset_count,
-        "message": f"Reset tasks processing for more than {timeout_minutes} minutes",
+        "failed_count": failed_count,
+        "max_retries": result["max_retries"],
+        "message": (
+            f"Tasks processing for more than {timeout_minutes} minutes: "
+            f"{reset_count} reset to pending, {failed_count} failed after reaching retry limit"
+        ),
     }
 
 

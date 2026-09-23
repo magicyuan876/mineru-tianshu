@@ -9,6 +9,7 @@ import type {
   ImageCaptionConfigResponse,
   ImageCaptionTestResult,
   WebhookConfigResponse,
+  TaskConfigResponse,
   WebhookDeliveriesResponse,
   AuditLogQuery,
   AuditLogsResponse,
@@ -85,6 +86,14 @@ export async function uploadSystemLogo(
  */
 export async function getAuditLogs(params: AuditLogQuery = {}): Promise<AuditLogsResponse> {
   const response = await apiClient.get('/api/v1/admin/audit-logs', { params })
+  return response.data
+}
+
+/**
+ * 获取任务处理策略（管理员）
+ */
+export async function getTaskConfig(): Promise<TaskConfigResponse> {
+  const response = await apiClient.get('/api/v1/auth/system/config/task')
   return response.data
 }
 

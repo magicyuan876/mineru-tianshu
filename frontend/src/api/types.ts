@@ -410,6 +410,7 @@ export interface SystemConfigUpdateRequest {
   webhook_events?: string
   webhook_timeout?: number
   webhook_max_attempts?: number
+  task_max_retries?: number
   webhook_auth_type?: string
   webhook_auth_token?: string
   webhook_auth_username?: string
@@ -425,6 +426,17 @@ export type WebhookAuthType = 'none' | 'bearer' | 'basic' | 'api_key'
 export interface WebhookConfig {
   timeout: number
   max_attempts: number
+}
+
+// 任务处理策略
+export interface TaskConfig {
+  max_retries: number
+}
+
+// 任务处理策略响应（max_retries_limit 为后端允许的上限）
+export interface TaskConfigResponse {
+  success: boolean
+  config: TaskConfig & { max_retries_limit: number }
 }
 
 // Webhook 投递策略响应

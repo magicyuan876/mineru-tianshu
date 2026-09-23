@@ -164,10 +164,14 @@ class TaskScheduler:
                     if stale_task_counter * self.monitor_interval >= self.stale_task_timeout * 60:
                         stale_task_counter = 0
                         try:
-                            reset_count = self.db.reset_stale_tasks(self.stale_task_timeout)
-                            if reset_count > 0:
+                            from stale_tasks import handle_stale_tasks
+
+                            result = handle_stale_tasks(self.db, self.stale_task_timeout)
+                            if result["reset_count"] > 0 or result["failed_count"] > 0:
                                 logger.warning(
-                                    f"⚠️  Reset {reset_count} stale tasks (timeout: {self.stale_task_timeout}m)"
+                                    f"⚠️  Stale tasks (timeout: {self.stale_task_timeout}m, "
+                                    f"max retries: {result['max_retries']}): "
+                                    f"{result['reset_count']} reset, {result['failed_count']} failed"
                                 )
                         except Exception as e:
                             logger.error(f"Failed to reset stale tasks: {e}")

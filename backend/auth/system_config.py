@@ -179,3 +179,18 @@ class SystemConfig:
         with self.get_cursor() as cursor:
             cursor.execute("DELETE FROM system_config WHERE config_key = ?", (key,))
             return cursor.rowcount > 0
+
+
+# 任务超时自动重试上限：超时任务最多被打回 pending 的次数，超过即判定失败
+DEFAULT_TASK_MAX_RETRIES = 2
+TASK_MAX_RETRIES_LIMIT = 10
+
+
+def get_task_max_retries(config: Optional[SystemConfig] = None) -> int:
+    """读取任务超时自动重试上限（存量部署无该键时按默认值兜底，非法值同样回落默认值）"""
+    raw = (config or SystemConfig()).get_config("task_max_retries")
+    try:
+        value = int(raw) if raw not in (None, "") else DEFAULT_TASK_MAX_RETRIES
+    except (ValueError, TypeError):
+        return DEFAULT_TASK_MAX_RETRIES
+    return value if 0 <= value <= TASK_MAX_RETRIES_LIMIT else DEFAULT_TASK_MAX_RETRIES

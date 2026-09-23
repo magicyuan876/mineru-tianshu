@@ -799,8 +799,28 @@ async def update_system_config(
         # Webhook 投递策略（回调地址与密钥按 API Key 维度配置，见 Key 级端点）
         "webhook_timeout",
         "webhook_max_attempts",
+        # 任务超时自动重试上限
+        "task_max_retries",
     }
     update_data = {}
+
+    if "task_max_retries" in config_data:
+        from .system_config import TASK_MAX_RETRIES_LIMIT
+
+        raw_retries = config_data["task_max_retries"]
+        # bool 是 int 的子类，true/false 不能被当成 1/0 放行
+        if isinstance(raw_retries, bool) or not isinstance(raw_retries, (int, str)):
+            raw_retries = None
+        try:
+            retries = int(raw_retries) if raw_retries is not None else None
+        except ValueError:
+            retries = None
+        if retries is None or not 0 <= retries <= TASK_MAX_RETRIES_LIMIT:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"task_max_retries must be an integer between 0 and {TASK_MAX_RETRIES_LIMIT}",
+            )
+        config_data = {**config_data, "task_max_retries": retries}
 
     for key, value in config_data.items():
         if key in allowed_keys:
@@ -971,6 +991,26 @@ async def get_webhook_config_endpoint(
     from webhook.config import get_webhook_config
 
     return {"success": True, "config": get_webhook_config()}
+
+
+# ==================== 任务处理策略配置 (管理员) ====================
+
+
+@router.get("/system/config/task")
+async def get_task_config_endpoint(
+    current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
+):
+    """
+    获取任务处理策略 (管理员)
+
+    max_retries：任务超时（卡在处理中）后自动重试的上限，超过即判定失败。
+    """
+    from .system_config import TASK_MAX_RETRIES_LIMIT, get_task_max_retries
+
+    return {
+        "success": True,
+        "config": {"max_retries": get_task_max_retries(), "max_retries_limit": TASK_MAX_RETRIES_LIMIT},
+    }
 
 
 @router.get("/system/webhook/deliveries")

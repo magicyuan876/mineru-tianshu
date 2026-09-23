@@ -194,6 +194,14 @@ class TaskDB:
                 cursor.execute("ALTER TABLE tasks ADD COLUMN api_key_id TEXT")
                 logger.info("✅ api_key_id field added")
 
+            # 迁移：添加 stale_reset_count 字段（超时自动重置次数，与手动重试的 retry_count 分开计数）
+            try:
+                cursor.execute("SELECT stale_reset_count FROM tasks LIMIT 1")
+            except sqlite3.OperationalError:
+                logger.info("📊 Migrating database schema: adding stale_reset_count field")
+                cursor.execute("ALTER TABLE tasks ADD COLUMN stale_reset_count INTEGER DEFAULT 0")
+                logger.info("✅ stale_reset_count field added")
+
     def create_task(
         self,
         file_name: str,
@@ -691,39 +699,97 @@ class TaskDB:
 
             return cursor.rowcount
 
-    def reset_stale_tasks(self, timeout_minutes: int = 60):
-        """重置超时的 processing 任务为 pending"""
+    def reset_stale_tasks(self, timeout_minutes: int = 60, max_retries: int = 2) -> Dict:
+        """处理超时的 processing 任务：未超过自动重试上限的打回 pending，超过的判定失败
+
+        自动重置次数记在 stale_reset_count，与手动重试的 retry_count 分开：
+        手动重试会清零该计数，重新获得完整的自动重试额度。
+
+        已拆分出子任务的父任务不参与：父任务在子任务全部完成前一直是 processing，
+        started_at 停在拆分时刻，大文件跑几个小时是正常的，不能按超时处理。
+
+        Args:
+            timeout_minutes: 超时时间（分钟）
+            max_retries: 自动重试上限，0 表示超时即失败
+
+        Returns:
+            {"reset_count": 打回 pending 的数量,
+             "failed_count": 判定失败的数量,
+             "failed_tasks": [{"task_id", "parent_task_id", "error_message"}, ...]}
+        """
+        max_retries = max(0, int(max_retries))
+        requeue = []
+        failed_tasks = []
+
         with self.get_cursor() as cursor:
-            # 先取出待重置的行：重置后要重新入队，否则这些任务只能靠 SQLite 抢锁路径被认领
             cursor.execute(
                 """
-                SELECT task_id, priority, file_name, backend FROM tasks
+                SELECT task_id, priority, file_name, backend, parent_task_id,
+                       COALESCE(stale_reset_count, 0) AS stale_reset_count
+                FROM tasks
                 WHERE status = 'processing'
                 AND started_at < datetime('now', '-' || ? || ' minutes')
+                AND NOT (COALESCE(is_parent, 0) = 1 AND COALESCE(child_count, 0) > 0)
             """,
                 (timeout_minutes,),
             )
             stale = [dict(row) for row in cursor.fetchall()]
 
-            cursor.execute(
-                """
-                UPDATE tasks
-                SET status = 'pending',
-                    worker_id = NULL,
-                    retry_count = retry_count + 1
-                WHERE status = 'processing'
-                AND started_at < datetime('now', '-' || ? || ' minutes')
-            """,
-                (timeout_minutes,),
-            )
-            reset_count = cursor.rowcount
+            # 逐行更新并带上 status = 'processing' 条件：SELECT 之后 worker 可能恰好完成了任务，
+            # 不能把刚写入的 completed 覆盖掉
+            for row in stale:
+                if row["stale_reset_count"] < max_retries:
+                    cursor.execute(
+                        """
+                        UPDATE tasks
+                        SET status = 'pending',
+                            worker_id = NULL,
+                            retry_count = retry_count + 1,
+                            stale_reset_count = COALESCE(stale_reset_count, 0) + 1
+                        WHERE task_id = ? AND status = 'processing'
+                    """,
+                        (row["task_id"],),
+                    )
+                    if cursor.rowcount > 0:
+                        requeue.append(row)
+                else:
+                    error_message = (
+                        f"任务处理超时：运行超过 {timeout_minutes} 分钟未完成，"
+                        f"已自动重试 {row['stale_reset_count']} 次仍未成功"
+                    )
+                    cursor.execute(
+                        """
+                        UPDATE tasks
+                        SET status = 'failed',
+                            worker_id = NULL,
+                            completed_at = CURRENT_TIMESTAMP,
+                            error_message = ?
+                        WHERE task_id = ? AND status = 'processing'
+                    """,
+                        (error_message, row["task_id"]),
+                    )
+                    if cursor.rowcount > 0:
+                        failed_tasks.append(
+                            {
+                                "task_id": row["task_id"],
+                                "parent_task_id": row["parent_task_id"],
+                                "error_message": error_message,
+                            }
+                        )
 
-        for row in stale:
+        # 重置后要重新入队，否则这些任务只能靠 SQLite 抢锁路径被认领
+        for row in requeue:
             self._enqueue_to_redis(
                 row["task_id"], row["priority"], {"file_name": row["file_name"], "backend": row["backend"]}
             )
 
-        return reset_count
+        # 子任务失败要连带父任务失败，与 worker 侧失败路径保持一致
+        for task in failed_tasks:
+            if task["parent_task_id"]:
+                self.on_child_task_failed(task["task_id"], task["error_message"])
+            logger.error(f"❌ Task {task['task_id']} marked as failed: {task['error_message']}")
+
+        return {"reset_count": len(requeue), "failed_count": len(failed_tasks), "failed_tasks": failed_tasks}
 
     # -------------------------------------------------------------------------
     # 新增功能：清理失败任务 (包含物理文件删除)
@@ -993,6 +1059,8 @@ class TaskDB:
     def retry_task(self, task_id: str) -> bool:
         """
         重试任务：将任务状态重置为 pending，清空错误和时间，重试次数 +1
+
+        手动重试同时清零 stale_reset_count，让任务重新获得完整的超时自动重试额度。
         """
         with self.get_cursor() as cursor:
             cursor.execute(
@@ -1003,7 +1071,8 @@ class TaskDB:
                     started_at = NULL,
                     completed_at = NULL,
                     worker_id = NULL,
-                    retry_count = retry_count + 1
+                    retry_count = retry_count + 1,
+                    stale_reset_count = 0
                 WHERE task_id = ?
                 """,
                 (task_id,),
