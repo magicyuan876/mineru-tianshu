@@ -130,12 +130,22 @@ RUN --mount=type=cache,target=/root/.cache/pip \
         pip install https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.7.16/flash_attn-2.8.3%2Bcu130torch2.10-cp312-cp312-linux_x86_64.whl --break-system-packages; \
     fi
 
+# Step 6.5: [ONNX GPU] 表格模型（结构识别 / 分类）跑在 ONNX Runtime 上。MinerU 依赖的是纯 CPU 版
+# onnxruntime，装上后表格模型只能用 CPU，多进程下成为 CPU 瓶颈。换成 onnxruntime-gpu：
+# - 1.27 起 PyPI 上的 onnxruntime-gpu 默认按 CUDA 13.0 + cuDNN 9 构建，与本镜像一致
+# - 两个包共用 onnxruntime 模块目录，必须先卸 CPU 版，否则文件互相覆盖
+# - 必须是最后一个 pip 步骤：之后再装依赖 mineru 的包，会把 CPU 版装回来
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip uninstall -y onnxruntime --break-system-packages && \
+    pip install onnxruntime-gpu==1.30.0 -i ${PIP_MIRROR} --break-system-packages
+
 # Step 7: [最终验证]
 # 除了三方包，这里还显式导入本项目真正用到的 MinerU 入口。
 # 这三个入口不是 MinerU 承诺稳定的公共 API，上游版本漂移就可能消失；
 # 在构建期验证，可以让问题当场暴露，而不是等到线上 Worker 起不来。
 RUN python -c "import torch; import pypdf; import boto3; import botocore; import openai; print(chr(9989) + ' 三方依赖验证通过')" \
     && python -c "import flash_attn; print(chr(9989) + ' flash_attn 可用')" \
+    && python -c "import onnxruntime as o; p = o.get_available_providers(); assert 'CUDAExecutionProvider' in p, p; print(chr(9989) + ' onnxruntime-gpu ' + o.__version__ + ' ' + str(p))" \
     && python -c "from mineru.cli.common import do_parse; from mineru.utils.model_utils import get_vram, clean_memory; print(chr(9989) + ' MinerU 解析入口验证通过 (do_parse / get_vram / clean_memory)')" \
     && pip show mineru flash-attn | grep -E "^(Name|Version)"
 

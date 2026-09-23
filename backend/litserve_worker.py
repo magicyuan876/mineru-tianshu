@@ -209,37 +209,52 @@ def configure_cpu_threads() -> int:
     return threads
 
 
-def limit_onnxruntime_threads(threads: int) -> bool:
-    """给未显式指定线程数的 ONNX Runtime 会话补上线程上限
+ORT_CUDA_PROVIDER = "CUDAExecutionProvider"
+ORT_CPU_PROVIDER = "CPUExecutionProvider"
+# 与 MinerU 表格结构模型的 CUDA provider 配置保持一致（mineru/model/table/rec/onnxruntime_provider.py）
+ORT_CUDA_PROVIDER_OPTIONS = {"cudnn_conv_algo_search": "HEURISTIC", "arena_extend_strategy": "kSameAsRequested"}
 
-    MinerU 的表格分类模型（PaddleTableClsModel）创建会话时不传 SessionOptions，
-    任何环境变量都管不到，每个进程都会按全部核数开线程。这里包装 InferenceSession：
-    调用方没传 SessionOptions、或线程数仍是默认值 0 时补上限，显式配置的保持不动。
+
+def configure_onnxruntime_sessions(threads: int, use_cuda: bool) -> list[str]:
+    """给未显式配置的 ONNX Runtime 会话补上线程上限与执行设备，返回会话默认使用的 provider 列表
+
+    MinerU 的表格分类模型（PaddleTableClsModel）创建会话时既不传 SessionOptions 也不传 providers：
+    - 线程：任何环境变量都管不到，每个进程都按全部核数开线程
+    - 设备：CPU 版 onnxruntime 下只能走 CPU；onnxruntime-gpu 下不传 providers 会直接报错
+      （ORT 1.9 起要求显式指定）
+    这里包装 InferenceSession：调用方没传的才补（线程数为默认值 0 也视为没传），显式配置保持不动。
     需在模型首次构建（首个任务）之前调用；调用方以属性方式访问 onnxruntime.InferenceSession 时生效。
+    worker 进程已按 CUDA_VISIBLE_DEVICES 绑卡，device_id 固定为 0。
     """
     try:
         import onnxruntime as ort
     except ImportError:
-        return False
+        return []
 
-    original = ort.InferenceSession
-    if getattr(original, "_tianshu_thread_limited", False):
-        return True
+    if use_cuda and ORT_CUDA_PROVIDER in ort.get_available_providers():
+        default_providers = [(ORT_CUDA_PROVIDER, {"device_id": 0, **ORT_CUDA_PROVIDER_OPTIONS}), ORT_CPU_PROVIDER]
+    else:
+        default_providers = [ORT_CPU_PROVIDER]
+    provider_names = [p[0] if isinstance(p, tuple) else p for p in default_providers]
 
-    class ThreadLimitedInferenceSession(original):
-        _tianshu_thread_limited = True
+    original = getattr(ort.InferenceSession, "_tianshu_original", ort.InferenceSession)
 
-        def __init__(self, path_or_bytes, sess_options=None, *args, **kwargs):
+    class ConfiguredInferenceSession(original):
+        _tianshu_original = original
+
+        def __init__(self, path_or_bytes, sess_options=None, providers=None, provider_options=None, **kwargs):
             if sess_options is None:
                 sess_options = ort.SessionOptions()
             if sess_options.intra_op_num_threads == 0:
                 sess_options.intra_op_num_threads = threads
             if sess_options.inter_op_num_threads == 0:
                 sess_options.inter_op_num_threads = 1
-            super().__init__(path_or_bytes, sess_options, *args, **kwargs)
+            if providers is None and provider_options is None:
+                providers = default_providers
+            super().__init__(path_or_bytes, sess_options, providers, provider_options, **kwargs)
 
-    ort.InferenceSession = ThreadLimitedInferenceSession
-    return True
+    ort.InferenceSession = ConfiguredInferenceSession
+    return provider_names
 
 
 def apply_cpu_threads_to_libs(threads: int) -> None:
@@ -378,11 +393,11 @@ class MinerUWorkerAPI(ls.LitAPI):
         from mineru.utils.model_utils import get_vram
 
         apply_cpu_threads_to_libs(cpu_threads)
-        ort_limited = limit_onnxruntime_threads(cpu_threads)
+        ort_providers = configure_onnxruntime_sessions(cpu_threads, use_cuda=self.accelerator == "cuda")
         logger.info(
             f"🧵 [CPU Threads] {cpu_threads} threads per worker "
             f"(total workers: {os.getenv(TOTAL_WORKERS_ENV, '?')}, cpus: {_available_cpus()}, "
-            f"onnxruntime limited: {ort_limited})"
+            f"onnxruntime providers: {ort_providers or 'n/a'})"
         )
 
         if os.getenv("MINERU_VIRTUAL_VRAM_SIZE", None) is None:

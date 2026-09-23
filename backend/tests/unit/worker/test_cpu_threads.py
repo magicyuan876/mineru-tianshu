@@ -71,20 +71,23 @@ def identity_model(tmp_path):
     return str(path)
 
 
-def test_onnxruntime_sessions_without_options_get_thread_limit(monkeypatch, identity_model):
+def test_onnxruntime_sessions_without_options_get_threads_and_providers(monkeypatch, identity_model):
     ort = pytest.importorskip("onnxruntime")
     worker_module = load_worker_module(monkeypatch)
     monkeypatch.setattr(ort, "InferenceSession", ort.InferenceSession)  # 测试结束后还原
 
-    assert worker_module.limit_onnxruntime_threads(3) is True
-    assert worker_module.limit_onnxruntime_threads(3) is True  # 重复调用不叠加包装
+    # 本地为 CPU 版 onnxruntime：即使 use_cuda=True 也只能回落 CPU，不能因缺 CUDA provider 报错
+    assert worker_module.configure_onnxruntime_sessions(3, use_cuda=True) == ["CPUExecutionProvider"]
+    worker_module.configure_onnxruntime_sessions(3, use_cuda=True)  # 重复调用不叠加包装
+    assert ort.InferenceSession.__mro__[1] is ort.InferenceSession._tianshu_original
 
-    # 与 MinerU PaddleTableClsModel 相同：不传 SessionOptions
-    bare = ort.InferenceSession(identity_model, providers=["CPUExecutionProvider"])
+    # 与 MinerU PaddleTableClsModel 相同：既不传 SessionOptions 也不传 providers
+    bare = ort.InferenceSession(identity_model)
     assert bare.get_session_options().intra_op_num_threads == 3
     assert bare.get_session_options().inter_op_num_threads == 1
+    assert bare.get_providers() == ["CPUExecutionProvider"]
 
-    # 显式配置的线程数保持不动
+    # 显式配置的线程数与 providers 保持不动
     opts = ort.SessionOptions()
     opts.intra_op_num_threads = 5
     explicit = ort.InferenceSession(identity_model, sess_options=opts, providers=["CPUExecutionProvider"])
@@ -95,3 +98,39 @@ def test_onnxruntime_sessions_without_options_get_thread_limit(monkeypatch, iden
 
     out = bare.run(None, {"x": np.array([1.5], dtype=np.float32)})[0]
     assert out.tolist() == [1.5]
+
+
+def test_onnxruntime_cuda_provider_injected_when_available(monkeypatch, identity_model):
+    ort = pytest.importorskip("onnxruntime")
+    worker_module = load_worker_module(monkeypatch)
+    monkeypatch.setattr(ort, "InferenceSession", ort.InferenceSession)
+    monkeypatch.setattr(ort, "get_available_providers", lambda: ["CUDAExecutionProvider", "CPUExecutionProvider"])
+
+    assert worker_module.configure_onnxruntime_sessions(4, use_cuda=True) == [
+        "CUDAExecutionProvider",
+        "CPUExecutionProvider",
+    ]
+    assert worker_module.configure_onnxruntime_sessions(4, use_cuda=False) == ["CPUExecutionProvider"]
+
+
+def test_onnxruntime_session_passes_cuda_first_to_base(monkeypatch):
+    ort = pytest.importorskip("onnxruntime")
+    worker_module = load_worker_module(monkeypatch)
+    captured = {}
+
+    class FakeBase:
+        def __init__(self, path_or_bytes, sess_options=None, providers=None, provider_options=None, **kwargs):
+            captured.update(providers=providers, threads=sess_options.intra_op_num_threads)
+
+    monkeypatch.setattr(ort, "InferenceSession", FakeBase)
+    monkeypatch.setattr(ort, "get_available_providers", lambda: ["CUDAExecutionProvider", "CPUExecutionProvider"])
+    worker_module.configure_onnxruntime_sessions(4, use_cuda=True)
+
+    ort.InferenceSession("model.onnx")
+    assert captured["threads"] == 4
+    assert captured["providers"][0][0] == "CUDAExecutionProvider"
+    assert captured["providers"][0][1]["device_id"] == 0
+    assert captured["providers"][1] == "CPUExecutionProvider"
+
+    ort.InferenceSession("model.onnx", providers=["CPUExecutionProvider"])
+    assert captured["providers"] == ["CPUExecutionProvider"]
