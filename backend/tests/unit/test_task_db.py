@@ -54,7 +54,14 @@ def test_child_completion_only_returns_parent_after_last_child(task_db):
         ],
     )
 
+    # 与 worker 一致：先把子任务写为 completed，再触发完成回调（回调按实际已完成数计数）
+    def complete(task_id):
+        with task_db.get_cursor() as cursor:
+            cursor.execute("UPDATE tasks SET status = 'completed' WHERE task_id = ?", (task_id,))
+
+    complete(child_ids[0])
     assert task_db.on_child_task_completed(child_ids[0]) is None
+    complete(child_ids[1])
     assert task_db.on_child_task_completed(child_ids[1]) == parent_id
 
     parent = task_db.get_task(parent_id)

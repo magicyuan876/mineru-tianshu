@@ -508,10 +508,14 @@ class MinerUWorkerAPI(ls.LitAPI):
         parent_task_id = task.get("parent_task_id")
         backend = task.get("backend", "auto")
 
-        # 防重入：调度器会把超时的 processing 父任务打回 pending 被重新拉取，
-        # 父任务只负责等待子任务合并，重复执行会重复拆分
+        # 已拆分的父任务被重新拉取：只可能是等待合并，绝不能重新拆分。
+        # 子任务已全部完成（重试一个合并失败的父任务）→ 直接合并；否则继续等子任务完成后触发合并
         if task.get("is_parent") and (task.get("child_count") or 0) > 0:
-            logger.warning(f"⚠️  Parent task {task_id} re-pulled (likely stale reset), skipping re-processing")
+            if self.task_db.all_children_completed(task_id):
+                logger.info(f"🔗 Parent task {task_id} re-pulled with all subtasks completed, merging")
+                self._finalize_parent_task(task_id)
+            else:
+                logger.warning(f"⚠️  Parent task {task_id} re-pulled while subtasks are unfinished, skipping")
             return
 
         try:
@@ -662,11 +666,7 @@ class MinerUWorkerAPI(ls.LitAPI):
             if parent_task_id:
                 parent_id_to_merge = self.task_db.on_child_task_completed(task_id)
                 if parent_id_to_merge:
-                    try:
-                        self._merge_parent_task_results(parent_id_to_merge)
-                    except Exception as e:
-                        self.task_db.update_task_status(parent_id_to_merge, "failed", error_message=str(e))
-                        self._enqueue_webhook(parent_id_to_merge, "task.failed")
+                    self._finalize_parent_task(parent_id_to_merge)
 
         except Exception as e:
             error_msg = f"{type(e).__name__}: {str(e)}"
@@ -1191,6 +1191,15 @@ class MinerUWorkerAPI(ls.LitAPI):
         except Exception as e:
             logger.error(f"❌ ZIP split failed: {e}")
             return False
+
+    def _finalize_parent_task(self, parent_task_id: str) -> None:
+        """合并子任务结果并收尾父任务；合并失败时父任务置为 failed 并通知"""
+        try:
+            self._merge_parent_task_results(parent_task_id)
+        except Exception as e:
+            logger.error(f"❌ Failed to merge parent task {parent_task_id}: {e}")
+            self.task_db.update_task_status(parent_task_id, "failed", error_message=str(e))
+            self._enqueue_webhook(parent_task_id, "task.failed")
 
     def _merge_parent_task_results(self, parent_task_id):
         parent_task = self.task_db.get_task_with_children(parent_task_id)

@@ -254,6 +254,9 @@ export interface Task {
   is_parent?: boolean
   child_count?: number
   child_completed?: number
+  parent_task_id?: string | null
+  // 列表接口为父任务附带的子任务状态统计（total 为子任务总数，其余键为各状态数量）
+  children_stats?: TaskChildrenStats
   subtask_progress?: {
     total: number
     completed: number
@@ -324,6 +327,37 @@ export interface TaskQueryParams {
   status?: string
   backend?: string
   search?: string
+  // 默认只返回顶层任务，子任务在父任务下展开查看
+  include_children?: boolean
+}
+
+export type TaskChildrenStats = { total: number } & Partial<Record<TaskStatus, number>>
+
+// 父任务的子任务（PDF 分片或 zip 解包条目）
+export interface ChildTask {
+  task_id: string
+  file_name: string
+  status: TaskStatus
+  chunk_info?: {
+    start_page?: number
+    end_page?: number
+    page_count?: number
+    index?: number
+    entry_name?: string
+  } | null
+  error_message: string | null
+  created_at: string
+  started_at: string | null
+  completed_at: string | null
+  retry_count: number | null
+  result_path: string | null
+}
+
+export interface TaskChildrenResponse {
+  success: boolean
+  task_id: string
+  count: number
+  children: ChildTask[]
 }
 
 // 任务列表响应

@@ -160,9 +160,8 @@
             </tr>
           </thead>
           <tbody class="bg-white divide-y divide-gray-100">
+            <template v-for="task in tasks" :key="task.task_id">
             <tr
-              v-for="task in tasks"
-              :key="task.task_id"
               :class="{'bg-primary-50/20': selectedTasks.includes(task.task_id)}"
               class="hover:bg-gray-50 transition-colors group"
             >
@@ -176,7 +175,18 @@
               </td>
               <td class="px-6 py-4">
                 <div class="flex items-start">
-                  <div class="p-2.5 bg-gray-100 rounded-xl mr-3 group-hover:bg-white group-hover:shadow-md group-hover:text-primary-600 transition-all text-gray-500">
+                  <button
+                    v-if="isSplitParent(task)"
+                    type="button"
+                    @click="toggleChildren(task)"
+                    class="p-2.5 bg-primary-50 rounded-xl mr-3 text-primary-600 hover:bg-primary-100 transition-all"
+                    :title="isExpanded(task.task_id) ? $t('task.collapseSubtasks') : $t('task.expandSubtasks')"
+                    :aria-expanded="isExpanded(task.task_id)"
+                  >
+                    <ChevronDown v-if="isExpanded(task.task_id)" class="w-5 h-5" />
+                    <Layers v-else class="w-5 h-5" />
+                  </button>
+                  <div v-else class="p-2.5 bg-gray-100 rounded-xl mr-3 group-hover:bg-white group-hover:shadow-md group-hover:text-primary-600 transition-all text-gray-500">
                     <FileText class="w-5 h-5" />
                   </div>
                   <div class="min-w-0">
@@ -190,6 +200,20 @@
                         <button @click="copyToClipboard(task.task_id)" class="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-primary-600" :title="$t('common.copy')">
                           <Copy class="w-3 h-3" />
                         </button>
+                    </div>
+                    <div v-if="task.children_stats" class="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5 text-[11px]">
+                      <span class="px-1.5 py-0.5 rounded bg-primary-50 text-primary-700 font-medium">
+                        {{ $t('task.subtaskCount', { total: task.children_stats.total }) }}
+                      </span>
+                      <span class="text-gray-500">
+                        {{ $t('task.subtaskCompleted', { completed: task.children_stats.completed || 0, total: task.children_stats.total }) }}
+                      </span>
+                      <span v-if="task.children_stats.processing" class="text-amber-600">
+                        {{ $t('task.subtaskRunning', { count: task.children_stats.processing }) }}
+                      </span>
+                      <span v-if="task.children_stats.failed" class="text-red-600 font-medium">
+                        {{ $t('task.subtaskFailed', { count: task.children_stats.failed }) }}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -286,6 +310,66 @@
                 </div>
               </td>
             </tr>
+
+            <!-- 展开的子任务（分片） -->
+            <template v-if="isExpanded(task.task_id)">
+              <tr v-if="childrenLoading.includes(task.task_id) && !childrenByParent[task.task_id]" class="bg-gray-50/60">
+                <td></td>
+                <td colspan="5" class="px-6 py-3 text-xs text-gray-500">
+                  <RefreshCw class="w-3.5 h-3.5 inline mr-1.5 animate-spin" />{{ $t('task.loadingSubtasks') }}
+                </td>
+              </tr>
+              <tr
+                v-for="child in childrenByParent[task.task_id] || []"
+                :key="child.task_id"
+                class="bg-gray-50/60 hover:bg-gray-100/70 transition-colors"
+              >
+                <td></td>
+                <td class="px-6 py-2.5">
+                  <div class="flex items-center pl-14 min-w-0">
+                    <span class="w-3 h-3 border-l-2 border-b-2 border-gray-200 rounded-bl mr-2 -mt-2 shrink-0"></span>
+                    <span class="text-sm text-gray-700 font-medium whitespace-nowrap">{{ subtaskLabel(child) }}</span>
+                    <span class="ml-2 text-xs text-gray-400 font-mono">{{ child.task_id.slice(0, 8) }}</span>
+                  </div>
+                  <div
+                    v-if="child.error_message && ['failed', 'cancelled'].includes(child.status)"
+                    class="pl-[4.75rem] mt-0.5 text-xs text-red-500 truncate max-w-[420px]"
+                    :title="child.error_message"
+                  >
+                    {{ child.error_message }}
+                  </div>
+                </td>
+                <td class="px-6 py-2.5 whitespace-nowrap"><StatusBadge :status="child.status" /></td>
+                <td></td>
+                <td class="px-6 py-2.5 whitespace-nowrap text-xs text-gray-500">
+                  <span v-if="child.started_at && child.completed_at" class="flex items-center">
+                    <Clock class="w-3 h-3 mr-1" />{{ formatDuration(child.started_at, child.completed_at) }}
+                  </span>
+                </td>
+                <td class="px-6 py-2.5 whitespace-nowrap text-right">
+                  <div class="flex items-center justify-end gap-1">
+                    <router-link
+                      :to="`/tasks/${child.task_id}`"
+                      class="btn-icon text-gray-500 hover:text-primary-600 hover:bg-primary-50"
+                      :title="$t('task.viewDetail')"
+                    >
+                      <Eye class="w-4 h-4" />
+                    </router-link>
+                    <button
+                      v-if="['failed', 'cancelled'].includes(child.status)"
+                      @click="handleAction('retry', { ...child, parent_task_id: task.task_id })"
+                      :disabled="isActionLoading(child.task_id)"
+                      class="btn-icon text-blue-500 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      :title="$t('task.retryTask')"
+                    >
+                      <RefreshCw v-if="isActionLoading(child.task_id, 'retry')" class="w-4 h-4 animate-spin" />
+                      <RotateCw v-else class="w-4 h-4" />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </template>
+            </template>
           </tbody>
         </table>
       </div>
@@ -339,10 +423,12 @@ import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import {
   Search, RefreshCw, Plus, FileText, Eye, FileQuestion,
   ChevronLeft, ChevronRight, Filter, Server, CheckSquare,
-  XCircle, Copy, Trash2, Play, Pause, RotateCw, Eraser, Clock, ChevronDown
+  XCircle, Copy, Trash2, Play, Pause, RotateCw, Eraser, Clock, ChevronDown, Layers
 } from 'lucide-vue-next'
 import PageHeader from '@/components/PageHeader.vue'
-import type { TaskStatus, Backend, Task } from '@/api/types'
+import { taskApi } from '@/api'
+import { toast } from '@/utils/toast'
+import type { TaskStatus, Backend, Task, ChildTask } from '@/api/types'
 
 const { t } = useI18n()
 const taskStore = useTaskStore()
@@ -409,6 +495,59 @@ async function refreshTasks(forceLoading = false) {
   } finally {
     loading.value = false
   }
+
+  // 已展开的父任务同步刷新分片状态；翻页 / 筛选后已不在当前列表的父任务直接收起
+  const visible = new Set(tasks.value.map(t => t.task_id))
+  expandedParents.value = expandedParents.value.filter(id => visible.has(id))
+  await Promise.all(expandedParents.value.map(id => loadChildren(id)))
+}
+
+// ----------------------------------------------------------------
+// 主子任务分组：列表只展示顶层任务，父任务可展开查看分片
+// ----------------------------------------------------------------
+const expandedParents = ref<string[]>([])
+const childrenByParent = ref<Record<string, ChildTask[]>>({})
+const childrenLoading = ref<string[]>([])
+
+function isSplitParent(task: Task) {
+  return !!task.is_parent && (task.child_count || 0) > 0
+}
+
+function isExpanded(taskId: string) {
+  return expandedParents.value.includes(taskId)
+}
+
+async function loadChildren(parentId: string) {
+  if (!childrenLoading.value.includes(parentId)) childrenLoading.value.push(parentId)
+  try {
+    const response = await taskApi.getTaskChildren(parentId)
+    childrenByParent.value[parentId] = response.children
+  } catch (error) {
+    console.error('Failed to load subtasks', error)
+    toast.error(t('task.subtaskLoadError'))
+  } finally {
+    childrenLoading.value = childrenLoading.value.filter(id => id !== parentId)
+  }
+}
+
+async function toggleChildren(task: Task) {
+  if (isExpanded(task.task_id)) {
+    expandedParents.value = expandedParents.value.filter(id => id !== task.task_id)
+    return
+  }
+  expandedParents.value.push(task.task_id)
+  await loadChildren(task.task_id)
+}
+
+function subtaskLabel(child: ChildTask) {
+  const info = child.chunk_info
+  if (info?.start_page != null && info?.end_page != null) {
+    return t('task.subtaskPages', { start: info.start_page, end: info.end_page })
+  }
+  if (info?.index != null) {
+    return t('task.subtaskEntry', { index: info.index, name: info.entry_name || child.file_name })
+  }
+  return child.file_name
 }
 
 function changePage(page: number) {
@@ -451,7 +590,10 @@ function isActionLoading(taskId: string, actionType?: string) {
 /**
  * 统一处理单个任务的操作
  */
-function handleAction(action: 'retry' | 'pause' | 'resume' | 'cancel' | 'clearCache', task: Task) {
+// 子任务行传入 ChildTask（带上 parent_task_id），只用到 task_id / 父子信息
+type ActionTarget = Pick<Task, 'task_id'> & Partial<Task>
+
+function handleAction(action: 'retry' | 'pause' | 'resume' | 'cancel' | 'clearCache', task: ActionTarget) {
   // 设置待执行的 Action
   const execute = async () => {
     actionLoading.value = true
@@ -466,7 +608,7 @@ function handleAction(action: 'retry' | 'pause' | 'resume' | 'cancel' | 'clearCa
         case 'clearCache': await taskStore.clearTaskCache(task.task_id); break;
         case 'cancel': await taskStore.cancelTask(task.task_id); break;
       }
-      await refreshTasks() // 操作后刷新列表
+      await refreshTasks() // 操作后刷新列表（已展开父任务的分片一并刷新）
     } catch (error) {
       console.error(`Action ${action} failed:`, error)
       alert(`Action failed: ${error}`) // 简单提示，建议替换为 Toast
@@ -482,7 +624,7 @@ function handleAction(action: 'retry' | 'pause' | 'resume' | 'cancel' | 'clearCa
     case 'retry':
       pendingAction = execute
       confirmDialogTitle.value = t('task.retryTask')
-      confirmDialogMessage.value = t('task.confirmRetry')
+      confirmDialogMessage.value = retryConfirmMessage(task)
       confirmDialogType.value = 'info'
       showConfirmDialog.value = true
       break
@@ -508,11 +650,19 @@ function handleAction(action: 'retry' | 'pause' | 'resume' | 'cancel' | 'clearCa
     case 'cancel':
       pendingAction = execute
       confirmDialogTitle.value = t('task.cancelTask')
-      confirmDialogMessage.value = t('task.confirmCancel')
+      confirmDialogMessage.value = task.children_stats ? t('task.confirmCancelParent') : t('task.confirmCancel')
       confirmDialogType.value = 'danger'
       showConfirmDialog.value = true
       break
   }
+}
+
+// 父任务重试 = 重跑失败 / 已取消的分片；分片都已完成时只重新合并
+function retryConfirmMessage(task: ActionTarget) {
+  const stats = task.children_stats
+  if (!stats) return t('task.confirmRetry')
+  const count = (stats.failed || 0) + (stats.cancelled || 0)
+  return count > 0 ? t('task.confirmRetryParent', { count }) : t('task.confirmRetryParentMergeOnly')
 }
 
 /**

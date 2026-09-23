@@ -562,14 +562,10 @@ def delete_task(task_id: str, request: Request, current_user: User = Depends(get
         if task.get("user_id") != current_user.user_id:
             raise HTTPException(status_code=403, detail="Permission denied: You can only delete your own tasks")
 
-    # 1. 物理删除源文件与解析产物（带目录逃逸防护）
-    db.delete_task_files(task)
+    # 物理删除源文件与解析产物（带目录逃逸防护）并移除记录；父任务连同全部子任务一起删除
+    deleted = db.delete_task_tree(task)
 
-    # 2. 从数据库彻底移除记录
-    with db.get_cursor() as cursor:
-        cursor.execute("DELETE FROM tasks WHERE task_id = ?", (task_id,))
-
-    logger.info(f"🗑️ Task completely deleted: {task_id} by user {current_user.username}")
+    logger.info(f"🗑️ Task completely deleted: {task_id} ({deleted} records) by user {current_user.username}")
     record_audit(
         "task.delete",
         user=current_user,
@@ -623,13 +619,58 @@ def retry_task(task_id: str, current_user: User = Depends(get_current_active_use
         if task.get("user_id") != current_user.user_id:
             raise HTTPException(status_code=403, detail="Permission denied")
 
-    if db.retry_task(task_id):
-        # 仅清理旧的解析产物，保留上传源文件供重试使用
-        db.delete_task_files(task, include_source=False)
+    # 先清理旧的解析产物（保留上传源文件供重试使用），再重新入队：
+    # 反过来的话，worker 可能刚拉到任务写出新产物，就被这里删掉
+    db.delete_task_files(task, include_source=False)
+    retried_children = []
+    if task.get("is_parent") and (task.get("child_count") or 0) > 0:
+        # 父任务重试 = 重跑失败 / 已取消的子任务，它们的旧产物同样先清掉
+        retried_children = db.get_children_to_retry(task_id)
+        for child in retried_children:
+            db.delete_task_files(child, include_source=False)
 
-        return {"success": True, "message": "Task submitted for retry"}
+    if db.retry_task(task_id):
+        message = "Task submitted for retry"
+        if retried_children:
+            message = f"Task submitted for retry ({len(retried_children)} subtasks requeued)"
+        return {"success": True, "message": message, "retried_subtasks": len(retried_children)}
 
     raise HTTPException(status_code=404, detail="Task not found")
+
+
+@router.get("/tasks/{task_id}/children", tags=["任务管理"])
+def list_task_children(task_id: str, current_user: User = Depends(get_current_active_user)):
+    """父任务的子任务列表（任务列表页展开分组用），按分片页码 / 解包序号排序"""
+    task = db.get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    if not current_user.has_permission(Permission.TASK_VIEW_ALL):
+        if task.get("user_id") != current_user.user_id:
+            raise HTTPException(status_code=403, detail="Permission denied: You can only view your own tasks")
+
+    children = []
+    for child in db.get_child_tasks(task_id):
+        try:
+            chunk_info = json.loads(child.get("options") or "{}").get("chunk_info")
+        except (json.JSONDecodeError, TypeError):
+            chunk_info = None
+        children.append(
+            {
+                "task_id": child["task_id"],
+                "file_name": child["file_name"],
+                "status": child["status"],
+                "chunk_info": chunk_info,
+                "error_message": child.get("error_message"),
+                "created_at": child["created_at"],
+                "started_at": child.get("started_at"),
+                "completed_at": child.get("completed_at"),
+                "retry_count": child.get("retry_count"),
+                "result_path": child.get("result_path"),
+            }
+        )
+    children.sort(key=lambda c: (c["chunk_info"] or {}).get("start_page") or (c["chunk_info"] or {}).get("index") or 0)
+    return {"success": True, "task_id": task_id, "count": len(children), "children": children}
 
 
 @router.post("/tasks/{task_id}/cancel", tags=["任务管理"])
@@ -742,6 +783,7 @@ def list_tasks(
     page_size: int = Query(20, ge=1, le=100, description="每页数量"),
     backend: Optional[str] = Query(None, description="筛选后端引擎"),
     search: Optional[str] = Query(None, description="搜索文件名或任务ID"),
+    include_children: bool = Query(False, description="是否包含拆分出的子任务（默认只返回顶层任务）"),
     current_user: User = Depends(get_current_active_user),
 ):
     can_view_all = current_user.has_permission(Permission.TASK_VIEW_ALL)
@@ -751,6 +793,15 @@ def list_tasks(
     if not can_view_all:
         conditions.append("user_id = ?")
         params.append(current_user.user_id)
+
+    # 默认只列顶层任务（子任务在父任务下展开查看）；按完整任务 ID 搜索时子任务也能直接命中
+    if not include_children:
+        exact_id = (search or "").strip()
+        if exact_id:
+            conditions.append("(parent_task_id IS NULL OR task_id = ?)")
+            params.append(exact_id)
+        else:
+            conditions.append("parent_task_id IS NULL")
 
     if status:
         conditions.append("status = ?")
@@ -782,6 +833,13 @@ def list_tasks(
         """
         cursor.execute(data_sql, query_params)
         tasks = [dict(row) for row in cursor.fetchall()]
+
+    # 父任务附带子任务状态统计，列表页据此显示分片进度，展开时再按需拉取明细
+    parent_ids = [t["task_id"] for t in tasks if t.get("is_parent") and (t.get("child_count") or 0) > 0]
+    children_stats = db.get_children_stats(parent_ids)
+    for t in tasks:
+        if t["task_id"] in children_stats:
+            t["children_stats"] = children_stats[t["task_id"]]
 
     return {
         "success": True,

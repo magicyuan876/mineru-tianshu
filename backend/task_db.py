@@ -798,22 +798,36 @@ class TaskDB:
         """
         一键清理所有失败的任务
         执行步骤: 1.查询路径 -> 2.删除磁盘文件 -> 3.删除数据库记录
+
+        主子任务按组清理：
+        - 失败的顶层任务：连同它的全部子任务一起删除，不留下查不到分片的父任务
+        - 父任务已不存在的失败子任务（孤儿）：删除
+        - 父任务未失败（处理中 / 已完成 / 已取消）的失败子任务：保留，供排查或单独重试
         """
         with self.get_cursor() as cursor:
-            # 1. 查询所有 failed 任务
-            cursor.execute("SELECT task_id, file_path, result_path FROM tasks WHERE status = 'failed'")
-            failed_tasks = cursor.fetchall()
+            # 1. 待删除行：失败的顶层任务 + 它们的全部子任务 + 失败的孤儿子任务
+            cursor.execute(
+                """
+                SELECT task_id, file_path, result_path FROM tasks
+                WHERE (parent_task_id IS NULL AND status = 'failed')
+                   OR parent_task_id IN (SELECT task_id FROM tasks WHERE parent_task_id IS NULL AND status = 'failed')
+                   OR (status = 'failed' AND parent_task_id IS NOT NULL
+                       AND parent_task_id NOT IN (SELECT task_id FROM tasks))
+                """
+            )
+            doomed = cursor.fetchall()
 
-            count = 0
             # 2. 物理删除
-            for task in failed_tasks:
+            for task in doomed:
                 self._delete_task_files(task)
-                count += 1
 
             # 3. 数据库删除
-            cursor.execute("DELETE FROM tasks WHERE status = 'failed'")
-            logger.info(f"🧹 Cleared {cursor.rowcount} failed tasks (files deleted for {count} tasks)")
-            return cursor.rowcount
+            ids = [task["task_id"] for task in doomed]
+            for start in range(0, len(ids), 500):
+                batch = ids[start : start + 500]
+                cursor.execute(f"DELETE FROM tasks WHERE task_id IN ({','.join('?' * len(batch))})", batch)
+            logger.info(f"🧹 Cleared {len(ids)} failed tasks (including subtasks of failed parents)")
+            return len(ids)
 
     # ============================================================================
     # 主子任务支持 (Parent-Child Task Support)
@@ -941,41 +955,55 @@ class TaskDB:
 
             parent_task_id = row["parent_task_id"]
 
-            # 更新父任务的完成计数
-            cursor.execute(
-                """
-                UPDATE tasks
-                SET child_completed = child_completed + 1
-                WHERE task_id = ?
-            """,
-                (parent_task_id,),
-            )
+            # 按实际已完成的子任务数回写计数，而不是 +1：失败子任务重试后再次完成、
+            # 或已完成子任务被重跑时，自增会重复计数
+            completed = self._count_completed_children(cursor, parent_task_id)
 
-            # 检查是否所有子任务都完成了
+            # 带条件更新：两个子任务几乎同时完成时，只有真正把计数推进到新值的那一方拿到 rowcount，
+            # 避免双方都看到"已全部完成"而重复合并
             cursor.execute(
-                """
-                SELECT child_count, child_completed, file_name
-                FROM tasks WHERE task_id = ?
-            """,
+                "UPDATE tasks SET child_completed = ? WHERE task_id = ? AND child_completed <> ?",
+                (completed, parent_task_id, completed),
+            )
+            advanced = cursor.rowcount > 0
+
+            cursor.execute(
+                "SELECT child_count, status, file_name FROM tasks WHERE task_id = ?",
                 (parent_task_id,),
             )
             parent = cursor.fetchone()
 
-            if parent and parent["child_completed"] >= parent["child_count"]:
-                # 所有子任务完成
+            if not parent:
+                return None
+
+            # 父任务已失败 / 已取消时不合并：等用户重试父任务后，由最后完成的子任务触发
+            if advanced and completed >= parent["child_count"] and parent["status"] == "processing":
                 logger.info(
                     f"🎉 All subtasks completed for parent task {parent_task_id} "
-                    f"({parent['child_completed']}/{parent['child_count']}) - {parent['file_name']}"
+                    f"({completed}/{parent['child_count']}) - {parent['file_name']}"
                 )
                 return parent_task_id
 
-            if parent:
-                logger.info(
-                    f"⏳ Subtask progress: {parent['child_completed']}/{parent['child_count']} "
-                    f"for parent task {parent_task_id}"
-                )
+            logger.info(f"⏳ Subtask progress: {completed}/{parent['child_count']} for parent task {parent_task_id}")
 
         return None
+
+    @staticmethod
+    def _count_completed_children(cursor, parent_task_id: str) -> int:
+        cursor.execute(
+            "SELECT COUNT(*) AS n FROM tasks WHERE parent_task_id = ? AND status = 'completed'",
+            (parent_task_id,),
+        )
+        return cursor.fetchone()["n"]
+
+    def all_children_completed(self, parent_task_id: str) -> bool:
+        """父任务的子任务是否已全部完成（用于父任务被重新拉取时判断是否只差合并）"""
+        with self.get_cursor() as cursor:
+            cursor.execute("SELECT child_count FROM tasks WHERE task_id = ?", (parent_task_id,))
+            row = cursor.fetchone()
+            if not row or not row["child_count"]:
+                return False
+            return self._count_completed_children(cursor, parent_task_id) >= row["child_count"]
 
     def on_child_task_failed(self, child_task_id: str, error_message: str):
         """子任务失败回调"""
@@ -1052,16 +1080,75 @@ class TaskDB:
             )
             return [dict(row) for row in cursor.fetchall()]
 
+    def get_children_stats(self, parent_task_ids: List[str]) -> Dict[str, Dict[str, int]]:
+        """批量统计父任务下各状态的子任务数，返回 {parent_id: {"total": n, "completed": n, ...}}"""
+        stats: Dict[str, Dict[str, int]] = {}
+        if not parent_task_ids:
+            return stats
+        with self.get_cursor() as cursor:
+            for start in range(0, len(parent_task_ids), 500):
+                batch = parent_task_ids[start : start + 500]
+                cursor.execute(
+                    f"""
+                    SELECT parent_task_id, status, COUNT(*) AS n FROM tasks
+                    WHERE parent_task_id IN ({",".join("?" * len(batch))})
+                    GROUP BY parent_task_id, status
+                    """,
+                    batch,
+                )
+                for row in cursor.fetchall():
+                    entry = stats.setdefault(row["parent_task_id"], {"total": 0})
+                    entry[row["status"]] = row["n"]
+                    entry["total"] += row["n"]
+        return stats
+
+    def delete_task_tree(self, task_row: Dict) -> int:
+        """彻底删除任务：父任务连同全部子任务的文件与记录一起删除，返回删除的记录数"""
+        children = self.get_child_tasks(task_row["task_id"]) if task_row.get("is_parent") else []
+        for child in children:
+            self.delete_task_files(child)
+        self.delete_task_files(task_row)
+        with self.get_cursor() as cursor:
+            cursor.execute("DELETE FROM tasks WHERE parent_task_id = ?", (task_row["task_id"],))
+            deleted = cursor.rowcount
+            cursor.execute("DELETE FROM tasks WHERE task_id = ?", (task_row["task_id"],))
+            return deleted + cursor.rowcount
+
     # ========================================================================
     # 新增功能：重试、清理、暂停、恢复、清理缓存
     # ========================================================================
+
+    # 父任务重试时需要重跑的子任务状态
+    CHILD_RETRY_STATUSES = ("failed", "cancelled")
+
+    @staticmethod
+    def _is_split_parent(task: Dict) -> bool:
+        return bool(task.get("is_parent")) and (task.get("child_count") or 0) > 0
+
+    def get_children_to_retry(self, parent_task_id: str) -> List[Dict]:
+        """父任务重试时会被重跑的子任务（失败 / 已取消），供调用方先清理其旧产物"""
+        placeholders = ",".join("?" * len(self.CHILD_RETRY_STATUSES))
+        with self.get_cursor() as cursor:
+            cursor.execute(
+                f"SELECT * FROM tasks WHERE parent_task_id = ? AND status IN ({placeholders})",
+                (parent_task_id, *self.CHILD_RETRY_STATUSES),
+            )
+            return [dict(row) for row in cursor.fetchall()]
 
     def retry_task(self, task_id: str) -> bool:
         """
         重试任务：将任务状态重置为 pending，清空错误和时间，重试次数 +1
 
         手动重试同时清零 stale_reset_count，让任务重新获得完整的超时自动重试额度。
+        - 已拆分的父任务：转为重跑失败 / 已取消的子任务，父任务回到 processing 等待合并
+        - 子任务：父任务若已失败 / 已取消，一并恢复为 processing，否则子任务完成后无法合并
         """
+        task = self.get_task(task_id)
+        if not task:
+            return False
+        if self._is_split_parent(task):
+            return self._retry_parent_task(task_id)
+
         with self.get_cursor() as cursor:
             cursor.execute(
                 """
@@ -1078,9 +1165,86 @@ class TaskDB:
                 (task_id,),
             )
             ok = cursor.rowcount > 0
+            if ok and task.get("parent_task_id"):
+                self._revive_parent(cursor, task["parent_task_id"])
 
         if ok:
             self._requeue_pending(task_id)
+        return ok
+
+    @staticmethod
+    def _revive_parent(cursor, parent_task_id: str) -> None:
+        """把已失败 / 已取消的父任务恢复为 processing（等待子任务完成后合并）"""
+        cursor.execute(
+            """
+            UPDATE tasks
+            SET status = 'processing',
+                error_message = NULL,
+                completed_at = NULL,
+                worker_id = NULL
+            WHERE task_id = ? AND status IN ('failed', 'cancelled')
+            """,
+            (parent_task_id,),
+        )
+
+    def _retry_parent_task(self, parent_task_id: str) -> bool:
+        """重试已拆分的父任务：重跑失败 / 已取消的子任务，已完成的保留
+
+        子任务已全部完成（通常是合并那一步失败）时，把父任务置为 pending，
+        由 worker 重新拉取后只做合并（见 litserve_worker._process_task 的父任务分支）。
+        """
+        placeholders = ",".join("?" * len(self.CHILD_RETRY_STATUSES))
+        with self.get_cursor() as cursor:
+            cursor.execute(
+                f"SELECT task_id FROM tasks WHERE parent_task_id = ? AND status IN ({placeholders})",
+                (parent_task_id, *self.CHILD_RETRY_STATUSES),
+            )
+            retry_ids = [row["task_id"] for row in cursor.fetchall()]
+
+            for child_id in retry_ids:
+                cursor.execute(
+                    """
+                    UPDATE tasks
+                    SET status = 'pending',
+                        error_message = NULL,
+                        started_at = NULL,
+                        completed_at = NULL,
+                        worker_id = NULL,
+                        retry_count = retry_count + 1,
+                        stale_reset_count = 0
+                    WHERE task_id = ?
+                    """,
+                    (child_id,),
+                )
+
+            cursor.execute("SELECT child_count FROM tasks WHERE task_id = ?", (parent_task_id,))
+            child_count = cursor.fetchone()["child_count"]
+            only_merge = self._count_completed_children(cursor, parent_task_id) >= child_count
+
+            cursor.execute(
+                """
+                UPDATE tasks
+                SET status = ?,
+                    error_message = NULL,
+                    completed_at = NULL,
+                    worker_id = NULL,
+                    retry_count = retry_count + 1,
+                    stale_reset_count = 0
+                WHERE task_id = ?
+                """,
+                ("pending" if only_merge else "processing", parent_task_id),
+            )
+            ok = cursor.rowcount > 0
+
+        if ok:
+            for child_id in retry_ids:
+                self._requeue_pending(child_id)
+            if only_merge:
+                self._requeue_pending(parent_task_id)
+            logger.info(
+                f"🔁 Parent task {parent_task_id} retried: {len(retry_ids)} subtasks requeued"
+                + (" (all subtasks completed, re-merging only)" if only_merge else "")
+            )
         return ok
 
     def _requeue_pending(self, task_id: str):
@@ -1104,21 +1268,25 @@ class TaskDB:
         取消任务：将 pending/processing/paused 状态的任务标记为 cancelled。
         - 已取消的任务不会被打回 pending，也不会被调度器再次派发
         - 正在处理的任务由 worker 在完成/失败时根据状态机自动跳过（completed/failed 仅对 processing 生效）
+        - 已拆分的父任务：未完成的子任务一并取消，排队中的不再占用处理名额
+        """
+        cancel_sql = """
+            UPDATE tasks
+            SET status = 'cancelled',
+                started_at = NULL,
+                completed_at = CURRENT_TIMESTAMP,
+                worker_id = NULL
+            WHERE {target}
+            AND status IN ('pending', 'processing', 'paused')
         """
         with self.get_cursor() as cursor:
-            cursor.execute(
-                """
-                UPDATE tasks
-                SET status = 'cancelled',
-                    started_at = NULL,
-                    completed_at = CURRENT_TIMESTAMP,
-                    worker_id = NULL
-                WHERE task_id = ?
-                AND status IN ('pending', 'processing', 'paused')
-                """,
-                (task_id,),
-            )
-            return cursor.rowcount > 0
+            cursor.execute(cancel_sql.format(target="task_id = ?"), (task_id,))
+            ok = cursor.rowcount > 0
+            if ok:
+                cursor.execute(cancel_sql.format(target="parent_task_id = ?"), (task_id,))
+                if cursor.rowcount:
+                    logger.info(f"🚫 Cancelled {cursor.rowcount} unfinished subtasks of parent task {task_id}")
+            return ok
 
     def pause_task(self, task_id: str) -> bool:
         """

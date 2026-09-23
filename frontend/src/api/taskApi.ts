@@ -9,6 +9,7 @@ import type {
   TaskListResponse,
   ApiResponse,
   TaskQueryParams,
+  TaskChildrenResponse,
 } from './types'
 
 // =================================================================
@@ -120,7 +121,15 @@ export async function listTasks(params: TaskQueryParams): Promise<TaskListRespon
 // =================================================================
 
 /**
- * 重试失败的任务
+ * 获取父任务的子任务列表（按分片页码 / 解包序号排序）
+ */
+export async function getTaskChildren(taskId: string): Promise<TaskChildrenResponse> {
+  const response = await apiClient.get<TaskChildrenResponse>(`/api/v1/tasks/${taskId}/children`)
+  return response.data
+}
+
+/**
+ * 重试失败的任务（父任务会重跑其失败 / 已取消的子任务）
  */
 export async function retryTask(taskId: string): Promise<ApiResponse> {
   const response = await apiClient.post<ApiResponse>(`/api/v1/tasks/${taskId}/retry`)
