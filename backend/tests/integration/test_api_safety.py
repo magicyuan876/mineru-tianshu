@@ -94,3 +94,42 @@ def test_empty_upload_is_rejected_without_creating_task(runtime_paths):
     # 正常文件不受影响
     assert normal.status_code == 200
     assert normal.json()["task_id"]
+
+
+def test_encrypted_office_upload_is_rejected_without_creating_task(runtime_paths):
+    """加密的 Office 文件（敏感度标签 / IRM / 打开密码）在接口层拒绝，不落盘、不建任务"""
+    from tests.unit.utils.test_office_sniff import ole_with
+
+    auth_db = AuthDB(str(runtime_paths["database_path"]))
+    user = auth_db.create_user(
+        UserCreate(username="enc-uploader", email="enc@example.com", password="safe-password", role=UserRole.ADMIN)
+    )
+    headers = {"Authorization": f"Bearer {create_access_token(user.user_id, user.username, user.role)}"}
+    api_server = load_api_module()
+
+    with TestClient(api_server.app) as client:
+        encrypted = client.post(
+            "/api/v1/tasks/submit",
+            files={
+                "file": (
+                    "Q2 Sales Commission.xlsx",
+                    ole_with("EncryptionInfo", "EncryptedPackage"),
+                    "application/octet-stream",
+                )
+            },
+            headers=headers,
+        )
+        renamed_xls = client.post(
+            "/api/v1/tasks/submit",
+            files={"file": ("export.xlsx", ole_with("Workbook"), "application/octet-stream")},
+            headers=headers,
+        )
+        listed = client.get("/api/v1/queue/tasks", headers=headers).json()
+
+    assert encrypted.status_code == 400
+    assert "Q2 Sales Commission.xlsx" in encrypted.json()["detail"]
+    assert "无法解析" in encrypted.json()["detail"]
+    # 加密原件不得留在服务器上；改了扩展名的旧版 xls 照常入队，由 worker 按真实格式解析
+    assert renamed_xls.status_code == 200
+    assert [t["file_name"] for t in listed["tasks"]] == ["export.xlsx"]
+    assert len(list(runtime_paths["upload_path"].glob("*.xlsx"))) == 1

@@ -39,7 +39,13 @@ from auth.dependencies import get_current_user_flexible
 from auth.routes import router as auth_router
 from auth.audit import record_audit, query_audit_logs
 from task_db import TaskDB
-from utils import FilenameValidationError, ensure_within_directory, sanitize_filename
+from utils import (
+    FilenameValidationError,
+    encrypted_document_message,
+    ensure_within_directory,
+    sanitize_filename,
+    sniff_office_file,
+)
 
 # 初始化 FastAPI 应用
 app = FastAPI(
@@ -326,6 +332,18 @@ async def submit_task(
                 status_code=400,
                 detail=f"文件内容为空（0 字节）: {safe_name}。如果源文件在网盘/云盘上，请先下载到本地再上传。",
             )
+
+        # 加密的 Office 文件（敏感度标签 / IRM / 打开密码）当场拒绝：放进队列只会在 worker 里失败，
+        # 且加密原件不应留在服务器上。改了扩展名的旧版格式 / HTML 照常入队，由 worker 按真实格式解析
+        try:
+            sniffed = sniff_office_file(temp_file_path)
+        except OSError as e:
+            logger.warning(f"⚠️ Office format sniffing failed for {safe_name}: {e}")
+            sniffed = None
+        if sniffed is not None and sniffed.kind == "encrypted":
+            temp_file_path.unlink(missing_ok=True)
+            logger.info(f"🔒 Rejected encrypted Office upload ({sniffed.detail}): {safe_name}")
+            raise HTTPException(status_code=400, detail=encrypted_document_message(sniffed.detail, safe_name))
 
         options = {
             "lang": lang,
