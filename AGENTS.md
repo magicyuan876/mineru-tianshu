@@ -172,6 +172,7 @@ npm run build     # tsc && vite build → dist/
 - **PDF 分片**：超过 `PDF_SPLIT_THRESHOLD_PAGES`（默认 500 页）时按 `PDF_SPLIT_CHUNK_SIZE` 页切分，分片存 `output_dir/splits/{task_id}/`，chunk_info 为 `{start_page, end_page, page_count}`，合并时按页序拼接并修正 page_idx 偏移。
 - **ZIP 解包**：`.zip` 任务在引擎路由前由 `_should_split_zip` 解包（任何 backend 值都走拆分，子任务继承父任务 backend），安全限制：最多 200 个条目、解压总大小上限 2GB（防 zip bomb），跳过目录、`__MACOSX`/隐藏文件、嵌套 zip 与非白名单格式；解压文件同样存 `output_dir/splits/{task_id}/`，chunk_info 为 `{index, entry_name}`，合并时按 index 排序并在每段 Markdown 前加 `## {entry_name}` 章节头。
 - **防重入**：`_process_task` 开头会跳过 `is_parent` 且已有子任务的任务（调度器 `reset_stale_tasks` 可能把超时的父任务打回 pending 被重复拉取）。
+- **加密文档**：提交时 `password` 表单参数存任务 options（`retry_task` 原样保留 options，天然支持失败后补密码重试；ZIP/PDF 子任务经 `options.copy()` 继承密码）。Worker 在 `_process_task` 前置阶段调用 `utils/doc_decrypt.py::decrypt_if_needed`（pikepdf 处理 PDF 含空密码/仅所有者密码自动移除、msoffcrypto-tool 处理 Office、pyzipper 处理 ZipCrypto/AES zip），明文副本写到 `output_dir/decrypted/{task_id}/` 后进正常流水线（ZIP 解包拿到的即明文副本），任务完成 finally 中 `cleanup_decrypted` 清理。解密失败抛 `DocDecryptError`（友好中文文案），单独 catch 写入 `error_message`。`list_tasks` 返回前将 options 中的 password 掩码为 `"********"`。
 
 ### 格式引擎插件系统
 

@@ -78,6 +78,8 @@ POST /api/v1/tasks/submit
   - formula_enable: boolean (默认: true)
   - table_enable: boolean (默认: true)
   - priority: 0-100 (默认: 0)
+  - password: 加密文档打开密码（可选，仅加密 PDF / Office / ZIP 需要；
+    解密失败任务报错，可通过重试补填正确密码；密码不出现在任何查询接口响应中）
 
 返回:
   {
@@ -127,6 +129,23 @@ DELETE /api/v1/tasks/{task_id}
   {
     "success": true,
     "message": "Task cancelled successfully"
+  }
+```
+
+#### 重试失败任务
+
+```
+POST /api/v1/tasks/{task_id}/retry
+
+参数:
+  - password: 可选表单参数，仅对 failed 状态任务生效。加密文档因密码错误失败时，
+    传入正确密码会覆盖任务 options 中的原密码后重新入队；留空表示沿用原密码。
+
+返回:
+  {
+    "success": true,
+    "message": "Task submitted for retry",
+    "retried_subtasks": 0
   }
 ```
 

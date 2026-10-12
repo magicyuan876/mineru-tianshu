@@ -44,6 +44,15 @@ English | [简体中文](./README.md)
 
 ## 📝 Latest Updates
 
+### 2026-10-12 🔐 Encrypted Document Parsing
+
+- ✅ **Encrypted PDFs**: password-protected PDFs are supported; documents with empty or owner-only passwords are unlocked automatically without manual input
+- ✅ **Encrypted Office**: encrypted DOCX / XLSX / PPTX and legacy DOC / XLS / PPT (decrypted via msoffcrypto-tool before normal parsing)
+- ✅ **Encrypted ZIPs**: ZipCrypto and AES encrypted archives, auto-unpacked into parent/child batch tasks after decryption
+- ✅ **password parameter across the board**: an optional document-open password can be passed at submission — API form, frontend advanced options, the MCP `parse_document` tool and the Dify plugin all support it
+- ✅ **Retry with a corrected password**: decryption failures produce a friendly error; the correct password can be entered when retrying from the task detail page, no need to resubmit
+- 🔒 **Password safety**: passwords live only in task options (always masked in API responses) and are never logged; decrypted plaintext copies are kept in an isolated directory and cleaned up automatically when the task finishes
+
 ### 2026-09-13 🚀 v2.1.0: Webhook Notifications, Audit Logs & UI Overhaul
 
 - ✅ **Webhook Task Notifications**: when a task completes or fails, an HMAC-signed callback is pushed to the integration (task metadata + result URL only, no parsed content); periodic delivery by the scheduler with exponential-backoff retries up to a dead-letter state, SSRF protection throughout, and queryable delivery records
@@ -254,6 +263,7 @@ MinerU Tianshu is an **Enterprise-grade AI Data Preprocessing Platform** that co
 
 - ✅ **User Auth**: JWT authentication, role-based access, API key management
 - ✅ **Task Management**: Drag-drop upload, batch processing, real-time tracking, Markdown/JSON preview
+- ✅ **Encrypted Document Parsing**: encrypted PDFs (empty/owner-only passwords auto-removed), encrypted Office, encrypted ZIPs; optional password at submission, wrong password can be corrected on retry
 - ✅ **Queue Management**: System monitoring, timeout reset, file cleanup
 - ✅ **Webhook Notifications**: Per-API-key callbacks, signed terminal-state pushes with retries
 - ✅ **Audit Logs**: Sensitive operations recorded with visual querying and automatic cleanup
@@ -262,7 +272,7 @@ MinerU Tianshu is an **Enterprise-grade AI Data Preprocessing Platform** that co
 
 ### Supported File Formats
 
-- 📄 **Documents**: PDF, Word, Excel, PPT (MinerU, MarkItDown)
+- 📄 **Documents**: PDF, Word, Excel, PPT (MinerU, MarkItDown; encrypted documents supported — provide the password at submission)
 - 🖼️ **Images**: JPG, PNG, BMP, TIFF (MinerU)
 - 🎙️ **Audio**: MP3, WAV, M4A, FLAC (SenseVoice multi-language, speaker diarization, emotion recognition)
 - 🎬 **Video**: MP4, AVI, MKV, MOV, WebM (audio transcription + keyframe OCR🧪)
