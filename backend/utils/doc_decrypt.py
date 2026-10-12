@@ -18,7 +18,12 @@ import zipfile
 from pathlib import Path
 from typing import Optional, Union
 
-import pikepdf
+try:
+    import pikepdf
+
+    PIKEPDF_AVAILABLE = True
+except ImportError:
+    PIKEPDF_AVAILABLE = False
 
 try:
     import msoffcrypto
@@ -79,6 +84,17 @@ def _target_path(dest_dir: Union[str, Path], source_path: Union[str, Path]) -> P
 
 
 def _decrypt_pdf(file_path: str, password: Optional[str], dest_dir) -> str:
+    if not PIKEPDF_AVAILABLE:
+        # 轻量依赖缺失（如 CI 最小环境）：探测 /Encrypt 标记，加密文档明确报错，其余放行给下游
+        try:
+            if b"/Encrypt" in Path(file_path).read_bytes():
+                raise DocDecryptError("服务器缺少 PDF 解密组件（pikepdf），无法处理加密文档")
+        except DocDecryptError:
+            raise
+        except OSError:
+            pass
+        return file_path
+
     try:
         pdf = pikepdf.open(file_path)
     except pikepdf.PasswordError:
