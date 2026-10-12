@@ -202,6 +202,18 @@
               </button>
 
               <div v-show="showAdvanced" class="px-4 pb-4 pt-2 space-y-5 animate-fade-in-down">
+                <div>
+                  <label class="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-2">{{ $t('task.documentPassword') }}</label>
+                  <input
+                    v-model="config.password"
+                    type="password"
+                    autocomplete="off"
+                    class="form-input-sm w-full bg-white"
+                    :placeholder="$t('task.documentPasswordPlaceholder')"
+                  />
+                  <p class="mt-1 text-[10px] text-gray-400">{{ $t('task.documentPasswordHint') }}</p>
+                </div>
+
                 <div v-if="isMinerUBackend">
                   <label class="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-2">{{ $t('task.pageRange') }}</label>
                   <div class="flex items-center space-x-3 bg-white p-3 rounded border border-gray-200">
@@ -404,6 +416,9 @@ const defaultConfig = {
   // 远程服务
   server_url: '',
 
+  // 加密文档打开密码（可选，仅加密 PDF / Office / ZIP 需要）
+  password: '',
+
   // Mineru Debug Options (Default: True as per source code)
   draw_layout_bbox: true,
   draw_span_bbox: true,
@@ -508,7 +523,11 @@ onMounted(() => {
   if (saved) { try { const p = JSON.parse(saved); Object.assign(config, p); } catch(e){} }
 })
 
-watch(() => config, () => { localStorage.setItem('task_submit_config', JSON.stringify(config)) }, { deep: true })
+// 密码属敏感信息，不落 localStorage；其余配置正常持久化
+watch(() => config, () => {
+  const { password: _password, ...rest } = config
+  localStorage.setItem('task_submit_config', JSON.stringify(rest))
+}, { deep: true })
 
 function resetConfig() { Object.assign(config, defaultConfig); localStorage.removeItem('task_submit_config'); currentPreset.value = 'default' }
 

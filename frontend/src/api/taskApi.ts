@@ -39,6 +39,9 @@ export async function submitTask(request: SubmitTaskRequest): Promise<SubmitTask
   // 远程服务
   if (request.server_url) formData.append('server_url', request.server_url)
 
+  // 加密文档密码
+  if (request.password) formData.append('password', request.password)
+
   // MinerU 调试/输出选项
   if (request.draw_layout_bbox !== undefined) formData.append('draw_layout_bbox', String(request.draw_layout_bbox))
   if (request.draw_span_bbox !== undefined) formData.append('draw_span_bbox', String(request.draw_span_bbox))
@@ -130,9 +133,12 @@ export async function getTaskChildren(taskId: string): Promise<TaskChildrenRespo
 
 /**
  * 重试失败的任务（父任务会重跑其失败 / 已取消的子任务）
+ * password：可选，修正加密文档的打开密码后重试（留空表示沿用原密码）
  */
-export async function retryTask(taskId: string): Promise<ApiResponse> {
-  const response = await apiClient.post<ApiResponse>(`/api/v1/tasks/${taskId}/retry`)
+export async function retryTask(taskId: string, password?: string): Promise<ApiResponse> {
+  const formData = new FormData()
+  if (password) formData.append('password', password)
+  const response = await apiClient.post<ApiResponse>(`/api/v1/tasks/${taskId}/retry`, formData)
   return response.data
 }
 

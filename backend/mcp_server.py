@@ -156,6 +156,7 @@ async def list_tools() -> list[Tool]:
 - 公式识别和表格识别
 - 支持中英文、日文、韩文等多语言
 - 支持任务优先级设置
+- 支持加密文档：提供 password 参数即可解析加密的 PDF / Office / ZIP
 - 异步处理，可选择等待完成或稍后查询
             """.strip(),
             inputSchema={
@@ -209,6 +210,10 @@ async def list_tools() -> list[Tool]:
                         "default": 0,
                         "minimum": 0,
                         "maximum": 100,
+                    },
+                    "password": {
+                        "type": "string",
+                        "description": "加密文档打开密码（加密 PDF / Office / ZIP 时提供，可选）",
                     },
                     "wait_for_completion": {
                         "type": "boolean",
@@ -458,6 +463,8 @@ async def parse_document(args: dict) -> list[TextContent]:
             form_data.add_field("formula_enable", str(args.get("formula_enable", True)).lower())
             form_data.add_field("table_enable", str(args.get("table_enable", True)).lower())
             form_data.add_field("priority", str(args.get("priority", 0)))
+            if args.get("password"):
+                form_data.add_field("password", str(args["password"]))
 
             logger.info(f"📤 Submitting task for: {file_name}")
 

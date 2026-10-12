@@ -104,6 +104,9 @@ PyMuPDF>=1.25.0
 Pillow>=11.0.0
 img2pdf>=0.6.0
 pikepdf>=10.0.0
+# 加密文档前置解密（PDF 用 pikepdf；Office / ZIP 分别依赖下面两个）
+msoffcrypto-tool>=6.0.0
+pyzipper>=0.4.0
 matplotlib>=3.10.0
 ftfy>=6.3.0
 

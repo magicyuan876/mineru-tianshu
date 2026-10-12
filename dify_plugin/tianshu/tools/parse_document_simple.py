@@ -87,7 +87,8 @@ class TianshuParseTool(Tool):
         backend: str,
         lang: str,
         formula_enable: bool,
-        priority: int
+        priority: int,
+        password: str = ""
     ) -> str:
         """
         提交单个文件到解析服务
@@ -104,6 +105,8 @@ class TianshuParseTool(Tool):
             "table_enable": "true",
             "priority": str(priority)
         }
+        if password:
+            data["password"] = password
 
         headers = self._get_headers(credentials)
         url = f"{credentials.api_base_url}/api/v1/tasks/submit"
@@ -212,6 +215,7 @@ class TianshuParseTool(Tool):
             lang = tool_parameters.get("lang", "auto")
             formula_enable = tool_parameters.get("formula_enable", True)
             priority = tool_parameters.get("priority", 0)
+            password = tool_parameters.get("password", "") or ""
             max_wait = tool_parameters.get("max_wait_time", 300)  # 最大等待时间（秒）
 
             logger.info(f"📦 收到 {total_files} 个文件")
@@ -232,7 +236,7 @@ class TianshuParseTool(Tool):
                     logger.info("   ⬆️  提交任务...")
                     task_id = self._submit_file(
                         file_name, file_content, credentials,
-                        backend, lang, formula_enable, priority
+                        backend, lang, formula_enable, priority, password
                     )
                     logger.info(f"   ✅ Task ID: {task_id}")
 

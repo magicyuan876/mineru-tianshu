@@ -99,6 +99,10 @@ from utils import (
     move_file,
     sniff_office_file,
     EncryptedDocumentError,
+    DocDecryptError,
+    cleanup_decrypted,
+    decrypted_dir,
+    decrypt_if_needed,
 )
 import importlib.util
 
@@ -533,6 +537,12 @@ class MinerUWorkerAPI(ls.LitAPI):
             # 用户完全看不懂。这里提前拦下并给出人话错误。
             self._validate_source_file(file_path)
 
+            # 0.3 加密文档前置解密（PDF / Office / ZIP）：密码来自提交时的 options。
+            # 未加密文件零成本直接通过；解密产物写到 output_dir/decrypted/{task_id}/，
+            # 任务结束时清理。必须在 Office 嗅探与 ZIP 解包之前，保证下游拿到明文副本。
+            decrypt_work_dir = decrypted_dir(self.output_dir, task_id)
+            file_path = decrypt_if_needed(file_path, Path(file_path).suffix, options.get("password"), decrypt_work_dir)
+
             # 0.5 Office 文件按文件头识别真实格式（必须在路由判断之前）：
             # 加密文件直接失败并说明原因；改了扩展名的旧版格式 / HTML 转交对应解析路径
             corrected_copy = self._resolve_office_real_format(file_path, task.get("file_name"))
@@ -683,6 +693,15 @@ class MinerUWorkerAPI(ls.LitAPI):
                 if parent_id_to_merge:
                     self._finalize_parent_task(parent_id_to_merge)
 
+        except DocDecryptError as e:
+            # 解密失败：文案已是友好中文，直接落库，不套 "TypeError: ..." 前缀
+            error_msg = str(e)
+            self.task_db.update_task_status(task_id, "failed", error_message=error_msg)
+            if parent_task_id:
+                self.task_db.on_child_task_failed(task_id, error_msg)
+            else:
+                self._enqueue_webhook(task_id, "task.failed")
+            raise
         except Exception as e:
             error_msg = f"{type(e).__name__}: {str(e)}"
             self.task_db.update_task_status(task_id, "failed", error_message=error_msg)
@@ -698,6 +717,11 @@ class MinerUWorkerAPI(ls.LitAPI):
                     Path(corrected_copy).unlink(missing_ok=True)
                 except OSError as cleanup_err:
                     logger.debug(f"清理格式纠正副本失败 {corrected_copy}: {cleanup_err}")
+            # 解密产物随任务完成清理；清理失败绝不能阻塞任务
+            try:
+                cleanup_decrypted(decrypt_work_dir)
+            except Exception as cleanup_err:
+                logger.debug(f"清理解密产物失败 {decrypt_work_dir}: {cleanup_err}")
 
     # -------------------------------------------------------------------------
     # Helper: 确保 PDF 存在于 Output 目录

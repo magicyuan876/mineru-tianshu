@@ -162,6 +162,35 @@
     </div>
 
     <ConfirmDialog v-model="showConfirm" :title="confirmTitle" :message="confirmMessage" :type="confirmType" @confirm="executeAction" />
+
+    <!-- 重试对话框：允许修正加密文档的打开密码（留空沿用原密码） -->
+    <Teleport to="body">
+      <div v-if="showRetryDialog" class="fixed inset-0 z-50 overflow-y-auto">
+        <div class="fixed inset-0 bg-black bg-opacity-50 transition-opacity" @click="showRetryDialog = false"></div>
+        <div class="flex min-h-screen items-center justify-center p-4">
+          <div class="relative bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">{{ t('task.retryTask') }}</h3>
+            <p class="text-sm text-gray-600 mb-4">{{ t('task.confirmRetry') }}</p>
+            <label class="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-2">{{ t('task.newPasswordLabel') }}</label>
+            <input
+              v-model="retryPassword"
+              type="password"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              :placeholder="$t('task.newPasswordHint')"
+            />
+            <p class="mt-1 text-[10px] text-gray-400">{{ t('task.newPasswordNote') }}</p>
+            <div class="flex justify-end gap-3 mt-6">
+              <button @click="showRetryDialog = false" class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+                {{ t('common.cancel') }}
+              </button>
+              <button @click="confirmRetry" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">
+                {{ t('common.confirm') }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -359,11 +388,15 @@ const confirmTitle = ref('')
 const confirmMessage = ref('')
 const confirmType = ref<'info' | 'warning' | 'danger'>('info')
 const currentAction = ref<'retry' | 'clearCache' | 'delete' | 'cancel' | null>(null)
+const showRetryDialog = ref(false)
+const retryPassword = ref('')
 
 function initiateAction(action: 'retry' | 'clearCache' | 'delete' | 'cancel') {
   currentAction.value = action
   if (action === 'retry') {
-    confirmTitle.value = t('task.retryTask'); confirmMessage.value = t('task.confirmRetry'); confirmType.value = 'info'
+    retryPassword.value = ''
+    showRetryDialog.value = true
+    return
   } else if (action === 'clearCache') {
     confirmTitle.value = t('task.clearCache'); confirmMessage.value = t('task.confirmClearCache'); confirmType.value = 'warning'
   } else if (action === 'delete') {
@@ -374,12 +407,18 @@ function initiateAction(action: 'retry' | 'clearCache' | 'delete' | 'cancel') {
   showConfirm.value = true
 }
 
+async function confirmRetry() {
+  showRetryDialog.value = false
+  currentAction.value = 'retry'
+  await executeAction()
+}
+
 async function executeAction() {
   if (!currentAction.value) return
   actionLoading.value = true
   try {
     if (currentAction.value === 'retry') {
-      await taskStore.retryTask(taskId.value); await refreshTask(); startPolling();
+      await taskStore.retryTask(taskId.value, retryPassword.value || undefined); await refreshTask(); startPolling();
     } else if (currentAction.value === 'clearCache') {
       await taskStore.clearTaskCache(taskId.value); await refreshTask();
     } else if (currentAction.value === 'delete') {

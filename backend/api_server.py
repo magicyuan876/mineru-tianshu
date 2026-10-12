@@ -290,6 +290,7 @@ async def submit_task(
     watermark_conf_threshold: float = Form(0.35, description="水印检测置信度阈值"),
     watermark_dilation: int = Form(10, description="水印掩码膨胀大小"),
     webhook_url: Optional[str] = Form(None, description="任务级 Webhook 回调地址（任务终态时推送通知）"),
+    password: Optional[str] = Form(None, description="加密文档打开密码（PDF / Office / ZIP，可选，仅存任务 options）"),
     current_user: User = Depends(require_permission(Permission.TASK_SUBMIT)),
 ):
     # 校验并净化文件名（路径穿越或不支持的类型直接 400）
@@ -333,17 +334,20 @@ async def submit_task(
                 detail=f"文件内容为空（0 字节）: {safe_name}。如果源文件在网盘/云盘上，请先下载到本地再上传。",
             )
 
-        # 加密的 Office 文件（敏感度标签 / IRM / 打开密码）当场拒绝：放进队列只会在 worker 里失败，
-        # 且加密原件不应留在服务器上。改了扩展名的旧版格式 / HTML 照常入队，由 worker 按真实格式解析
+        # 加密的 Office 文件：带了密码则放行入队（worker 前置解密，失败在任务层面报错，
+        # 便于补密码重试）；无密码维持当场拒绝。改了扩展名的旧版格式 / HTML 照常入队，
+        # 由 worker 按真实格式解析
         try:
             sniffed = sniff_office_file(temp_file_path)
         except OSError as e:
             logger.warning(f"⚠️ Office format sniffing failed for {safe_name}: {e}")
             sniffed = None
         if sniffed is not None and sniffed.kind == "encrypted":
-            temp_file_path.unlink(missing_ok=True)
-            logger.info(f"🔒 Rejected encrypted Office upload ({sniffed.detail}): {safe_name}")
-            raise HTTPException(status_code=400, detail=encrypted_document_message(sniffed.detail, safe_name))
+            if not password:
+                temp_file_path.unlink(missing_ok=True)
+                logger.info(f"🔒 Rejected encrypted Office upload ({sniffed.detail}): {safe_name}")
+                raise HTTPException(400, detail=encrypted_document_message(sniffed.detail, safe_name))
+            logger.info(f"🔐 Encrypted Office upload accepted with password: {safe_name}")
 
         options = {
             "lang": lang,
@@ -375,6 +379,9 @@ async def submit_task(
 
         if webhook_url:
             options["webhook_url"] = webhook_url
+
+        if password:
+            options["password"] = password
 
         options["upload_images"] = os.getenv("RUSTFS_ENABLED", "true").lower() == "true"
 
@@ -625,9 +632,15 @@ def clear_failed_tasks_endpoint(
 
 
 @router.post("/tasks/{task_id}/retry", tags=["任务管理"])
-def retry_task(task_id: str, current_user: User = Depends(get_current_active_user)):
+def retry_task(
+    task_id: str,
+    password: Optional[str] = Form(None),
+    current_user: User = Depends(get_current_active_user),
+):
     """
     重试失败的任务
+
+    可选表单参数 password：仅对 failed 状态任务生效，用于修正加密文档的打开密码后重试
     """
     task = db.get_task(task_id)
     if not task:
@@ -636,6 +649,12 @@ def retry_task(task_id: str, current_user: User = Depends(get_current_active_use
     if not current_user.has_permission(Permission.TASK_DELETE_ALL):
         if task.get("user_id") != current_user.user_id:
             raise HTTPException(status_code=403, detail="Permission denied")
+
+    # 提供新密码时只允许 failed 任务更新（空串视为未提供，保持原密码不变）
+    if password:
+        if task.get("status") != "failed":
+            raise HTTPException(status_code=400, detail="Password can only be updated when retrying a failed task")
+        db.update_task_options_key(task_id, "password", password)
 
     # 先清理旧的解析产物（保留上传源文件供重试使用），再重新入队：
     # 反过来的话，worker 可能刚拉到任务写出新产物，就被这里删掉
@@ -858,6 +877,18 @@ def list_tasks(
         """
         cursor.execute(data_sql, query_params)
         tasks = [dict(row) for row in cursor.fetchall()]
+
+    # options 里可能含用户提交的文档密码，列表接口绝不回显明文（密码只能通过重试原样复用）
+    for t in tasks:
+        raw_options = t.get("options")
+        if raw_options:
+            try:
+                opts = json.loads(raw_options)
+                if "password" in opts:
+                    opts["password"] = "********"
+                    t["options"] = json.dumps(opts, ensure_ascii=False)
+            except (ValueError, TypeError):
+                continue
 
     # 父任务附带子任务状态统计，列表页据此显示分片进度，展开时再按需拉取明细
     parent_ids = [t["task_id"] for t in tasks if t.get("is_parent") and (t.get("child_count") or 0) > 0]

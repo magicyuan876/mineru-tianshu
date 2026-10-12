@@ -18,6 +18,13 @@ from .office_sniff import (
     encrypted_document_message,
     sniff_office_file,
 )
+from .doc_decrypt import (
+    OFFICE_EXTENSIONS,
+    DocDecryptError,
+    cleanup_decrypted,
+    decrypted_dir,
+    decrypt_if_needed,
+)
 
 __all__ = [
     "convert_pdf_to_images",
@@ -35,4 +42,9 @@ __all__ = [
     "OfficeSniffResult",
     "encrypted_document_message",
     "sniff_office_file",
+    "OFFICE_EXTENSIONS",
+    "DocDecryptError",
+    "cleanup_decrypted",
+    "decrypted_dir",
+    "decrypt_if_needed",
 ]

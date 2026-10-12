@@ -205,6 +205,9 @@ export interface SubmitTaskRequest {
   // 远程服务地址 (Client 模式必填)
   server_url?: string
 
+  // 加密文档打开密码（PDF / Office / ZIP，可选）
+  password?: string
+
   // MinerU 详细调试参数
   draw_layout_bbox?: boolean // 是否绘制布局边框
   draw_span_bbox?: boolean   // 是否绘制文本Span边框

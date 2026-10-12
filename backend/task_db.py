@@ -1175,6 +1175,20 @@ class TaskDB:
             self._requeue_pending(task_id)
         return ok
 
+    def update_task_options_key(self, task_id: str, key: str, value) -> bool:
+        """更新任务 options JSON 中的单个键（如 password），其余键保持不变"""
+        task = self.get_task(task_id)
+        if not task:
+            return False
+        try:
+            options = json.loads(task.get("options") or "{}")
+        except (TypeError, ValueError):
+            options = {}
+        options[key] = value
+        with self.get_cursor() as cursor:
+            cursor.execute("UPDATE tasks SET options = ? WHERE task_id = ?", (json.dumps(options), task_id))
+            return cursor.rowcount > 0
+
     @staticmethod
     def _revive_parent(cursor, parent_task_id: str) -> None:
         """把已失败 / 已取消的父任务恢复为 processing（等待子任务完成后合并）"""

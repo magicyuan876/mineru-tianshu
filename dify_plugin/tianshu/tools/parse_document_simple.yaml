@@ -74,6 +74,18 @@ parameters:
     llm_description: Document language
     form: form
 
+  - name: password
+    type: string
+    required: false
+    label:
+      en_US: Document Password
+      zh_Hans: 文档打开密码
+    human_description:
+      en_US: Open password for encrypted documents (PDF / Office / ZIP). Leave empty for unencrypted files.
+      zh_Hans: 加密文档（PDF / Office / ZIP）的打开密码，未加密文件留空
+    llm_description: Open password for encrypted PDF / Office / ZIP documents (optional)
+    form: llm
+
   - name: formula_enable
     type: boolean
     required: false
