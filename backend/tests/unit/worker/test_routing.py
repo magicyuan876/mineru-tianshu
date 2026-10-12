@@ -27,6 +27,7 @@ def load_worker_module(monkeypatch):
 
 def make_worker(worker_module, mocker):
     worker = worker_module.MinerUWorkerAPI.__new__(worker_module.MinerUWorkerAPI)
+    worker.output_dir = "/tmp/tianshu-decrypt-test"
     worker.mineru_vllm_api = "http://vllm.example/v1"
     worker.vllm_controller = mocker.Mock()
     worker.watermark_handler = None

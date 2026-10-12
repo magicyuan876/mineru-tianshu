@@ -531,6 +531,7 @@ class MinerUWorkerAPI(ls.LitAPI):
             return
 
         corrected_copy = None
+        decrypt_work_dir = None
         try:
             # 0. 前置校验：文件必须存在且非空
             # 空文件一路走到解析引擎，只会得到引擎内部的异常（PdfiumError 之类），
@@ -718,10 +719,11 @@ class MinerUWorkerAPI(ls.LitAPI):
                 except OSError as cleanup_err:
                     logger.debug(f"清理格式纠正副本失败 {corrected_copy}: {cleanup_err}")
             # 解密产物随任务完成清理；清理失败绝不能阻塞任务
-            try:
-                cleanup_decrypted(decrypt_work_dir)
-            except Exception as cleanup_err:
-                logger.debug(f"清理解密产物失败 {decrypt_work_dir}: {cleanup_err}")
+            if decrypt_work_dir is not None:
+                try:
+                    cleanup_decrypted(decrypt_work_dir)
+                except Exception as cleanup_err:
+                    logger.debug(f"清理解密产物失败 {decrypt_work_dir}: {cleanup_err}")
 
     # -------------------------------------------------------------------------
     # Helper: 确保 PDF 存在于 Output 目录

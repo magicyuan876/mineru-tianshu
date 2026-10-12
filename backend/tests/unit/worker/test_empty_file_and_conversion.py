@@ -72,6 +72,7 @@ class TestConversionDiagnostics:
         """转换失败时 LibreOffice 的 stderr 必须出现在错误信息里"""
         worker_module = load_worker_module(monkeypatch)
         worker = worker_module.MinerUWorkerAPI.__new__(worker_module.MinerUWorkerAPI)
+        worker.output_dir = str(tmp_path)
         src = tmp_path / "doc.doc"
         src.write_bytes(b"ole2-ish")
         mocker.patch.object(
@@ -87,6 +88,7 @@ class TestConversionDiagnostics:
         """LibreOffice 常见行为：退出 0 但没产出，错误信息要带上它说了什么"""
         worker_module = load_worker_module(monkeypatch)
         worker = worker_module.MinerUWorkerAPI.__new__(worker_module.MinerUWorkerAPI)
+        worker.output_dir = str(tmp_path)
         src = tmp_path / "doc.doc"
         src.write_bytes(b"ole2-ish")
         mocker.patch.object(
@@ -101,6 +103,7 @@ class TestConversionDiagnostics:
     def test_empty_source_rejected_before_launching_libreoffice(self, monkeypatch, mocker, tmp_path):
         worker_module = load_worker_module(monkeypatch)
         worker = worker_module.MinerUWorkerAPI.__new__(worker_module.MinerUWorkerAPI)
+        worker.output_dir = str(tmp_path)
         src = tmp_path / "empty.doc"
         src.write_bytes(b"")
         run = mocker.patch.object(worker_module.MinerUWorkerAPI, "_run_with_process_group")
