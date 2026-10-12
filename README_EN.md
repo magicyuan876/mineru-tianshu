@@ -44,7 +44,7 @@ English | [简体中文](./README.md)
 
 ## 📝 Latest Updates
 
-### 2026-10-12 🔐 Encrypted Document Parsing
+### 2026-10-12 🚀 v2.2.0: Encrypted Document Parsing
 
 - ✅ **Encrypted PDFs**: password-protected PDFs are supported; documents with empty or owner-only passwords are unlocked automatically without manual input
 - ✅ **Encrypted Office**: encrypted DOCX / XLSX / PPTX and legacy DOC / XLS / PPT (decrypted via msoffcrypto-tool before normal parsing)
