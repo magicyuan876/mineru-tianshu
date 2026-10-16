@@ -1,0 +1,23 @@
+[Unit]
+Description=MinerU Tianshu Backend (API:8000 Worker:8001 MCP:8002)
+After=network.target
+
+[Service]
+Type=simple
+# 修改为你的项目绝对路径
+WorkingDirectory=/opt/mineru-tianshu/backend
+Environment=HF_ENDPOINT=https://hf-mirror.com
+# 并发 / 显存 / 每用户并发上限（按需调整）
+Environment=MAX_CONCURRENT_TASKS=3
+Environment=MINERU_VIRTUAL_VRAM_SIZE=7
+Environment=MAX_WORKERS_PER_USER=2
+Environment=MCP_EXTRA_ALLOWED_HOSTS=<SERVER_IP>
+# 把路径换成你的 .venv 与 backend 实际路径
+ExecStart=/opt/mineru-tianshu/.venv/bin/python /opt/mineru-tianshu/backend/start_all.py --output-dir /opt/mineru-tianshu/backend/data/output --enable-mcp --mcp-port 8002
+Restart=on-failure
+RestartSec=5
+# 便于 stop 时杀掉所有子进程
+KillMode=control-group
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,11 @@
+# RustFS 配置（脱敏模板）—— 放置到 /etc/default/rustfs
+# ⚠️ 请修改 ACCESS_KEY / SECRET_KEY 为强随机值，不可用默认值 rustfsadmin
+RUSTFS_ACCESS_KEY=CHANGE_ME_ACCESS_KEY
+RUSTFS_SECRET_KEY=CHANGE_ME_SECRET_KEY
+# 数据盘目录（请指向你的数据盘/分区）
+RUSTFS_VOLUMES="/data/rustfs0"
+RUSTFS_ADDRESS=":9000"
+RUSTFS_CONSOLE_ADDRESS=":9001"
+RUSTFS_CONSOLE_ENABLE=true
+RUSTFS_OBS_LOGGER_LEVEL=error
+RUSTFS_OBS_LOG_DIRECTORY="/var/log/rustfs/"
