@@ -36,19 +36,13 @@ jobs:
               PIP_MIRROR=https://pypi.org/simple
 
     steps:
-    # GPU 镜像：清理预装工具链，Docker 数据目录迁到 /mnt
+    # GPU 镜像：清理预装工具链
     - name: Free disk space
       if: matrix.image == 'tianshu-backend'
       run: |
         sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
         sudo docker image prune --all --force
-        sudo systemctl stop docker docker.socket
-        sudo mkdir -p /mnt/docker
-        (sudo cat /etc/docker/daemon.json 2>/dev/null || echo '{}') \
-          | jq '. + {"data-root": "/mnt/docker"}' | sudo tee /etc/docker/daemon.json.new
-        sudo mv /etc/docker/daemon.json.new /etc/docker/daemon.json
-        sudo systemctl start docker
-        df -h / /mnt
+        df -h /
 
     - name: Checkout code
       uses: actions/checkout@v4
