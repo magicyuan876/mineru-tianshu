@@ -1,0 +1,45 @@
+# Tianshu (天枢) - 源码构建叠加文件
+#
+# 叠加在 docker-compose.yml 之上：本机构建镜像，并把 ./backend 挂载进容器，
+# 改完后端代码 make reload 即可生效。
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml build
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d
+
+services:
+  init-models:
+    image: tianshu-backend:latest
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      args:
+        APT_MIRROR: ${APT_MIRROR-mirrors.aliyun.com}
+        PIP_MIRROR: ${PIP_MIRROR:-https://mirrors.aliyun.com/pypi/simple/}
+      # 不使用 cache_from: tianshu-backend:latest —— 该 tag 正是本次构建的输出，
+      # 属于自引用；构建被中断过之后，导入这份缓存清单会引用到已不存在的父层，
+      # 导致导出阶段报 "parent snapshot ... does not exist"。
+      # 同机重复构建由 BuildKit 自身的层缓存覆盖，去掉它没有实际损失。
+    image: tianshu-backend:latest
+    volumes:
+      - ./backend:/app/backend:rw
+
+  scheduler:
+    image: tianshu-backend:latest
+
+  worker:
+    image: tianshu-backend:latest
+    volumes:
+      - ./backend:/app/backend:rw
+
+  mcp-server:
+    image: tianshu-backend:latest
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
+      # 同 backend：不自引用 cache_from，避免悬空父层导致的导出失败
+    image: tianshu-frontend:latest

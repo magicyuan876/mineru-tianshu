@@ -1257,7 +1257,7 @@ deploy_gpu_mode() {
     # compose 组合
     # 默认(gpu)模式使用本机 vLLM，需要 docker-compose.vllm.yml 叠加 docker.sock 挂载；
     # pipeline 模式不用 vLLM，因此不授予 worker 宿主机 Docker 权限
-    DC+=(-f docker-compose.yml)
+    DC+=(-f docker-compose.yml -f docker-compose.build.yml)
     if [ "$MODE" = "pipeline" ]; then
         DC+=(-f docker-compose.pipeline.yml)
     else
@@ -1447,6 +1447,8 @@ build_offline() {
     local platform="${PLATFORM:-amd64}"
     local output_dir="./docker-images"
     local models_dir="./models-offline"
+    # 须与 docker-compose.offline.yml 中 RUSTFS_VERSION 的默认值一致
+    local RUSTFS_IMAGE="rustfs/rustfs:${RUSTFS_VERSION:-1.0.1}"
 
     log_info "离线镜像包构建（平台: linux/${platform}，输出: ${output_dir}）"
 
@@ -1456,7 +1458,7 @@ build_offline() {
         echo "    2. 检查 ${models_dir}，缺失则运行 python3 backend/download_models.py --output ${models_dir}"
         echo "    3. buildx 构建 tianshu-backend:latest（backend/Dockerfile.offline，linux/${platform}）"
         echo "    4. buildx 构建 tianshu-frontend:latest（frontend/Dockerfile，linux/${platform}）"
-        echo "    5. 拉取 rustfs/rustfs:latest（linux/${platform}）"
+        echo "    5. 拉取 ${RUSTFS_IMAGE}（linux/${platform}）"
         echo "    6. docker save | gzip 导出三个镜像到 ${output_dir}/*-${platform}.tar.gz"
         echo "    7. 打包模型: tar czf ${output_dir}/models-offline.tar.gz ${models_dir}/"
         echo "    8. 复制 docker-compose.offline.yml / .env.example / mcp_config.example.json / setup.sh 到 ${output_dir}"
@@ -1518,7 +1520,7 @@ build_offline() {
     log_success "前端镜像构建完成"
 
     log_info "拉取 RustFS 镜像（linux/${platform}）..."
-    docker pull --platform "linux/${platform}" rustfs/rustfs:latest
+    docker pull --platform "linux/${platform}" "$RUSTFS_IMAGE"
     log_success "RustFS 镜像就绪"
 
     # 导出镜像
@@ -1529,7 +1531,7 @@ build_offline() {
     local pid_backend=$!
     docker save tianshu-frontend:latest | gzip > "${output_dir}/tianshu-frontend-${platform}.tar.gz" &
     local pid_frontend=$!
-    docker save rustfs/rustfs:latest | gzip > "${output_dir}/rustfs-${platform}.tar.gz" &
+    docker save "$RUSTFS_IMAGE" | gzip > "${output_dir}/rustfs-${platform}.tar.gz" &
     local pid_rustfs=$!
     wait "$pid_backend"
     wait "$pid_frontend"

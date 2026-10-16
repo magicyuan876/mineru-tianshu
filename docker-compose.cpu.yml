@@ -26,7 +26,7 @@ services:
   # RustFS Object Storage (S3 Compatible)
   # ============================================================================
   rustfs:
-    image: rustfs/rustfs:latest
+    image: rustfs/rustfs:${RUSTFS_VERSION:-1.0.1}
     container_name: tianshu-rustfs-cpu
     platform: linux/amd64
     restart: unless-stopped
@@ -230,6 +230,7 @@ services:
       # Worker 配置（CPU 模式降低批次大小和延长超时）
       - MAX_BATCH_SIZE=${MAX_BATCH_SIZE:-1}
       - TIMEOUT=${WORKER_TIMEOUT:-600}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
       # 每进程 CPU 线程数，留空 = 自动按「可用核数 ÷ worker 进程总数」均分
       - WORKER_CPU_THREADS=${WORKER_CPU_THREADS:-}
 

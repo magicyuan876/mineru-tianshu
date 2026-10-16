@@ -1,5 +1,8 @@
 # Tianshu (天枢) - Production Docker Compose
 # 终极优化版：单任务串行 + 低显存占用 + 权限修复 + 任务调度 + VLLM互斥
+#
+# 默认拉取发布镜像（TIANSHU_IMAGE_REGISTRY / TIANSHU_VERSION 见 .env）。
+# 从源码构建并挂载本地代码：叠加 docker-compose.build.yml
 
 name: tianshu
 
@@ -37,7 +40,7 @@ services:
   # RustFS (对象存储)
   # ============================================================================
   rustfs:
-    image: rustfs/rustfs:latest
+    image: rustfs/rustfs:${RUSTFS_VERSION:-1.0.1}
     container_name: tianshu-rustfs
     restart: unless-stopped
     ports:
@@ -59,7 +62,7 @@ services:
   # Model Initializer (模型预下载与配置生成)
   # ============================================================================
   init-models:
-    image: tianshu-backend:latest
+    image: ${TIANSHU_IMAGE_REGISTRY:-ghcr.io/magicyuan876}/tianshu-backend:${TIANSHU_VERSION:-2.2.1}
     container_name: tianshu-init-models
     user: "${TIANSHU_UID:-0}:${TIANSHU_GID:-0}"
     entrypoint: ["python", "download_models.py", "--output", "/app/models"]
@@ -81,24 +84,13 @@ services:
   # Backend API (主服务)
   # ============================================================================
   backend:
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
-      args:
-        APT_MIRROR: ${APT_MIRROR-mirrors.aliyun.com}
-        PIP_MIRROR: ${PIP_MIRROR:-https://mirrors.aliyun.com/pypi/simple/}
-      # 不使用 cache_from: tianshu-backend:latest —— 该 tag 正是本次构建的输出，
-      # 属于自引用；构建被中断过之后，导入这份缓存清单会引用到已不存在的父层，
-      # 导致导出阶段报 "parent snapshot ... does not exist"。
-      # 同机重复构建由 BuildKit 自身的层缓存覆盖，去掉它没有实际损失。
-    image: tianshu-backend:latest
+    image: ${TIANSHU_IMAGE_REGISTRY:-ghcr.io/magicyuan876}/tianshu-backend:${TIANSHU_VERSION:-2.2.1}
     container_name: tianshu-backend
     user: "${TIANSHU_UID:-0}:${TIANSHU_GID:-0}"
     restart: unless-stopped
     ports:
       - "${API_PORT:-8000}:8000"
     volumes:
-      - ./backend:/app/backend:rw
       - ./models:/app/models:rw
       - ./data/uploads:/app/data/uploads:rw
       - ./data/output:/app/data/output:rw
@@ -159,7 +151,7 @@ services:
   # Task Scheduler (任务调度与清理)
   # ============================================================================
   scheduler:
-    image: tianshu-backend:latest
+    image: ${TIANSHU_IMAGE_REGISTRY:-ghcr.io/magicyuan876}/tianshu-backend:${TIANSHU_VERSION:-2.2.1}
     container_name: tianshu-scheduler
     user: "${TIANSHU_UID:-0}:${TIANSHU_GID:-0}"
     restart: unless-stopped
@@ -186,7 +178,7 @@ services:
   # vLLM Service - MinerU (手动触发，互斥控制)
   # ============================================================================
   vllm-mineru:
-    image: vllm/vllm-openai:nightly
+    image: vllm/vllm-openai:${VLLM_VERSION:-v0.31.0}
     container_name: tianshu-vllm-mineru
     restart: no
     profiles: ["manual"]
@@ -232,7 +224,7 @@ services:
   # Worker (任务执行者)
   # ============================================================================
   worker:
-    image: tianshu-backend:latest
+    image: ${TIANSHU_IMAGE_REGISTRY:-ghcr.io/magicyuan876}/tianshu-backend:${TIANSHU_VERSION:-2.2.1}
     container_name: tianshu-worker
     user: "${TIANSHU_UID:-0}:${TIANSHU_GID:-0}"
     restart: unless-stopped
@@ -242,7 +234,6 @@ services:
     ports:
       - "127.0.0.1:${WORKER_PORT:-8001}:8001"
     volumes:
-      - ./backend:/app/backend:rw
       - ./models:/app/models:rw
       - ./data/uploads:/app/data/uploads:rw
       - ./data/output:/app/data/output:rw
@@ -267,6 +258,7 @@ services:
       - UPLOAD_PATH=/app/data/uploads
       - DATABASE_PATH=${DATABASE_PATH:-/app/data/db/mineru_tianshu.db}
       - TIMEOUT=${WORKER_TIMEOUT:-300}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
       - MODEL_DOWNLOAD_SOURCE=${MODEL_DOWNLOAD_SOURCE:-auto}
       - HF_ENDPOINT=${HF_ENDPOINT:-https://hf-mirror.com}
       - HF_TOKEN=${HF_TOKEN:-}
@@ -315,7 +307,7 @@ services:
   # MCP Server
   # ============================================================================
   mcp-server:
-    image: tianshu-backend:latest
+    image: ${TIANSHU_IMAGE_REGISTRY:-ghcr.io/magicyuan876}/tianshu-backend:${TIANSHU_VERSION:-2.2.1}
     container_name: tianshu-mcp
     user: "${TIANSHU_UID:-0}:${TIANSHU_GID:-0}"
     restart: unless-stopped
@@ -348,13 +340,7 @@ services:
   # Frontend
   # ============================================================================
   frontend:
-    build:
-      context: .
-      dockerfile: frontend/Dockerfile
-      args:
-        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
-      # 同 backend：不自引用 cache_from，避免悬空父层导致的导出失败
-    image: tianshu-frontend:latest
+    image: ${TIANSHU_IMAGE_REGISTRY:-ghcr.io/magicyuan876}/tianshu-frontend:${TIANSHU_VERSION:-2.2.1}
     container_name: tianshu-frontend
     restart: unless-stopped
     ports:

@@ -118,11 +118,12 @@ restart: ## 重启所有服务
 # ============================================================================
 # 开发
 #
-# 不再提供独立的 dev 编排：后端源码已由 docker-compose.yml 挂载进容器
-# （./backend:/app/backend），改完代码 restart 即可生效，无需重新 build。
+# 源码构建部署（COMPOSE_FILE 含 docker-compose.build.yml，setup.sh 默认如此）会把
+# ./backend 挂载进容器，改完代码 restart 即可生效，无需重新 build。
+# 直接使用发布镜像时没有源码挂载，reload 只是重启。
 # 前端本机开发用 frontend/ 下的 vite（vite.config.ts 已把 /api 代理到 :8000）。
 # ============================================================================
-reload: ## 重启后端与 Worker，加载本地改动的代码（源码已挂载，无需 build）
+reload: ## 重启后端与 Worker，加载本地改动的代码（仅源码构建部署）
 	@echo "$(BLUE)[INFO]$(NC) 重启 backend / worker 以加载代码改动..."
 	@$(COMPOSE_CMD) $(COMPOSE_PROFILE) restart backend worker
 	@echo "$(GREEN)[OK]$(NC) 已重启"
