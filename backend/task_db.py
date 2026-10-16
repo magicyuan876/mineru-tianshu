@@ -315,41 +315,17 @@ class TaskDB:
                     # 使用事务确保原子性
                     cursor.execute("BEGIN IMMEDIATE")
 
-                    # 按优先级和创建时间获取任务
+                    # 读取所有 pending 任务，按优先级/创建时间排序
                     cursor.execute("""
                         SELECT * FROM tasks
                         WHERE status = 'pending'
                         ORDER BY priority DESC, created_at ASC
-                        LIMIT 1
                     """)
+                    all_pending = cursor.fetchall()
 
-                    task = cursor.fetchone()
-                    if task:
-                        task_id = task["task_id"]
-                        # 立即标记为 processing，并确保状态仍是 pending
-                        cursor.execute(
-                            """
-                            UPDATE tasks
-                            SET status = 'processing',
-                                started_at = CURRENT_TIMESTAMP,
-                                worker_id = ?
-                            WHERE task_id = ? AND status = 'pending'
-                        """,
-                            (worker_id, task_id),
-                        )
-
-                        # 检查是否更新成功（防止被其他 worker 抢走）
-                        if cursor.rowcount == 0:
-                            # 任务被其他进程抢走了，立即重试
-                            if attempt == 0:  # 只在第一次尝试时记录日志
-                                logger.debug(f"Task {task_id} was grabbed by another worker, retrying...")
-                            continue
-
-                        return dict(task)
-                    else:
+                    if not all_pending:
                         # 队列中没有待处理任务，返回 None
                         if attempt == 0:
-                            # 检查是否有 pending 任务（用于诊断）
                             cursor.execute("SELECT COUNT(*) as count FROM tasks WHERE status = 'pending'")
                             pending_count = cursor.fetchone()["count"]
                             if pending_count > 0:
@@ -358,6 +334,53 @@ class TaskDB:
                                     f"(attempt {attempt + 1}/{max_retries})"
                                 )
                         return None
+
+                    # ---- 每用户并发上限 + 公平调度 ----
+                    import os as _os
+                    max_per_user = int(_os.getenv("MAX_WORKERS_PER_USER", "0") or 0)
+                    cursor.execute("""
+                        SELECT user_id, COUNT(*) AS cnt FROM tasks
+                        WHERE status = 'processing' AND user_id IS NOT NULL AND COALESCE(is_parent, 0) = 0
+                        GROUP BY user_id
+                    """)
+                    running = {r["user_id"]: r["cnt"] for r in cursor.fetchall()}
+
+                    def _eligible(t):
+                        if max_per_user <= 0:
+                            return True
+                        return running.get(t["user_id"], 0) < max_per_user
+
+                    candidates = [t for t in all_pending if _eligible(t)]
+                    if not candidates:
+                        # 所有候选用户的并发都已到上限；不越权占用（保证公平），空闲等待
+                        return None
+
+                    def _fair_key(t):
+                        return (running.get(t["user_id"], 0), -int(t["priority"] or 0), t["created_at"] or "")
+
+                    candidates.sort(key=_fair_key)
+                    task = candidates[0]
+                    task_id = task["task_id"]
+                    # 立即标记为 processing，并确保状态仍是 pending
+                    cursor.execute(
+                        """
+                        UPDATE tasks
+                        SET status = 'processing',
+                            started_at = CURRENT_TIMESTAMP,
+                            worker_id = ?
+                        WHERE task_id = ? AND status = 'pending'
+                    """,
+                        (worker_id, task_id),
+                    )
+
+                    # 检查是否更新成功（防止被其他 worker 抢走）
+                    if cursor.rowcount == 0:
+                        # 任务被其他进程抢走了，立即重试
+                        if attempt == 0:  # 只在第一次尝试时记录日志
+                            logger.debug(f"Task {task_id} was grabbed by another worker, retrying...")
+                        continue
+
+                    return dict(task)
 
             except Exception as e:
                 logger.error(f"❌ Error in get_next_task (attempt {attempt + 1}/{max_retries}): {e}")

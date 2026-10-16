@@ -21,7 +21,7 @@ import anyio
 import uvicorn
 from fastapi import FastAPI, Request, UploadFile, File, Form, HTTPException, Query, Depends, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse, StreamingResponse
 from loguru import logger
 from starlette.types import ASGIApp, Receive, Scope, Send  # ✅ 用于底层中间件
 
@@ -563,7 +563,46 @@ def get_task_status(
         else:
             logger.error(f"❌ Result directory does not exist: {result_dir}")
 
+    # 合并结果交付：完成且未清理的任务给出统一下载地址（zip 打包完整结果）
+    if task["status"] == "completed" and task.get("result_path") and task["result_path"] != "CLEARED":
+        response["download_url"] = f"/api/v1/tasks/{task_id}/download"
+
     return response
+
+
+@router.get("/tasks/{task_id}/download", tags=["任务管理"])
+def download_task_result(task_id: str, current_user: User = Depends(get_current_active_user)):
+    """下载合并后的完整结果：把任务结果目录打包为 zip（含 result.md / result.json / 源文件 / 图片）。"""
+    import io, zipfile
+
+    task = db.get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    if not current_user.has_permission(Permission.TASK_VIEW_ALL):
+        if task.get("user_id") != current_user.user_id:
+            raise HTTPException(status_code=403, detail="Permission denied: You can only download your own task results")
+    if task["status"] != "completed" or not task.get("result_path") or task["result_path"] == "CLEARED":
+        raise HTTPException(status_code=400, detail="Task result is not available for download")
+
+    result_dir = Path(task["result_path"])
+    if not result_dir.exists():
+        raise HTTPException(status_code=404, detail="Result files not found")
+
+    buf = io.BytesIO()
+    base = result_dir.name
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for f in sorted(result_dir.rglob("*")):
+            if f.is_file():
+                arcname = f"{base}/{f.relative_to(result_dir).as_posix()}"
+                zf.write(f, arcname)
+    buf.seek(0)
+    stem = Path(task.get("file_name") or task_id).stem
+    filename = f"{stem}_result.zip"
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 # ========================================================================

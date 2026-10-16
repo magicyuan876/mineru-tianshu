@@ -183,8 +183,8 @@ async def list_tools() -> list[Tool]:
                             "sensevoice",
                             "video",
                         ],
-                        "description": "处理后端，默认: pipeline",
-                        "default": "pipeline",
+                        "description": "处理后端：auto(自动)/pipeline/vlm-auto-engine/hybrid-auto-engine(默认 auto)",
+                        "default": "auto",
                     },
                     "lang": {
                         "type": "string",
@@ -457,7 +457,7 @@ async def parse_document(args: dict) -> list[TextContent]:
             # 提交任务到 API Server
             form_data = aiohttp.FormData()
             form_data.add_field("file", file_data, filename=file_name)
-            form_data.add_field("backend", args.get("backend", "pipeline"))
+            form_data.add_field("backend", args.get("backend", "auto"))
             form_data.add_field("lang", args.get("lang", "ch"))
             form_data.add_field("method", args.get("method", "auto"))
             form_data.add_field("formula_enable", str(args.get("formula_enable", True)).lower())
@@ -681,6 +681,8 @@ async def get_task_status(args: dict) -> list[TextContent]:
                 response["processing_time"] = _calculate_processing_time(task)
                 if task["data"].get("markdown_file"):
                     response["markdown_file"] = task["data"]["markdown_file"]
+                if task.get("download_url"):
+                    response["download_url"] = task["download_url"]
 
             return [TextContent(type="text", text=json.dumps(response, indent=2, ensure_ascii=False))]
 
@@ -787,19 +789,23 @@ async def main():
         logger.warning("⚠️ MCP_API_KEYS 未配置：/sse 与 /messages 将对所有请求返回 401")
 
     # 创建 SSE Transport，启用 DNS 重绑定 / Host / Origin 防护
+    # 额外允许的公网/内网 Host（逗号分隔），兼容不同部署 IP / 反向代理，避免硬编码
+    extra_hosts = [h.strip() for h in os.getenv("MCP_EXTRA_ALLOWED_HOSTS", "").split(",") if h.strip()]
+    allowed_hosts = [f"{host}:*", "localhost:*", "127.0.0.1:*", "[::1]:*"] + [f"{h}:*" for h in extra_hosts]
+    allowed_origins = [
+        f"http://{host}:*",
+        f"https://{host}:*",
+        "http://localhost:*",
+        "https://localhost:*",
+        "http://127.0.0.1:*",
+        "https://127.0.0.1:*",
+        "http://[::1]:*",
+        "https://[::1]:*",
+    ] + [f"http://{h}:*" for h in extra_hosts] + [f"https://{h}:*" for h in extra_hosts]
     security_settings = TransportSecuritySettings(
         enable_dns_rebinding_protection=True,
-        allowed_hosts=[f"{host}:*", "localhost:*", "127.0.0.1:*", "[::1]:*"],
-        allowed_origins=[
-            f"http://{host}:*",
-            f"https://{host}:*",
-            "http://localhost:*",
-            "https://localhost:*",
-            "http://127.0.0.1:*",
-            "https://127.0.0.1:*",
-            "http://[::1]:*",
-            "https://[::1]:*",
-        ],
+        allowed_hosts=allowed_hosts,
+        allowed_origins=allowed_origins,
     )
     sse = SseServerTransport("/messages", security_settings=security_settings)
 
