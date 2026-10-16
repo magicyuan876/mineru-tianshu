@@ -139,6 +139,18 @@ export const useTaskStore = defineStore('task', () => {
   /**
    * 重试任务
    */
+  async function deleteTask(taskId: string) {
+    try {
+      await taskApi.deleteTask(taskId)
+      // 从列表中移除该任务
+      const idx = tasks.value.findIndex(t => t.task_id === taskId)
+      if (idx >= 0) { tasks.value.splice(idx, 1); total.value = Math.max(0, total.value - 1) }
+    } catch (err: any) {
+      error.value = err.message || t('task.deleteFailed')
+      throw err
+    }
+  }
+
   async function retryTask(taskId: string, password?: string) {
     try {
       await taskApi.retryTask(taskId, password)
@@ -288,6 +300,7 @@ export const useTaskStore = defineStore('task', () => {
     fetchTaskStatus,
     fetchTasks,
     cancelTask,
+    deleteTask,
     retryTask,
     pauseTask,
     resumeTask,

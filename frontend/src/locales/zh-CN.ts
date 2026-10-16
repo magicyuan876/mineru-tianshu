@@ -140,6 +140,7 @@ export default {
     actions: '操作',
     viewDetail: '查看详情',
     deleteTask: '删除任务',
+    deleteFailed: '删除任务失败',
     cancelTask: '取消任务',
     cancelTaskTip: '取消任务（保留任务记录）',
     cancelTaskConfirm: '确定取消该任务吗？进行中的解析将被放弃，任务记录会保留。',
@@ -253,6 +254,9 @@ export default {
     deletePermanently: '彻底删除',
     deletePermanentlyTip: '彻底删除任务及文件',
     confirmDeletePermanent: '彻底删除该任务及文件？不可恢复。',
+    batchDelete: '批量删除',
+    confirmBatchDelete: '确认删除选中的 {count} 个任务及其文件？不可恢复。',
+
     singleColumnView: '单栏视图',
     doubleColumnView: '双栏视图',
     processing: '处理中...',

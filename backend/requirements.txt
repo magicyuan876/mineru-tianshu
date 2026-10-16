@@ -55,8 +55,8 @@ qwen-vl-utils<1,>=0.0.14
 # 3. Web 服务与 API 架构
 fastapi==0.141.1
 # 显式声明 starlette 下限：fastapi 0.141.1 仅约束 starlette>=0.46.0，
-# 需 >=1.3.1 修复安全漏洞（实测 0.141.1 与 starlette 1.6.0 兼容）
-starlette>=1.3.1
+# native 场景放宽为 <1.0 以兼容 mineru 引入的 gradio（其要求 starlette<1.0）；Docker 镜像不用本文件
+starlette>=0.46.0,<1.0
 uvicorn[standard]==0.34.0
 python-multipart>=0.0.20
 litserve==0.2.16
@@ -70,6 +70,8 @@ python-dotenv>=1.0.1
 minio>=7.2.0
 redis>=5.0.0
 markitdown[xls,xlsx]==0.1.7
+gradio==5.49.1
+markdownify==1.2.3
 attrdict>=2.0.1
 prettytable
 ujson

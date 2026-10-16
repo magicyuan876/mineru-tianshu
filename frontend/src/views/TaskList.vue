@@ -117,6 +117,14 @@
             {{ $t('task.batchCancel') }}
           </button>
           <button
+            @click="batchDelete"
+            :disabled="actionLoading"
+            class="bg-white border border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 px-3 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Trash2 :class="{ 'animate-spin': actionLoading && currentActionType === 'batchDelete' }" class="w-3.5 h-3.5 mr-1.5" />
+            {{ $t('task.batchDelete') }}
+          </button>
+          <button
             @click="selectedTasks = []; selectAll = false"
             class="text-gray-500 hover:text-gray-700 hover:bg-gray-100 px-3 py-1.5 rounded-md text-xs font-medium transition-colors"
           >
@@ -306,6 +314,16 @@
                   >
                     <RefreshCw v-if="isActionLoading(task.task_id, 'cancel')" class="w-4 h-4 animate-spin" />
                     <XCircle v-else class="w-4 h-4" />
+                  </button>
+
+                  <button
+                    @click="handleAction('delete', task)"
+                    :disabled="isActionLoading(task.task_id)"
+                    class="btn-icon text-gray-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    :title="$t('task.deletePermanently')"
+                  >
+                    <RefreshCw v-if="isActionLoading(task.task_id, 'delete')" class="w-4 h-4 animate-spin" />
+                    <Trash2 v-else class="w-4 h-4" />
                   </button>
                 </div>
               </td>
@@ -593,7 +611,7 @@ function isActionLoading(taskId: string, actionType?: string) {
 // 子任务行传入 ChildTask（带上 parent_task_id），只用到 task_id / 父子信息
 type ActionTarget = Pick<Task, 'task_id'> & Partial<Task>
 
-function handleAction(action: 'retry' | 'pause' | 'resume' | 'cancel' | 'clearCache', task: ActionTarget) {
+function handleAction(action: 'retry' | 'pause' | 'resume' | 'cancel' | 'clearCache' | 'delete', task: ActionTarget) {
   // 设置待执行的 Action
   const execute = async () => {
     actionLoading.value = true
@@ -607,6 +625,7 @@ function handleAction(action: 'retry' | 'pause' | 'resume' | 'cancel' | 'clearCa
         case 'resume': await taskStore.resumeTask(task.task_id); break;
         case 'clearCache': await taskStore.clearTaskCache(task.task_id); break;
         case 'cancel': await taskStore.cancelTask(task.task_id); break;
+        case 'delete': await taskStore.deleteTask(task.task_id); break;
       }
       await refreshTasks() // 操作后刷新列表（已展开父任务的分片一并刷新）
     } catch (error) {
@@ -654,6 +673,13 @@ function handleAction(action: 'retry' | 'pause' | 'resume' | 'cancel' | 'clearCa
       confirmDialogType.value = 'danger'
       showConfirmDialog.value = true
       break
+    case 'delete':
+      pendingAction = execute
+      confirmDialogTitle.value = t('task.deleteTask')
+      confirmDialogMessage.value = t('task.confirmDeletePermanent')
+      confirmDialogType.value = 'danger'
+      showConfirmDialog.value = true
+      break
   }
 }
 
@@ -684,6 +710,35 @@ function confirmClearFailed() {
   }
   confirmDialogTitle.value = t('task.clearFailedTasks')
   confirmDialogMessage.value = t('task.confirmClearFailed')
+  confirmDialogType.value = 'danger'
+  showConfirmDialog.value = true
+}
+
+// =======================================================
+// 批量删除（勾选任意任务后批量删除）
+// =======================================================
+function batchDelete() {
+  const ids = selectedTasks.value
+  if (ids.length === 0) return
+
+  pendingAction = async () => {
+    actionLoading.value = true
+    currentActionType.value = 'batchDelete'
+    try {
+      for (const id of ids) {
+        await taskStore.deleteTask(id)
+      }
+      selectedTasks.value = []
+      selectAll.value = false
+      await refreshTasks(true)
+    } finally {
+      actionLoading.value = false
+      currentActionType.value = null
+    }
+  }
+
+  confirmDialogTitle.value = t('task.batchDelete')
+  confirmDialogMessage.value = t('task.confirmBatchDelete', { count: ids.length })
   confirmDialogType.value = 'danger'
   showConfirmDialog.value = true
 }

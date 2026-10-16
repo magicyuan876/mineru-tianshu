@@ -616,7 +616,9 @@ class MinerUWorkerAPI(ls.LitAPI):
                 elif file_ext in [".mp4", ".avi", ".mkv", ".mov"] and VIDEO_ENGINE_AVAILABLE:
                     result = self._process_video(file_path, options)
                 elif file_ext in [".pdf", ".png", ".jpg", ".jpeg", ".docx", ".pptx"] and MINERU_PIPELINE_AVAILABLE:
-                    options["parse_mode"] = "pipeline"
+                    auto_backend = self._decide_auto_backend(file_path, file_ext)
+                    options["parse_mode"] = auto_backend
+                    logger.info(f"🔀 Auto engine selected: {auto_backend} for {Path(file_path).name} (ext={file_ext})")
                     result = self._process_with_mineru(file_path, options)
                 elif file_ext in [".doc", ".ppt"]:
                     # 旧版 Office 格式先用 LibreOffice 转为对应 OOXML 新格式，再走 MinerU 原生解析
@@ -767,6 +769,34 @@ class MinerUWorkerAPI(ls.LitAPI):
     # -------------------------------------------------------------------------
     # Engine Processor Implementations
     # -------------------------------------------------------------------------
+    def _decide_auto_backend(self, file_path: str, file_ext: str) -> str:
+        """auto 模式引擎启发式：大文档 / 扫描图像型 / 图片文件 -> hybrid；普通文本 -> pipeline。"""
+        try:
+            if file_ext == ".pdf":
+                from pypdf import PdfReader
+                reader = PdfReader(file_path)
+                n = len(reader.pages)
+                pages = min(n, 5)
+                sample = 0
+                for i in range(pages):
+                    try:
+                        sample += len((reader.pages[i].extract_text() or "").strip())
+                    except Exception:
+                        pass
+                text_len = (sample / pages) if pages else 0
+                scanned = text_len < 100   # 几乎没有文本 -> 扫描件/图片型
+                if n > 40 or scanned:
+                    return "hybrid-auto-engine"
+                return "pipeline"
+            # 图片文件（截图/扫描图）常见复杂内容，VLM 更稳
+            if file_ext in [".png", ".jpg", ".jpeg"]:
+                return "hybrid-auto-engine"
+            # Office (docx/pptx) 走原生 MinerU
+            return "pipeline"
+        except Exception as e:
+            logger.warning(f"Auto backend heuristic failed ({e}), defaulting to pipeline")
+            return "pipeline"
+
     def _process_with_mineru(self, file_path: str, options: dict) -> dict:
         if self.mineru_pipeline_engine is None:
             from mineru_pipeline import MinerUPipelineEngine

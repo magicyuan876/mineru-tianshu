@@ -140,6 +140,7 @@ export default {
     actions: 'Actions',
     viewDetail: 'View Details',
     deleteTask: 'Delete Task',
+    deleteFailed: 'Failed to delete task',
     cancelTask: 'Cancel Task',
     cancelTaskTip: 'Cancel task (the task record will be kept)',
     cancelTaskConfirm: 'Cancel this task? Ongoing processing will be discarded, but the task record will be kept.',
@@ -253,6 +254,9 @@ export default {
     deletePermanently: 'Delete Permanently',
     deletePermanentlyTip: 'Permanently delete the task and its files',
     confirmDeletePermanent: 'Permanently delete this task and its files? This cannot be undone.',
+    batchDelete: 'Batch Delete',
+    confirmBatchDelete: 'Delete {count} selected tasks and their files? This cannot be undone.',
+
     singleColumnView: 'Single Column',
     doubleColumnView: 'Two Columns',
     processing: 'Processing...',

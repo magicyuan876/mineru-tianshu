@@ -13,6 +13,10 @@
       <button @click="retry" class="px-5 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition shadow-sm text-sm font-medium">{{ $t('pdfViewer.reload') }}</button>
     </div>
 
+    <div v-if="!loading && !error && previewLimited" class="shrink-0 z-30 bg-amber-50 border-b border-amber-200 text-amber-800 text-xs px-3 py-1.5 text-center">
+      文档共 {{ totalPages }} 页，预览仅显示前 {{ MAX_PREVIEW_PAGES }} 页（互动热区作用于已显示页；完整结果请用「下载完整结果」）。
+    </div>
+
     <div ref="scrollContainer" class="flex-1 overflow-y-auto w-full custom-scrollbar relative outline-none" @scroll="onScroll" tabindex="0">
       <div :style="{ height: totalHeight + 'px' }" class="relative w-full">
         <div
@@ -94,6 +98,8 @@ const scrollTop = ref(0)
 const containerHeight = ref(0)
 const totalHeight = ref(0) // 🚨 绝对不可丢：滚动条支柱
 const totalPages = ref(0)
+const MAX_PREVIEW_PAGES = Number(import.meta.env.VITE_MAX_PREVIEW_PAGES) || 50
+const previewLimited = computed(() => totalPages.value > MAX_PREVIEW_PAGES)
 const globalScale = ref(1.0)
 const PAGE_GAP = 16
 
@@ -118,6 +124,7 @@ const layoutMap = computed(() => {
   if (!props.layoutData) return map
   props.layoutData.forEach(block => {
     const pId = (typeof block.page_idx === 'number' ? block.page_idx : block.page_id) + 1
+    if (pId > MAX_PREVIEW_PAGES) return  // 超出预览范围的页不叠加
     if (!map[pId]) map[pId] = []
     map[pId].push(block)
   })
@@ -284,9 +291,11 @@ const buildPageSkeletons = async (retryCount = 0) => {
   globalScale.value = fitScale
 
   let currentTop = PAGE_GAP
+  // 🚨 超大文档：只对前 N 页建骨架/热区，避免浏览器加载上千页崩溃
+  const limit = Math.min(totalPages.value, MAX_PREVIEW_PAGES)
 
   // 🚀 为每一页计算出绝对的 Top 与 Height，并推入数组
-  for (let i = 1; i <= totalPages.value; i++) {
+  for (let i = 1; i <= limit; i++) {
     const p = await pdfProxy.getPage(i)
     const vp = p.getViewport({ scale: fitScale })
     newPages.push({
