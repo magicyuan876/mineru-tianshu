@@ -13,7 +13,7 @@
 | 后端 | 并发调度 | `get_next_task` 增加**每用户并发上限 `MAX_WORKERS_PER_USER` + 公平调度**，避免单用户霸占全部 worker |
 | 后端 | 自动选引擎 | `auto` 模式用启发式：纯文本 → `pipeline`；图片/扫描件 → `hybrid-auto-engine` |
 | 后端 | MCP | 默认 `backend=auto`；`get_task_status` 返回 `download_url`；`allowed_hosts` 允许公网 IP |
-| 前端 | 大文档预览 | `VirtualPdfViewer` 的 `MAX_PREVIEW_PAGES` 可配置（`VITE_MAX_PREVIEW_PAGES`，默认 50），超大 PDF 只预览前 N 页 |
+| 前端 | 大文档预览 | `VirtualPdfViewer` 的 `MAX_PREVIEW_PAGES` 可配置（`VITE_MAX_PREVIEW_PAGES`，默认 50），超大 PDF 只预览前 N 页。**注意**：改该值后需在 `frontend/.env` 设置 `VITE_MAX_PREVIEW_PAGES=50` 并重新 `npm run build` |
 | 前端 | 双向同步 | 修复 `extractV2Text`（字符串 content 提取）；只渲染有文本的块 |
 | 前端 | 下载体验 | 任务详情“下载完整结果(Zip)”带加载态提示；任务列表每行支持单条删除 |
 
