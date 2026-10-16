@@ -12,7 +12,7 @@
 ARG APT_MIRROR=mirrors.aliyun.com
 ARG PIP_MIRROR=https://mirrors.aliyun.com/pypi/simple/
 
-FROM nvidia/cuda:13.0.2-cudnn-devel-ubuntu24.04 AS base
+FROM nvidia/cuda:13.0.2-cudnn-runtime-ubuntu24.04 AS base
 ARG APT_MIRROR
 ARG PIP_MIRROR
 
@@ -35,8 +35,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # 合并为单层：原先拆成两个 RUN 会执行两次 apt-get update（各拉一遍索引）。
 # LibreOffice 只装实际用到的三个组件，元包 libreoffice 会额外带上 Base / Draw / Math，
 # 本项目一个都不用（Dockerfile.cpu 与 Dockerfile.offline 本来就是这么写的）。
+# build-essential 提供 triton 运行期所需的 gcc。
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3.12 python3.12-dev python3-pip python3.12-venv \
+    python3.12 python3.12-dev python3-pip python3.12-venv build-essential \
     git wget curl ffmpeg antiword pandoc poppler-utils \
     libgomp1 libglib2.0-0 libsm6 libxext6 libxrender-dev \
     libgl1 libglx-mesa0 libgstreamer1.0-0 \
