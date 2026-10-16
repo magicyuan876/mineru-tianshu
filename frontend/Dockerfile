@@ -17,7 +17,7 @@ ARG NPM_REGISTRY=https://registry.npmmirror.com
 # ============================================================================
 # Stage 1: Build Stage
 # ============================================================================
-FROM node:20-alpine AS builder
+FROM --platform=$BUILDPLATFORM node:20-alpine AS builder
 ARG NPM_REGISTRY
 
 WORKDIR /app
