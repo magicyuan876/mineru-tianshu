@@ -46,6 +46,14 @@
 
 ## 📝 最新更新
 
+### 2026-10-16 🚀 v2.2.1：发布预构建 Docker 镜像
+
+- ✅ **预构建镜像**：GPU 后端、CPU 后端、前端镜像随版本发布到 GHCR（`ghcr.io/magicyuan876/tianshu-backend` / `tianshu-backend-cpu` / `tianshu-frontend`），部署时直接拉取，无需本机构建
+- ✅ **compose 默认拉取发布镜像**：`docker-compose.yml` 按 `.env` 中的 `TIANSHU_IMAGE_REGISTRY` / `TIANSHU_VERSION` 拉取镜像；源码构建与本地代码挂载拆到 `docker-compose.build.yml`，`setup.sh` 默认叠加该文件，行为不变
+- ✅ **GPU 镜像瘦身**：基础镜像由 `cudnn-devel` 改为 `cudnn-runtime`，压缩后基础层从 4.32GB 降到 2.0GB
+- ✅ **第三方镜像固定版本**：vLLM 固定为 `v0.31.0`、RustFS 固定为 `1.0.1`，可通过 `VLLM_VERSION` / `RUSTFS_VERSION` 覆盖
+- 🐛 **修复**：worker 缺少 `JWT_SECRET_KEY` 导致任务完成后 Webhook 通知入队失败
+
 ### 2026-10-12 🚀 v2.2.0：加密文档解析支持
 
 - ✅ **加密 PDF**：支持密码保护的 PDF；空密码 / 仅所有者密码的文档自动移除限制，无需手动输入
@@ -346,6 +354,17 @@ make start    # 启动服务
 make stop     # 停止服务
 make logs     # 查看日志
 ```
+
+**使用预构建镜像（免构建）**：不运行 `setup.sh` 时，可直接拉取发布镜像部署。
+
+```bash
+cp .env.example .env   # 填写 JWT_SECRET_KEY、TIANSHU_ADMIN_PASSWORD、RUSTFS_*、RUSTFS_PUBLIC_URL 等必填项
+mkdir -p models/huggingface_cache models/modelscope_cache data/uploads data/output data/db          logs/backend logs/worker logs/mcp logs/scheduler
+docker compose -f docker-compose.yml -f docker-compose.pipeline.yml up -d   # 纯 pipeline
+docker compose -f docker-compose.yml -f docker-compose.vllm.yml up -d       # GPU 全引擎（含本机 vLLM）
+```
+
+> 镜像版本由 `.env` 中的 `TIANSHU_VERSION` 指定；GHCR 拉取较慢时，可把 `TIANSHU_IMAGE_REGISTRY` 改为同步后的镜像仓库地址。
 
 **服务访问**：
 - 前端：http://localhost:80

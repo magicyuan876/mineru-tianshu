@@ -44,6 +44,14 @@ English | [简体中文](./README.md)
 
 ## 📝 Latest Updates
 
+### 2026-10-16 🚀 v2.2.1: Prebuilt Docker Images
+
+- ✅ **Prebuilt images**: GPU backend, CPU backend and frontend images are published to GHCR with each release (`ghcr.io/magicyuan876/tianshu-backend` / `tianshu-backend-cpu` / `tianshu-frontend`), so deployments pull them instead of building locally
+- ✅ **compose pulls released images by default**: `docker-compose.yml` pulls images by `TIANSHU_IMAGE_REGISTRY` / `TIANSHU_VERSION` from `.env`; building from source and mounting local code moved to `docker-compose.build.yml`, which `setup.sh` layers on by default, so its behavior is unchanged
+- ✅ **Slimmer GPU image**: base image switched from `cudnn-devel` to `cudnn-runtime`, shrinking the compressed base from 4.32GB to 2.0GB
+- ✅ **Pinned third-party images**: vLLM pinned to `v0.31.0` and RustFS to `1.0.1`, overridable via `VLLM_VERSION` / `RUSTFS_VERSION`
+- 🐛 **Fix**: the worker was missing `JWT_SECRET_KEY`, so webhook notifications failed to enqueue after a task finished
+
 ### 2026-10-12 🚀 v2.2.0: Encrypted Document Parsing
 
 - ✅ **Encrypted PDFs**: password-protected PDFs are supported; documents with empty or owner-only passwords are unlocked automatically without manual input
@@ -345,6 +353,17 @@ make start    # Start services
 make stop     # Stop services
 make logs     # View logs
 ```
+
+**Using prebuilt images (no local build)**: without `setup.sh`, deploy straight from the released images.
+
+```bash
+cp .env.example .env   # fill in JWT_SECRET_KEY, TIANSHU_ADMIN_PASSWORD, RUSTFS_*, RUSTFS_PUBLIC_URL and other required keys
+mkdir -p models/huggingface_cache models/modelscope_cache data/uploads data/output data/db          logs/backend logs/worker logs/mcp logs/scheduler
+docker compose -f docker-compose.yml -f docker-compose.pipeline.yml up -d   # pipeline only
+docker compose -f docker-compose.yml -f docker-compose.vllm.yml up -d       # full GPU engines (with local vLLM)
+```
+
+> The image version is set by `TIANSHU_VERSION` in `.env`; if pulling from GHCR is slow, point `TIANSHU_IMAGE_REGISTRY` at a synced mirror registry.
 
 **Service Access**:
 - Frontend: http://localhost:80
