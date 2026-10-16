@@ -135,6 +135,11 @@ export async function getTaskChildren(taskId: string): Promise<TaskChildrenRespo
  * 重试失败的任务（父任务会重跑其失败 / 已取消的子任务）
  * password：可选，修正加密文档的打开密码后重试（留空表示沿用原密码）
  */
+export async function deleteTask(taskId: string): Promise<ApiResponse> {
+  const response = await apiClient.delete<ApiResponse>(`/api/v1/tasks/${taskId}`)
+  return response.data
+}
+
 export async function retryTask(taskId: string, password?: string): Promise<ApiResponse> {
   const formData = new FormData()
   if (password) formData.append('password', password)

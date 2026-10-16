@@ -107,9 +107,23 @@
               </button>
               <button @click="activeTab = 'json'" :class="['tab-btn', activeTab==='json' ? 'active' : '']">JSON</button>
             </div>
-            <button @click="downloadMarkdown" class="text-xs text-primary-600 hover:underline flex items-center">
-              <Download class="w-3 h-3 mr-1"/> {{ $t('task.downloadFile') }}
-            </button>
+            <div class="flex items-center gap-2">
+              <span v-if="task?.is_parent" class="text-[11px] text-emerald-600 font-medium">已自动合并为完整结果</span>
+              <button v-if="task?.download_url" @click="downloadZip" :disabled="downloadingZip"
+                class="btn btn-primary btn-sm shadow-sm flex items-center disabled:opacity-60 disabled:cursor-not-allowed"
+                :title="downloadingZip ? '较大文件正在打包，请耐心等待下载开始…' : '下载完整结果 (Zip)'">
+                <svg v-if="downloadingZip" class="w-3 h-3 mr-1 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                </svg>
+                <Download v-else class="w-3 h-3 mr-1"/>
+                {{ downloadingZip ? '正在生成下载包…' : '下载完整结果 (Zip)' }}
+              </button>
+              <span v-if="downloadingZip" class="text-[11px] text-amber-600">较大文件请耐心等待下载开始…</span>
+              <button @click="downloadMarkdown" class="text-xs text-primary-600 hover:underline flex items-center">
+                <Download class="w-3 h-3 mr-1"/> {{ $t('task.downloadFile') }}
+              </button>
+            </div>
           </div>
 
           <div :class="[
@@ -122,13 +136,13 @@
             </div>
 
             <div v-else-if="activeTab === 'sync'" class="w-full max-w-[800px] mx-auto">
-              <div v-if="layoutData.length > 0" class="flex flex-col gap-3">
+              <div v-if="syncBlocks.length > 0" class="flex flex-col gap-3">
                 <div class="text-xs text-gray-500 bg-blue-50 p-2.5 rounded-lg mb-3 border border-blue-100">
                   {{ $t('task.syncViewHint') }}
                 </div>
 
                 <div
-                  v-for="block in layoutData"
+                  v-for="block in syncBlocks"
                   :key="block.id"
                   :id="`md-block-${block.id}`"
                   @click="handleMarkdownBlockClick(block)"
@@ -199,6 +213,7 @@ import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useTaskStore, useAuthStore } from '@/stores'
+import { apiClient } from '@/api/client'
 import { ArrowLeft, AlertCircle, RefreshCw, FileText, Columns, Download, RotateCw, Eraser, Pause, Image, Table, Trash2, XCircle } from 'lucide-vue-next'
 import StatusBadge from '@/components/StatusBadge.vue'
 import LoadingSpinner from '@/components/LoadingSpinner.vue'
@@ -255,9 +270,13 @@ const layoutData = computed(() => {
       if (block.text) return block.text
       const c = block.content
       if (!c) return ''
-      const lists = c.title_content ?? c.paragraph_content ?? c.table_content ?? c.list_content ?? []
-      if (Array.isArray(lists)) return lists.map((item: any) => item.content ?? '').join('')
+      // 修复：content 是字符串时直接返回（此前字符串被 .title_content ?? ... ?? [] 误判为空数组导致文本为空）
       if (typeof c === 'string') return c
+      if (Array.isArray(c)) return c.map((item: any) => (typeof item === 'string' ? item : item?.content ?? '')).join('')
+      if (typeof c === 'object') {
+        const lists = c.title_content ?? c.paragraph_content ?? c.table_content ?? c.list_content ?? []
+        if (Array.isArray(lists)) return lists.map((item: any) => item.content ?? '').join('')
+      }
       return ''
   }
 
@@ -323,6 +342,9 @@ const layoutData = computed(() => {
   return formattedBlocks;
 })
 
+// 💡 双向同步只渲染有文本的块，避免大量空 OCR 行显示成白色长条格子
+const syncBlocks = computed(() => layoutData.value.filter(b => (b.text || '').trim()))
+
 const handlePdfBlockClick = (block: any) => {
   if (!block) return
   activeBlockId.value = block.id
@@ -381,6 +403,28 @@ const downloadMarkdown = () => {
   a.download = task.value.data.markdown_file || `${taskId.value}.md`
   a.click()
   URL.revokeObjectURL(url)
+}
+
+const downloadingZip = ref(false)
+const downloadZip = async () => {
+  if (!task.value?.download_url || downloadingZip.value) return
+  downloadingZip.value = true
+  try {
+    const resp = await apiClient.get(task.value.download_url, { responseType: 'blob' })
+    const blob = new Blob([resp.data], { type: 'application/zip' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    const stem = (task.value.file_name || `${taskId.value}`).replace(/\.[^.]+$/, '')
+    a.download = `${stem}_result.zip`
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch (e) {
+    console.error('download zip failed', e)
+    alert('下载失败，请稍后重试或联系管理员')
+  } finally {
+    downloadingZip.value = false
+  }
 }
 
 const showConfirm = ref(false)

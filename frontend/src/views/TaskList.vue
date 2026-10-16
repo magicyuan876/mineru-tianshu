@@ -307,6 +307,16 @@
                     <RefreshCw v-if="isActionLoading(task.task_id, 'cancel')" class="w-4 h-4 animate-spin" />
                     <XCircle v-else class="w-4 h-4" />
                   </button>
+
+                  <button
+                    @click="handleAction('delete', task)"
+                    :disabled="isActionLoading(task.task_id)"
+                    class="btn-icon text-gray-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    :title="$t('task.deletePermanently')"
+                  >
+                    <RefreshCw v-if="isActionLoading(task.task_id, 'delete')" class="w-4 h-4 animate-spin" />
+                    <Trash2 v-else class="w-4 h-4" />
+                  </button>
                 </div>
               </td>
             </tr>
@@ -593,7 +603,7 @@ function isActionLoading(taskId: string, actionType?: string) {
 // 子任务行传入 ChildTask（带上 parent_task_id），只用到 task_id / 父子信息
 type ActionTarget = Pick<Task, 'task_id'> & Partial<Task>
 
-function handleAction(action: 'retry' | 'pause' | 'resume' | 'cancel' | 'clearCache', task: ActionTarget) {
+function handleAction(action: 'retry' | 'pause' | 'resume' | 'cancel' | 'clearCache' | 'delete', task: ActionTarget) {
   // 设置待执行的 Action
   const execute = async () => {
     actionLoading.value = true
@@ -607,6 +617,7 @@ function handleAction(action: 'retry' | 'pause' | 'resume' | 'cancel' | 'clearCa
         case 'resume': await taskStore.resumeTask(task.task_id); break;
         case 'clearCache': await taskStore.clearTaskCache(task.task_id); break;
         case 'cancel': await taskStore.cancelTask(task.task_id); break;
+        case 'delete': await taskStore.deleteTask(task.task_id); break;
       }
       await refreshTasks() // 操作后刷新列表（已展开父任务的分片一并刷新）
     } catch (error) {
@@ -651,6 +662,13 @@ function handleAction(action: 'retry' | 'pause' | 'resume' | 'cancel' | 'clearCa
       pendingAction = execute
       confirmDialogTitle.value = t('task.cancelTask')
       confirmDialogMessage.value = task.children_stats ? t('task.confirmCancelParent') : t('task.confirmCancel')
+      confirmDialogType.value = 'danger'
+      showConfirmDialog.value = true
+      break
+    case 'delete':
+      pendingAction = execute
+      confirmDialogTitle.value = t('task.deleteTask')
+      confirmDialogMessage.value = t('task.confirmDeletePermanent')
       confirmDialogType.value = 'danger'
       showConfirmDialog.value = true
       break

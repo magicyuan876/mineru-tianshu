@@ -140,6 +140,7 @@ export default {
     actions: 'Actions',
     viewDetail: 'View Details',
     deleteTask: 'Delete Task',
+    deleteFailed: 'Failed to delete task',
     cancelTask: 'Cancel Task',
     cancelTaskTip: 'Cancel task (the task record will be kept)',
     cancelTaskConfirm: 'Cancel this task? Ongoing processing will be discarded, but the task record will be kept.',

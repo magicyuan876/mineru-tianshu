@@ -140,6 +140,7 @@ export default {
     actions: '操作',
     viewDetail: '查看详情',
     deleteTask: '删除任务',
+    deleteFailed: '删除任务失败',
     cancelTask: '取消任务',
     cancelTaskTip: '取消任务（保留任务记录）',
     cancelTaskConfirm: '确定取消该任务吗？进行中的解析将被放弃，任务记录会保留。',
