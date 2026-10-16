@@ -32,11 +32,11 @@
               class="flex-1"
             />
 
-            <div class="mt-6 pt-6 border-t border-gray-100">
+            <div class="mt-6 pt-6 border-t border-gray-100 sticky bottom-0 bg-white/95 backdrop-blur z-10">
               <button
                 @click="submitTasks"
                 :disabled="files.length === 0 || submitting"
-                class="w-full btn btn-primary py-3 text-base font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shadow-sm hover:shadow-md transition-all transform active:scale-[0.98]"
+                class="w-full btn btn-primary py-3 text-base font-medium disabled:opacity-100 disabled:bg-primary-200 disabled:text-primary-400 disabled:cursor-not-allowed flex items-center justify-center shadow-sm hover:shadow-md transition-all transform active:scale-[0.98]"
               >
                 <Loader v-if="submitting" class="w-5 h-5 mr-2 animate-spin" />
                 <Send v-else class="w-5 h-5 mr-2" />

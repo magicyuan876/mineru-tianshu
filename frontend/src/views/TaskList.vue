@@ -117,6 +117,14 @@
             {{ $t('task.batchCancel') }}
           </button>
           <button
+            @click="batchDelete"
+            :disabled="actionLoading"
+            class="bg-white border border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 px-3 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Trash2 :class="{ 'animate-spin': actionLoading && currentActionType === 'batchDelete' }" class="w-3.5 h-3.5 mr-1.5" />
+            {{ $t('task.batchDelete') }}
+          </button>
+          <button
             @click="selectedTasks = []; selectAll = false"
             class="text-gray-500 hover:text-gray-700 hover:bg-gray-100 px-3 py-1.5 rounded-md text-xs font-medium transition-colors"
           >
@@ -702,6 +710,35 @@ function confirmClearFailed() {
   }
   confirmDialogTitle.value = t('task.clearFailedTasks')
   confirmDialogMessage.value = t('task.confirmClearFailed')
+  confirmDialogType.value = 'danger'
+  showConfirmDialog.value = true
+}
+
+// =======================================================
+// 批量删除（勾选任意任务后批量删除）
+// =======================================================
+function batchDelete() {
+  const ids = selectedTasks.value
+  if (ids.length === 0) return
+
+  pendingAction = async () => {
+    actionLoading.value = true
+    currentActionType.value = 'batchDelete'
+    try {
+      for (const id of ids) {
+        await taskStore.deleteTask(id)
+      }
+      selectedTasks.value = []
+      selectAll.value = false
+      await refreshTasks(true)
+    } finally {
+      actionLoading.value = false
+      currentActionType.value = null
+    }
+  }
+
+  confirmDialogTitle.value = t('task.batchDelete')
+  confirmDialogMessage.value = t('task.confirmBatchDelete', { count: ids.length })
   confirmDialogType.value = 'danger'
   showConfirmDialog.value = true
 }

@@ -254,6 +254,9 @@ export default {
     deletePermanently: 'Delete Permanently',
     deletePermanentlyTip: 'Permanently delete the task and its files',
     confirmDeletePermanent: 'Permanently delete this task and its files? This cannot be undone.',
+    batchDelete: 'Batch Delete',
+    confirmBatchDelete: 'Delete {count} selected tasks and their files? This cannot be undone.',
+
     singleColumnView: 'Single Column',
     doubleColumnView: 'Two Columns',
     processing: 'Processing...',
